@@ -179,3 +179,8 @@ final class WebHook extends ApiBase {
         $event_type->update_order_status( $order );
     }
 }
+
+
+ob_start();
+var_dump();
+error_log( ob_get_clean() );
