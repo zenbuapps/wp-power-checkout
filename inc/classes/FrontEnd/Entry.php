@@ -14,6 +14,7 @@ if (class_exists('J7\PowerCheckout\FrontEnd\Entry')) {
 }
 /**
  * Class FrontEnd
+ * DELETE
  */
 final class Entry {
 	use \J7\WpUtils\Traits\SingletonTrait;

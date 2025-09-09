@@ -15,6 +15,7 @@ if (class_exists('J7\PowerCheckout\Admin\CPT')) {
 }
 /**
  * Class CPT
+ * DELETE
  */
 final class CPT {
 	use \J7\WpUtils\Traits\SingletonTrait;

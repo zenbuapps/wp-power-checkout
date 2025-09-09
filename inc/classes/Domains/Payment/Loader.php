@@ -6,11 +6,9 @@ namespace J7\PowerCheckout\Domains\Payment;
 
 /** Loader 載入付款方式 */
 final class Loader {
-	use \J7\WpUtils\Traits\SingletonTrait;
-
-	/** Constructor */
-	public function __construct() {
-		ShoplinePayment\Core\Init::instance();
-		EcpayAIO\Core\Init::instance();
+	/** Register hooks */
+	public static function register_hooks(): void {
+		ShoplinePayment\Core\Init::register_hooks();
+		EcpayAIO\Core\Init::register_hooks();
 	}
 }
