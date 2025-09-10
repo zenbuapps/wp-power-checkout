@@ -2,7 +2,7 @@
 
 declare ( strict_types = 1 );
 
-namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Core;
+namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http;
 
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Settings;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Webhooks\Body;

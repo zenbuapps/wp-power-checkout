@@ -7,8 +7,8 @@
 namespace J7\PowerCheckoutTests\Domains\Payment\ShoplinePayment;
 
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Core\RedirectGateway;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\Service;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\RedirectGateway;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http\ApiClient;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\PaymentGateway;
 use J7\PowerCheckoutTests\Attributes\Create;
 use J7\PowerCheckoutTests\Helper\Order;
@@ -65,7 +65,7 @@ class RedirectGatewayTest extends WC_UnitTestCase {
         $result = null;
         // 模擬 API 環境 - 不發請求
         if( Api::MOCK === $this->api ) {                // 這邊實例化 $service 看會不會報錯
-            $service = new Service( $this->gateway, $this->get_order() );
+            $service = new ApiClient( $this->gateway, $this->get_order() );
             $redirect = "https://pay-sandbox.shoplinepayments.com/checkout/session?sessionToken=BGPGC6M6A4A27OILWBY54WP4J5UDTY3BPE5SSMHPTTORKOPFRM2OWNYQ6C6KM4TFUYFQGWF3EMCDMRP7QHAZ2R3HADADXGYEQUEWJWDCZ32SLPR5EBKBMYGOCOOGZW4FIDKNHXQWAIS7US66XEBCBGZ5FM======--v1";
             $result = ProcessResult::SUCCESS->to_array( $redirect );
         }

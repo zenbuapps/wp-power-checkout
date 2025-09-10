@@ -2,16 +2,18 @@
 
 declare (strict_types = 1);
 
-namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Core;
+namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services;
 
 use Automattic\WooCommerce\Blocks\Payments\PaymentMethodRegistry;
+use J7\PowerCheckout\Domains\Payment\Contracts\IGatewayService;
 use J7\WpUtils\Classes\General;
 use J7\PowerCheckout\Domains\Payment\Shared\BlocksIntegration;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http\WebHook;
 
 /**
  * Init 初始化付款方式 單例
  */
-final class Init {
+final class RedirectGatewayService implements IGatewayService {
 
 	/** @var string 付款方式 callback 的 action 前綴 */
 	public const PREFIX = 'pc_slp_';
@@ -19,6 +21,7 @@ final class Init {
 	/** Register hooks */
 	public static function register_hooks(): void {
 		WebHook::instance();
+		// 添加付款方式
 		\add_filter( 'woocommerce_payment_gateways', [ __CLASS__ , 'add_method' ] );
 
 		// 整合區塊結帳
@@ -33,7 +36,7 @@ final class Init {
 
 	/** 註冊區塊結帳支援 */
 	public static function register_checkout_blocks( PaymentMethodRegistry $payment_method_registry ): void {
-		if (!class_exists('\Automattic\WooCommerce\Blocks\Payments\Integrations\AbstractPaymentMethodType')) {
+		if (!\class_exists('\Automattic\WooCommerce\Blocks\Payments\Integrations\AbstractPaymentMethodType')) {
 			return;
 		}
 

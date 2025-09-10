@@ -2,7 +2,7 @@
 
 declare (strict_types = 1);
 
-namespace J7\PowerCheckout\Domains\WC_Settings_API\DTOs;
+namespace J7\PowerCheckout\Domains\Settings\DTOs;
 
 use J7\WpUtils\Classes\DTO;
 
@@ -12,7 +12,7 @@ use J7\WpUtils\Classes\DTO;
  *
  * @see https://developer.woocommerce.com/docs/settings-api/
  *  */
-class FormField extends DTO {
+class FormFieldDTO extends DTO {
 
 	/** @var string 設定頁面上顯示的標題 */
 	public string $title = '';

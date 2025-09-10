@@ -16,7 +16,7 @@ class Params {
 	/** @var string 回應參數 meta_key */
 	public const RESPONSE_KEY = 'pc_payment_res_params';
 
-	/** @var \WC_Order 訂單 */
+	/** Construct */
 	public function __construct(
 		private readonly \WC_Order $order,
 	) {}

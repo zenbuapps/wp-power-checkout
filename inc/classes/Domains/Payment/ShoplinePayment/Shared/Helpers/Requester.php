@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services;
+namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Helpers;
 
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Settings;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Session\Create\RequestHeader;
@@ -33,11 +33,6 @@ final class Requester {
 		public \WC_Order $order
 	) {
 		$this->settings = Settings::instance();
-	}
-
-	/** 取得 API 端點 @param string $endpoint 端點 /trade/payment/create @return string 端點 */
-	public function get_endpoint( string $endpoint ): string {
-		return $this->settings->apiUrl . self::API_VERSION . $endpoint;
 	}
 
 	/**
@@ -100,5 +95,10 @@ final class Requester {
 				);
 
 		return ResponseParams::create( $response_body );
+	}
+
+	/** 取得 API 端點 @param string $endpoint 端點 /trade/payment/create @return string 端點 */
+	public function get_endpoint( string $endpoint ): string {
+		return $this->settings->apiUrl . self::API_VERSION . $endpoint;
 	}
 }

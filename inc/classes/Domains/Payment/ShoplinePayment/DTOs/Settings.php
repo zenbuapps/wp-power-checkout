@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs;
 
 use J7\WpUtils\Classes\DTO;
-use J7\PowerCheckout\Domains\Settings\DTOs\Settings as PowerCheckoutSettings;
+use J7\PowerCheckout\Domains\Settings\DTOs\SettingsDTO as PowerCheckoutSettings;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums;
 
 /**
@@ -14,28 +14,22 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums;
 final class Settings extends DTO {
 
 	const KEY = 'ShoplinePayment';
-
+	/** @var self|null 單例 */
+	protected static $settings_instance = null;
 	/** @var Enums\Mode::value 模式 */
 	public string $mode;
-
 	/** @var string SLP 平台 ID，平台特店必填，平台特店底下會有子特店 */
 	public string $platformId;
-
 	/** @var string *直連特店串接：SLP 分配的特店 ID；平台特店串接：SLP 分配的子特店 ID */
 	public string $merchantId = '';
-
 	/** @var string *API 介面金鑰 */
 	public string $apiKey = '';
-
 	/** @var string 客戶端金鑰 */
 	public string $clinetKey = '';
-
 	/** @var string 端點 */
 	public string $apiUrl = 'https://api.shoplinepayments.com';
-
 	/** @var string 簽名密鑰，需要設定完 webhook 後，由 shopline 窗口提供 @see https://docs.shoplinepayments.com/api/event/model/#簽章演算法 */
 	public string $signKey = '';
-
 	/** @var array<Enums\PaymentMethod::value> 允許的付款方式 */
 	public array $allowPaymentMethodList = [
 		'CreditCard',
@@ -45,9 +39,6 @@ final class Settings extends DTO {
 		'LinePay',
 		'ChaileaseBNPL',
 	];
-
-	/** @var self|null 單例 */
-	protected static $settings_instance = null;
 
 	/** 創建實例，單例 @param array $args 設定 @return self */
 	public static function create( array $args = [] ): self {

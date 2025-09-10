@@ -7,7 +7,7 @@
 namespace J7\PowerCheckoutTests\Domains\Payment\ShoplinePayment;
 
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Core\RedirectGateway;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\RedirectGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\PaymentGateway;
 use J7\PowerCheckoutTests\Helper;
 use J7\PowerCheckoutTests\Shared\Api;

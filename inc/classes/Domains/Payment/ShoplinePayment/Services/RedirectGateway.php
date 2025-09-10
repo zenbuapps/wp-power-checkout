@@ -2,20 +2,21 @@
 
 declare (strict_types = 1);
 
-namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Core;
+namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services;
 
+use J7\PowerCheckout\Domains\Payment\Contracts\IGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\PaymentGateway;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\Service;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http\ApiClient;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
 
 /**
  * RedirectGateway 跳轉支付
  * TODO Shopline payment 似乎是跳轉到 Shopline 的頁面才選擇支付方式，與綠界不同  確認後，再改成正確的備註
  * */
-final class RedirectGateway extends PaymentGateway {
+final class RedirectGateway extends PaymentGateway implements IGateway {
 
 	/** @var string 付款方式 ID */
-	public const ID = Init::PREFIX . 'redirect';
+	public const ID = RedirectGatewayService::PREFIX . 'redirect';
 
 	/** @var string 付款方式 ID */
 	public $id = self::ID;
@@ -24,20 +25,6 @@ final class RedirectGateway extends PaymentGateway {
 	public function __construct() {
 		$this->payment_label = __( 'Shopline Payment (Redirect)', 'power_checkout' );
 		parent::__construct();
-	}
-
-	/**
-	 * 在 /checkout/order-received/{$order_id}/?key=wc_order_{$order_key}
-	 * 前執行
-	 *
-	 * 不需要清空購物車， order-received 本來就會清
-	 *
-	 * @param \WC_Order $order 訂單
-	 * */
-	protected function before_order_received( \WC_Order $order ): void {
-		// 狀態轉為保留，因為 SLP 的付款成功狀態是非同步，所以待確認
-		$order->update_status( 'wc-on-hold' );
-		$order->add_order_note( \__( 'Shopline Payment 付款狀態確認中', 'power_checkout' ) );
 	}
 
 	/**
@@ -53,12 +40,12 @@ final class RedirectGateway extends PaymentGateway {
 			parent::process_payment( $order_id );
 			$order       = \wc_get_order( $order_id );
 			$this->order = $order;
-			$service     = new Service( $this, $order );
+			$service     = new ApiClient( $this, $order );
 			// 取得要跳轉的 url
 			$redirect = $service->create_session();
 			return ProcessResult::SUCCESS->to_array( $redirect );
-		} catch (\Throwable $th) {
-			$this->logger( $th->getMessage(), 'error', [], 5 );
+		} catch (\Exception $e) {
+			$this->logger( $e->getMessage(), 'error', [], 5 );
 			// 避免將錯誤資訊 print 到前端
 			\wc_add_notice( "處理結帳時發生錯誤，請查閱 {$this->payment_label} 的 log 紀錄了解詳情", 'error' );
 			return ProcessResult::FAILED->to_array();
@@ -143,5 +130,19 @@ final class RedirectGateway extends PaymentGateway {
 	</tr>
 </table>
 		<?php
+	}
+
+	/**
+	 * 在 /checkout/order-received/{$order_id}/?key=wc_order_{$order_key}
+	 * 前執行
+	 *
+	 * 不需要清空購物車， order-received 本來就會清
+	 *
+	 * @param \WC_Order $order 訂單
+	 * */
+	protected function before_order_received( \WC_Order $order ): void {
+		// 狀態轉為保留，因為 SLP 的付款成功狀態是非同步，所以待確認
+		$order->update_status( 'wc-on-hold' );
+		$order->add_order_note( \__( 'Shopline Payment 付款狀態確認中', 'power_checkout' ) );
 	}
 }

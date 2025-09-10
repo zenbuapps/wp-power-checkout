@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Settings\DTOs\Components;
 
 use J7\WpUtils\Classes\DTO;
-use J7\PowerCheckout\Domains\Settings\DTOs\Settings as PowerCheckoutSettings;
+use J7\PowerCheckout\Domains\Settings\DTOs\SettingsDTO as PowerCheckoutSettings;
 use J7\PowerCheckout\Domains\Payment;
 
 /**
@@ -17,16 +17,14 @@ use J7\PowerCheckout\Domains\Payment;
  *
  * 金流 [power_checkout_settings][payments][$gateway_id]
  *  */
-final class Payments extends DTO {
-
-	/** @var Payment\EcpayAIO\DTOs\Settings EcpayAIO 綠界 All in One 跳轉支付 */
-	public Payment\EcpayAIO\DTOs\Settings $EcpayAIO;
-
-	/** @var Payment\ShoplinePayment\DTOs\Settings Shopline 跳轉支付 */
-	public Payment\ShoplinePayment\DTOs\Settings $ShoplinePayment;
+final class PaymentsDTO extends DTO {
 
 	/** @var self|null 實例 */
 	protected static self|null $settings_instance = null;
+	/** @var Payment\EcpayAIO\DTOs\Settings EcpayAIO 綠界 All in One 跳轉支付 */
+	public Payment\EcpayAIO\DTOs\Settings $EcpayAIO;
+	/** @var Payment\ShoplinePayment\DTOs\Settings Shopline 跳轉支付 */
+	public Payment\ShoplinePayment\DTOs\Settings $ShoplinePayment;
 
 	/** 創建實例，單例 */
 	public static function create( array $payments = [] ): self {

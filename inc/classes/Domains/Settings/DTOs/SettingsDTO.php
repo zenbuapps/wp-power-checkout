@@ -17,21 +17,19 @@ use J7\WpUtils\Classes\DTO;
  * 物流 [power_checkout_settings][shippings][$shipping_id]
  * 電子發票 [power_checkout_settings][invoices][$invoice_id]
  *  */
-final class Settings extends DTO {
+final class SettingsDTO extends DTO {
 
 	const OPTION_NAME = 'power_checkout_settings';
-
-	/** @var Components\Payments 金流 */
-	public Components\Payments $payments;
+	/** @var self|null 實例 */
+	protected static self|null $settings_instance = null;
 
 	/** @var Components\Shippings 物流 */
 	// public Components\Shippings $shippings;
 
 	/** @var Components\Invoices 電子發票 */
 	// public Components\Invoices $invoices;
-
-	/** @var self|null 實例 */
-	protected static self|null $settings_instance = null;
+	/** @var Components\PaymentsDTO 金流 */
+	public Components\PaymentsDTO $payments;
 
 	/** 取得實例，單例 */
 	public static function instance(): self {
@@ -39,9 +37,9 @@ final class Settings extends DTO {
 			return self::$settings_instance;
 		}
 		$settings = \get_option(self::OPTION_NAME, []);
-		$settings = is_array($settings) ? $settings : [];
+		$settings = \is_array($settings) ? $settings : [];
 		$args     = [
-			'payments' => Components\Payments::create($settings['payments'] ?? []),
+			'payments' => Components\PaymentsDTO::create( $settings['payments'] ?? []),
 			// 'shippings' => Components\Shippings::create($settings['shippings'] ?? []),
 			// 'invoices'  => Components\Invoices::create($settings['invoices'] ?? []),
 		];

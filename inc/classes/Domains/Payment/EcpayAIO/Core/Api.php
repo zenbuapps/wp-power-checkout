@@ -53,25 +53,11 @@ final class Api extends ApiBase {
 
 			// 收到綠界回傳值後儲存訂單的 transaction_id 以及相關資料，還有修改狀態
 			$this->set_transaction_info( $response_params );
-			return $this->response_to_ecpay( $is_check_value_valid );
-		} catch (\Throwable $th) {
+			return $this->response_to_ecpay( true );
+		} catch (\Exception $e) {
 			// $service->error->add( 400, $th->getMessage() );
 			return $this->response_to_ecpay( $is_check_value_valid );
 		}
-	}
-
-	/**
-	 * 回應綠界
-	 *
-	 * @param bool $is_check_value_valid 是否驗證成功
-	 * @return \WP_REST_Response
-	 */
-	private function response_to_ecpay( bool $is_check_value_valid ): \WP_REST_Response {
-		if ( $is_check_value_valid ) {
-			return new \WP_REST_Response( self::SUCCESS_CODE, 200 );
-		}
-
-		return new \WP_REST_Response( self::ERROR_CODE, 400 );
 	}
 
 	/**
@@ -156,5 +142,19 @@ final class Api extends ApiBase {
 
 		// 儲存訂單資料
 		$order->save();
+	}
+
+	/**
+	 * 回應綠界
+	 *
+	 * @param bool $is_check_value_valid 是否驗證成功
+	 * @return \WP_REST_Response
+	 */
+	private function response_to_ecpay( bool $is_check_value_valid ): \WP_REST_Response {
+		if ( $is_check_value_valid ) {
+			return new \WP_REST_Response( self::SUCCESS_CODE, 200 );
+		}
+
+		return new \WP_REST_Response( self::ERROR_CODE, 400 );
 	}
 }
