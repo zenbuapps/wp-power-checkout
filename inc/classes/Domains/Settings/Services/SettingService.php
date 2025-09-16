@@ -11,29 +11,13 @@ use J7\PowerCheckout\Plugin;
  */
 class SettingService {
 
-	/** @var object{value:string, label:string} 設定分頁 value 及 label */
-	private static object $tab;
+	/** @var array{0:string, 1:string} 設定分頁 [value, label] */
+	private static array $tab;
 
-	/** @var object{handle:string, src:string, deps:string[], ver:string, arg:array{strategy:string,in_footer:bool}} 腳本資訊 */
-	private static object $script;
 
 	/** Register hooks */
 	public static function register_hooks(): void {
-		self::$tab = (object) [
-			'value' => 'power_checkout_wc_settings',
-			'label' => __( 'Power Checkout 設定', 'power_checkout' ),
-		];
-
-		self::$script = (object) [
-			'handle' => 'power-checkout-wc-setting-tab',
-			'src'    => Plugin::$url . '/js/dist/main.js',
-			'deps'   => [ 'jquery' ],
-			'ver'    => Plugin::$version,
-			'arg'    => [
-				'strategy'  => 'async',
-				'in_footer' => true,
-			],
-		];
+		self::$tab = [ 'power_checkout_wc_settings', \__( 'Power Checkout 設定', 'power_checkout' ) ];
 
 		\add_action( 'woocommerce_settings_tabs_array', [ __CLASS__, 'add_settings_tab' ], 30);
 		\add_action( 'admin_head', [ __CLASS__, 'hide_default_element' ]);
@@ -47,8 +31,8 @@ class SettingService {
 	 * @return array $settings_tabs WooCommerce 設定分頁及標籤的陣列，包含訂閱分頁。
 	 */
 	public static function add_settings_tab( array $settings_tabs ): array {
-		$tab                          = self::$tab;
-		$settings_tabs[ $tab->value ] = $tab->label;
+		[$tab_key, $tab_label]     = self::$tab;
+		$settings_tabs[ $tab_key ] = $tab_label;
 		return $settings_tabs;
 	}
 
@@ -71,7 +55,8 @@ class SettingService {
 
 	/** @return bool 是否為目前的設定分頁 */
 	private static function is_current_tab(): bool {
-        return 'wc-settings' === @$_GET['page'] && self::$tab->value === @$_GET['tab']; // phpcs:ignore
+		[$tab_key ] = self::$tab;
+        return 'wc-settings' === @$_GET['page'] && $tab_key === @$_GET['tab']; // phpcs:ignore
 	}
 
 	/**
@@ -86,11 +71,23 @@ class SettingService {
 			return;
 		}
 		\wp_enqueue_script(
-			self::$script->handle,
-			self::$script->src,
-			self::$script->deps,
-			self::$script->ver,
-			self::$script->arg
+			'power-checkout-wc-setting-tab',
+			Plugin::$url . '/js/dist/index.js',
+			[ 'jquery' ],
+			Plugin::$version,
+			[
+				'strategy'  => 'async',
+				'in_footer' => true,
+			]
+			);
+
+		Plugin::instance()->add_module_handle( 'power-checkout-wc-setting-tab');
+
+		\wp_enqueue_style(
+		'power-checkout-wc-setting-tab',
+		Plugin::$url . '/js/dist/index.css',
+		[],
+		Plugin::$version,
 		);
 	}
 }

@@ -16,11 +16,12 @@ export default defineConfig({
     build: {
         outDir: 'js/dist',
         rollupOptions: {
-            input: 'js/src/main.ts',
+            input: 'js/src/index.ts',
             output: {
-                entryFileNames: 'main.js',
-                format: 'iife',
-                name: 'settings'
+                entryFileNames: 'index.js',
+                name: 'settings',
+								// 修改資源檔案名稱
+								assetFileNames: '[name].[ext]',
             }
         },
     },
