@@ -17,6 +17,9 @@ final class SettingsDTO extends DTO {
 
 	/** @var self|null 單例 */
 	protected static ?SettingsDTO $settings_instance = null;
+
+	/** @var bool $enabled 是否啟用 */
+	public bool $enabled = false;
 	/** @var string $mode Enums\Mode::value 模式  */
 	public string $mode;
 	/** @var string SLP 平台 ID，平台特店必填，平台特店底下會有子特店 */
