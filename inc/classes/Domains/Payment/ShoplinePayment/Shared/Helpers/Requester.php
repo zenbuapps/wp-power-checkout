@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Helpers;
 
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Settings;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\SettingsDTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Session\Create\RequestHeader;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Session\Create\ResponseParams;
 use J7\PowerCheckout\Domains\Payment\Shared\AbstractPaymentGateway;
@@ -24,15 +24,15 @@ final class Requester {
 
 	const TIMEOUT = 60;
 
-	/** @var Settings 設定 */
-	public Settings $settings;
+	/** @var SettingsDTO 設定 */
+	public SettingsDTO $settings;
 
 	/** Constructor */
 	public function __construct(
 		public AbstractPaymentGateway $gateway,
 		public \WC_Order $order
 	) {
-		$this->settings = Settings::instance();
+		$this->settings = SettingsDTO::instance();
 	}
 
 	/**

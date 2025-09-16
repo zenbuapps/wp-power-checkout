@@ -19,7 +19,7 @@ use J7\WpUtils\Classes\DTO;
  *  */
 final class SettingsDTO extends DTO {
 
-	const OPTION_NAME = 'power_checkout_settings';
+	private const OPTION_NAME = 'power_checkout_settings';
 	/** @var self|null 實例 */
 	protected static self|null $settings_instance = null;
 

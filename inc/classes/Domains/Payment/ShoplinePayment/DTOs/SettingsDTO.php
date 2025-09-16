@@ -11,12 +11,13 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums;
 /**
  * Shopline 跳轉支付設定，單例
  */
-final class Settings extends DTO {
+final class SettingsDTO extends DTO {
 
-	const KEY = 'ShoplinePayment';
+	public const KEY = 'ShoplinePayment';
+
 	/** @var self|null 單例 */
-	protected static $settings_instance = null;
-	/** @var Enums\Mode::value 模式 */
+	protected static ?SettingsDTO $settings_instance = null;
+	/** @var string $mode Enums\Mode::value 模式  */
 	public string $mode;
 	/** @var string SLP 平台 ID，平台特店必填，平台特店底下會有子特店 */
 	public string $platformId;
@@ -25,12 +26,13 @@ final class Settings extends DTO {
 	/** @var string *API 介面金鑰 */
 	public string $apiKey = '';
 	/** @var string 客戶端金鑰 */
-	public string $clinetKey = '';
+	public string $clientKey = '';
 	/** @var string 端點 */
 	public string $apiUrl = 'https://api.shoplinepayments.com';
 	/** @var string 簽名密鑰，需要設定完 webhook 後，由 shopline 窗口提供 @see https://docs.shoplinepayments.com/api/event/model/#簽章演算法 */
 	public string $signKey = '';
-	/** @var array<Enums\PaymentMethod::value> 允許的付款方式 */
+
+	/** @var array<string> $allowPaymentMethodList array<Enums\PaymentMethod::value> 允許的付款方式 */
 	public array $allowPaymentMethodList = [
 		'CreditCard',
 		'VirtualAccount',
@@ -40,7 +42,13 @@ final class Settings extends DTO {
 		'ChaileaseBNPL',
 	];
 
-	/** 創建實例，單例 @param array $args 設定 @return self */
+	/** 創建實例，單例
+	 *
+	 * @param array $args 設定 @return self
+	 *
+	 * @return \J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\SettingsDTO
+	 * @throws \Exception 如果驗證失敗
+	 */
 	public static function create( array $args = [] ): self {
 		if (self::$settings_instance) {
 			return self::$settings_instance;
@@ -74,7 +82,9 @@ final class Settings extends DTO {
 	 * 自訂驗證邏輯
 	 *
 	 * @throws \Exception 如果驗證失敗
-	 *  */
+	 *
+	 * @noinspection PhpExpressionResultUnusedInspection
+	 */
 	public function validate(): void {
 		parent::validate();
 		Enums\Mode::from( $this->mode );

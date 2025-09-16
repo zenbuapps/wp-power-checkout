@@ -6,6 +6,7 @@ namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services;
 
 use Automattic\WooCommerce\Blocks\Payments\PaymentMethodRegistry;
 use J7\PowerCheckout\Domains\Payment\Contracts\IGatewayService;
+use J7\PowerCheckout\Domains\Settings\DTOs\SettingsDTO;
 use J7\WpUtils\Classes\General;
 use J7\PowerCheckout\Domains\Payment\Shared\BlocksIntegration;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http\WebHook;
@@ -20,6 +21,8 @@ final class RedirectGatewayService implements IGatewayService {
 
 	/** Register hooks */
 	public static function register_hooks(): void {
+		$settings = SettingsDTO::instance();
+
 		WebHook::instance();
 		// 添加付款方式
 		\add_filter( 'woocommerce_payment_gateways', [ __CLASS__ , 'add_method' ] );

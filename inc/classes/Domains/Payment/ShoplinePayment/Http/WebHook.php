@@ -4,7 +4,7 @@ declare ( strict_types = 1 );
 
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http;
 
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Settings;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\SettingsDTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Webhooks\Body;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Webhooks\Session;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\EventType;
@@ -159,7 +159,7 @@ final class WebHook extends ApiBase {
 	private function generate_hmac_sha256_signature( string $payload ): string {
 		// 確保資料是 UTF-8 編碼
 		$payload  = mb_convert_encoding( $payload, 'UTF-8', 'auto' );
-		$sign_key = Settings::instance()->signKey;
+		$sign_key = SettingsDTO::instance()->signKey;
 		return hash_hmac( 'sha256', $payload, $sign_key );
 	}
 

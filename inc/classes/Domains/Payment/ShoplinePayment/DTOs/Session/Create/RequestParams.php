@@ -8,7 +8,7 @@ use J7\WpUtils\Classes\DTO;
 use J7\PowerCheckout\Domains\Payment\Shared\AbstractPaymentGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\PaymentMethod;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Components;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Settings;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\SettingsDTO;
 
 /**
  * Shopline Payment 跳轉式支付 RequestParams
@@ -73,7 +73,7 @@ final class RequestParams extends DTO {
 	 *  @param \WC_Order              $order 訂單
 	 */
 	public static function create( AbstractPaymentGateway $gateway, \WC_Order $order, ): self {
-		$settings = Settings::instance();
+		$settings = SettingsDTO::instance();
 		$total    = $order->get_total();
 		$args     = [
 			'referenceId'            => $order->get_id(),

@@ -23,8 +23,8 @@ final class PaymentsDTO extends DTO {
 	protected static self|null $settings_instance = null;
 	/** @var Payment\EcpayAIO\DTOs\Settings EcpayAIO 綠界 All in One 跳轉支付 */
 	public Payment\EcpayAIO\DTOs\Settings $EcpayAIO;
-	/** @var Payment\ShoplinePayment\DTOs\Settings Shopline 跳轉支付 */
-	public Payment\ShoplinePayment\DTOs\Settings $ShoplinePayment;
+	/** @var Payment\ShoplinePayment\DTOs\SettingsDTO Shopline 跳轉支付 */
+	public Payment\ShoplinePayment\DTOs\SettingsDTO $ShoplinePayment;
 
 	/** 創建實例，單例 */
 	public static function create( array $payments = [] ): self {
@@ -33,8 +33,8 @@ final class PaymentsDTO extends DTO {
 		}
 
 		$payment_keys = [
-			Payment\EcpayAIO\DTOs\Settings::KEY        => Payment\EcpayAIO\DTOs\Settings::class,
-			Payment\ShoplinePayment\DTOs\Settings::KEY => Payment\ShoplinePayment\DTOs\Settings::class,
+			Payment\EcpayAIO\DTOs\Settings::KEY           => Payment\EcpayAIO\DTOs\Settings::class,
+			Payment\ShoplinePayment\DTOs\SettingsDTO::KEY => Payment\ShoplinePayment\DTOs\SettingsDTO::class,
 		];
 
 		$args = [];

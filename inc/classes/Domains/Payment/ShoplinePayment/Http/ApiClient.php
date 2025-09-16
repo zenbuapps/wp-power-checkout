@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http;
 
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Settings;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\SettingsDTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Helpers\Requester;
 use J7\PowerCheckout\Domains\Payment\Shared\AbstractPaymentGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Session\Create\RequestParams;
@@ -20,8 +20,8 @@ use J7\PowerCheckout\Domains\Payment\Shared\Params;
  *  */
 final class ApiClient {
 
-	/** @var Settings 設定 */
-	public Settings $settings;
+	/** @var SettingsDTO 設定 */
+	public SettingsDTO $settings;
 
 	/** @var Requester 請求器 */
 	public Requester $requester;
@@ -33,7 +33,7 @@ final class ApiClient {
 		/** @var \WC_Order 訂單 */
 		public \WC_Order $order
 	) {
-		$this->settings  = Settings::instance();
+		$this->settings  = SettingsDTO::instance();
 		$this->requester = new Requester( $this->gateway, $this->order );
 	}
 
