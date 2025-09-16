@@ -9,7 +9,7 @@ use J7\PowerCheckout\Plugin;
 /**
  * WooCommerce 設定分頁服務
  */
-class SettingService {
+class SettingTabService {
 
 	/** @var array{0:string, 1:string} 設定分頁 [value, label] */
 	private static array $tab;

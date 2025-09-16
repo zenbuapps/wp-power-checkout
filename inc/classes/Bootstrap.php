@@ -17,10 +17,12 @@ final class Bootstrap {
 
 	/** Constructor */
 	public function __construct() {
+
 		FrontEnd\Entry::instance();
 		Admin\CPT::instance();
 		Domains\Payment\Loader::register_hooks();
-		Domains\Settings\Services\SettingService::register_hooks();
+		Domains\Settings\Services\SettingApiService::register_hooks();
+		Domains\Settings\Services\SettingTabService::register_hooks();
 
 		\add_action( 'admin_enqueue_scripts', [ $this, 'admin_enqueue_script' ] );
 		\add_action( 'wp_enqueue_scripts', [ $this, 'frontend_enqueue_script' ] );

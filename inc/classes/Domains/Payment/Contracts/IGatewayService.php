@@ -8,6 +8,9 @@ use Automattic\WooCommerce\Blocks\Payments\PaymentMethodRegistry;
 
 interface IGatewayService {
 
+	/** 開關 GateWay */
+	public static function toggle(): void;
+
 	/** Register hooks */
 	public static function register_hooks(): void;
 

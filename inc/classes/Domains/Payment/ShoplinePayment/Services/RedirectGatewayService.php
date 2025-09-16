@@ -19,6 +19,10 @@ final class RedirectGatewayService implements IGatewayService {
 	/** @var string 付款方式 callback 的 action 前綴 */
 	public const PREFIX = 'pc_slp_';
 
+	/** 開關 GateWay */
+	public static function toggle(): void {
+	}
+
 	/** Register hooks */
 	public static function register_hooks(): void {
 		$settings = SettingsDTO::instance();

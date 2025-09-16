@@ -27,6 +27,11 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 		parent::__construct();
 	}
 
+	/** @return string 服務類 */
+	public static function get_service_class(): string {
+		return RedirectGatewayService::class;
+	}
+
 	/**
 	 * Shopline 跳轉式支付核心支付邏輯
 	 *
@@ -40,9 +45,9 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 			parent::process_payment( $order_id );
 			$order       = \wc_get_order( $order_id );
 			$this->order = $order;
-			$service     = new ApiClient( $this, $order );
+			$api         = new ApiClient( $this, $order );
 			// 取得要跳轉的 url
-			$redirect = $service->create_session();
+			$redirect = $api->create_session();
 			return ProcessResult::SUCCESS->to_array( $redirect );
 		} catch (\Exception $e) {
 			$this->logger( $e->getMessage(), 'error', [], 5 );
