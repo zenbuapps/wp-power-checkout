@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Settings\Services;
 
-use _PHPStan_bc6352b8e\Nette\Neon\Exception;
 use J7\PowerCheckout\Utils\IntegrationUtils;
 use J7\WpUtils\Classes\ApiBase;
 use J7\WpUtils\Traits\SingletonTrait;
@@ -43,7 +42,6 @@ final class SettingApiService extends ApiBase {
 	 * @param \WP_REST_Request $request Request.
 	 *
 	 * @return \WP_REST_Response
-	 * @phpstan-ignore-next-line
 	 */
 	public function get_integrations_callback( \WP_REST_Request $request ): \WP_REST_Response {
 		$integrations = IntegrationUtils::get_integrations();
@@ -59,15 +57,14 @@ final class SettingApiService extends ApiBase {
 	 * @param \WP_REST_Request $request Request.
 	 *
 	 * @return \WP_REST_Response
-	 * @throw Exception 如果 integration_key 無效或其他錯誤
-	 * @phpstan-ignore-next-line
+	 * @throws \Exception 如果 integration_key 無效或其他錯誤
 	 */
 	public function post_toggle_integration_callback( \WP_REST_Request $request ): \WP_REST_Response {
 		$integration_key = $request->get_param( 'integration_key' );
 		$integration     = IntegrationUtils::get_integration( $integration_key);
 
 		if (!$integration) {
-			throw new Exception("Can't find Integration with {$integration_key} key");
+			throw new \Exception("Can't find Integration with {$integration_key} key");
 		}
 
 		$integration->toggle();
