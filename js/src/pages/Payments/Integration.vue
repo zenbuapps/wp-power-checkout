@@ -2,7 +2,7 @@
 import {Back, InfoFilled} from "@element-plus/icons-vue";
 import {computed, ref, toRaw, watch} from 'vue'
 import {useRoute} from 'vue-router'
-import {useQuery} from "@tanstack/vue-query";
+import {useQuery, useMutation, useQueryClient} from "@tanstack/vue-query";
 import apiClient from "@/api";
 
 interface IFormData {
@@ -30,8 +30,8 @@ const {isPending, data} = useQuery({
 })
 
 
-// 表單 ref
-const formRef = ref<IFormData>()
+// Element Plus 表單 ref
+const formRef = ref()
 
 // 表單資料
 const form = ref<IFormData>({
@@ -61,9 +61,31 @@ watch(
 const isTestMode = computed(() => form.value.mode === 'test')
 
 const onSubmit = () => {
-  console.log('submit!', toRaw(form.value))
+  console.log('submit!', toRaw<IFormData>(form.value))
+  formRef.value.validate((valid: boolean) => {
+    console.log('valid', valid)
+    if (valid) {
+      mutate(toRaw(form.value)) // 呼叫 mutation
+    }
+  })
 }
 
+const queryClient = useQueryClient()
+
+// 定義 mutation
+const {mutate} = useMutation({
+  mutationFn: async (payload: typeof form) => {
+    // 發送更新 API
+    return await apiClient.post(`/settings/${settingKey}`, payload)
+  },
+  onSuccess: () => {
+    // 成功後可刷新相關快取
+    queryClient.invalidateQueries({queryKey: ['integration_settings', settingKey,]})
+  },
+  onError: (err) => {
+    console.error('更新失敗', err)
+  }
+})
 
 </script>
 

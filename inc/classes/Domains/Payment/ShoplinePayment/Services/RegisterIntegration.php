@@ -46,11 +46,12 @@ final class RegisterIntegration extends BaseRegisterIntegration {
 	 * @throws \Exception 如果驗證失敗
 	 */
 	public static function save_settings( array $data ): void {
-		$all_settings            = SettingTabService::get_settings();
-		$origin_integration_data = $all_settings[ self::$setting_key ] ?? [];
+		$integration_setting = new SettingsDTO($data);
+
+		$all_settings = SettingTabService::get_settings();
 
 		// 覆寫這個 integration_key 的設定
-		$all_settings[ self::$integration_key ] = \wp_parse_args($data, $origin_integration_data);
+		$all_settings[ self::$setting_key ] = $integration_setting->to_array(true);
 		SettingTabService::save_settings($all_settings);
 	}
 

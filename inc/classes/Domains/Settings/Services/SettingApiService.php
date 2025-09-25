@@ -86,7 +86,6 @@ final class SettingApiService extends ApiBase {
 		$params = WP::sanitize_text_field_deep($params, false );
 
 		$registered_integration = $integration->get_registered_integration();
-
 		$registered_integration::save_settings( $params );
 		return new \WP_REST_Response(
 			[
