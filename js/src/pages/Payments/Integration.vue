@@ -1,17 +1,18 @@
 <script lang="ts" setup>
 import {Back, InfoFilled} from "@element-plus/icons-vue";
-import {computed, ref, toRaw, watch} from 'vue'
+import {computed, reactive, ref, toRaw, watch} from 'vue'
 import {useRoute} from 'vue-router'
 import {useQuery, useMutation, useQueryClient} from "@tanstack/vue-query";
 import apiClient from "@/api";
+import type {FormInstance, FormRules} from 'element-plus'
 
 interface IFormData {
   mode: string,
   platformId?: string,
-  merchantId?: string,
-  apiKey?: string,
-  clientKey?: string,
-  signKey?: string,
+  merchantId: string,
+  apiKey: string,
+  clientKey: string,
+  signKey: string,
   allowPaymentMethodList: string[],
 }
 
@@ -36,6 +37,10 @@ const formRef = ref()
 // 表單資料
 const form = ref<IFormData>({
   mode: 'test',
+  merchantId: '',
+  apiKey: '',
+  clientKey: '',
+  signKey: '',
   allowPaymentMethodList: [
     'CreditCard',
     'VirtualAccount',
@@ -60,9 +65,10 @@ watch(
 
 const isTestMode = computed(() => form.value.mode === 'test')
 
-const onSubmit = () => {
+const onSubmit = async () => {
   console.log('submit!', toRaw<IFormData>(form.value))
-  formRef.value.validate((valid: boolean) => {
+
+  await formRef.value.validate((valid: boolean) => {
     console.log('valid', valid)
     if (valid) {
       save(toRaw(form.value)) // 呼叫 mutation
@@ -74,10 +80,7 @@ const queryClient = useQueryClient()
 
 // 定義 mutation
 const {mutate: save, isPending: isSavePending} = useMutation({
-  mutationFn: async (payload: IFormData) => {
-    // 發送更新 API
-    return await apiClient.post(`/settings/${settingKey}`, payload)
-  },
+  mutationFn: async (payload: IFormData) => await apiClient.post(`/settings/${settingKey}`, payload),
   onSuccess: () => {
     // 成功後可刷新相關快取
     queryClient.invalidateQueries({queryKey: ['integration_settings', settingKey,]})
@@ -86,6 +89,33 @@ const {mutate: save, isPending: isSavePending} = useMutation({
     console.error('更新失敗', err)
   }
 })
+
+const rules = reactive<FormRules<IFormData>>({
+  merchantId: [
+    {required: true, message: '此欄位為必填'},
+  ],
+  apiKey: [
+    {required: true, message: '此欄位為必填'},
+  ],
+  clientKey: [
+    {required: true, message: '此欄位為必填'}
+  ],
+  signKey: [
+    {required: true, message: '此欄位為必填'}
+  ],
+  allowPaymentMethodList: [
+    {
+      validator: (_, value, callback) => {
+        if (Array.isArray(value) && value.length > 0) {
+          callback()
+        } else {
+          callback(new Error('請至少選擇一種付款方式'))
+        }
+      },
+    }
+  ],
+})
+
 
 </script>
 
@@ -104,6 +134,7 @@ const {mutate: save, isPending: isSavePending} = useMutation({
       :class="{
       'opacity-25': isPending,
       }"
+      :rules="rules"
       style="max-width: 40rem">
     <el-form-item>
       <template #label>
@@ -120,7 +151,7 @@ const {mutate: save, isPending: isSavePending} = useMutation({
           inactive-value="prod"/>
     </el-form-item>
 
-    <el-form-item>
+    <el-form-item prop="platformId">
       <template #label>
         <span class="flex gap-x-2 items-center">
           <span>Platform Id</span>
@@ -132,7 +163,7 @@ const {mutate: save, isPending: isSavePending} = useMutation({
       <el-input v-model="form.platformId" :disabled="isTestMode"/>
     </el-form-item>
 
-    <el-form-item :required="!isTestMode">
+    <el-form-item :required="!isTestMode" prop="merchantId">
       <template #label>
         <span class="flex gap-x-2 items-center">
           <span>Merchant Id</span>
@@ -144,21 +175,21 @@ const {mutate: save, isPending: isSavePending} = useMutation({
       <el-input v-model="form.merchantId" :disabled="isTestMode"/>
     </el-form-item>
 
-    <el-form-item :required="!isTestMode" label="Api Key">
+    <el-form-item :required="!isTestMode" prop="apiKey" label="Api Key">
       <el-input v-model="form.apiKey" :disabled="isTestMode"/>
     </el-form-item>
 
-    <el-form-item :required="!isTestMode" label="Client Key">
+    <el-form-item :required="!isTestMode" prop="clientKey" label="Client Key">
       <el-input v-model="form.clientKey" :disabled="isTestMode"/>
     </el-form-item>
 
-    <el-form-item :required="!isTestMode" label="Sign Key">
+    <el-form-item :required="!isTestMode" prop="signKey" label="Sign Key">
       <el-input v-model="form.signKey" :disabled="isTestMode"/>
       <p class="text-sm text-gray-500">Sign Key 簽名密鑰，需要設定完 WebHook 後，由 Shopline 窗口提供</p>
     </el-form-item>
 
 
-    <el-form-item label="允許的付款方式">
+    <el-form-item prop="allowPaymentMethodList" label="允許的付款方式">
       <el-checkbox-group v-model="form.allowPaymentMethodList">
         <el-checkbox name="allowPaymentMethodList" value="CreditCard">
           信用卡
@@ -183,11 +214,6 @@ const {mutate: save, isPending: isSavePending} = useMutation({
 
     <el-form-item>
       <el-button v-loading="isSavePending" type="primary" @click="onSubmit">儲存</el-button>
-      <el-button>Cancel</el-button>
     </el-form-item>
   </el-form>
 </template>
-
-<style scoped>
-
-</style>
