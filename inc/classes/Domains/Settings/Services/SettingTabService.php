@@ -25,7 +25,7 @@ class SettingTabService {
 	 * @return array 取得設定
 	 */
 	public static function get_settings( string $integration_key = '' ): array {
-		$settings = \get_option( self::OPTION_NAME, [] );
+		$settings = \get_option( self::OPTION_NAME );
 		$settings = \is_array( $settings ) ? $settings : [];
 		if (!$integration_key) {
 			return $settings;

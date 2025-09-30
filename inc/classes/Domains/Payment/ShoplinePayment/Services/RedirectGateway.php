@@ -23,7 +23,7 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 
 	/** Constructor */
 	public function __construct() {
-		$this->payment_label = \__( 'Shopline Payment (Redirect)', 'power_checkout' );
+		$this->payment_label = \__( 'Shopline Payment (導轉式)', 'power_checkout' );
 		parent::__construct();
 	}
 
