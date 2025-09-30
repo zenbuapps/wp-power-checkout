@@ -38,6 +38,8 @@ final class CreditCard extends DTO {
 	/** 自訂驗證 */
 	public function validate(): void {
 		parent::validate();
-		Enums\CreditCardType::from( $this->type );
+		if (isset( $this->type)) {
+			Enums\CreditCardType::from( $this->type );
+		}
 	}
 }

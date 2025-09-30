@@ -97,7 +97,9 @@ final class SettingsDTO extends DTO {
 	 */
 	public function validate(): void {
 		parent::validate();
-		Enums\Mode::from( $this->mode );
+		if (isset( $this->mode)) {
+			Enums\Mode::from( $this->mode );
+		}
 		foreach ( $this->allowPaymentMethodList as $payment_method ) {
 			Enums\PaymentMethod::from( $payment_method );
 		}

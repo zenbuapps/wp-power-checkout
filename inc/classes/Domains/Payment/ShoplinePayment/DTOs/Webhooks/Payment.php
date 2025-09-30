@@ -53,7 +53,6 @@ final class Payment extends DTO {
 		'referenceOrderId',
 		'tradeOrderId',
 		'status',
-		'subStatus',
 		'order',
 		'payment',
 	];
@@ -73,8 +72,11 @@ final class Payment extends DTO {
 	/** 自訂驗證邏輯 */
 	public function validate(): void {
 		parent::validate();
-		ResponseStatus::from($this->status);
-		if ( $this->subStatus ) {
+		if (isset($this->status)) {
+			ResponseStatus::from($this->status);
+		}
+
+		if ( isset($this->subStatus) ) {
 			ResponseSubStatus::from($this->subStatus);
 		}
 	}

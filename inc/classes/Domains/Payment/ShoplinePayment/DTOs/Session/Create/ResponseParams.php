@@ -68,6 +68,8 @@ final class ResponseParams extends DTO {
 	 *  */
 	public function validate(): void {
 		parent::validate();
-		Enums\ResponseStatus::from( $this->status );
+		if (isset( $this->status)) {
+			Enums\ResponseStatus::from( $this->status );
+		}
 	}
 }

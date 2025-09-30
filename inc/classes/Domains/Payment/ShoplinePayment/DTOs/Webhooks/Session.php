@@ -18,19 +18,19 @@ final class Session extends DTO {
 	/** @var string *SLP 結帳交易訂單編號 (32)*/
 	public string $sessionId;
 
-	/** @var string *特店訂單號 (32)*/
+	/** @var string *特店訂單號 (32) */
 	public string $referenceId;
 
-	/** @var ResponseStatus::value *結帳交易狀態 (16)*/
+	/** @var ResponseStatus::value *結帳交易狀態 (16) */
 	public string $status;
 
-	/** @var string *結帳交易提供給顧客付款的 URL (256)*/
+	/** @var string *結帳交易提供給顧客付款的 URL (256) */
 	public string $sessionUrl;
 
-	/** @var int *訂單建立時間*/
+	/** @var int *訂單建立時間 */
 	public int $createTime;
 
-	/** @var Components\Amount *訂單金額*/
+	/** @var Components\Amount *訂單金額 */
 	public Components\Amount $amount;
 
 	/** @var Components\PaymentDetail[] 付款方式詳細資訊 */
@@ -44,7 +44,6 @@ final class Session extends DTO {
 		'sessionUrl',
 		'createTime',
 		'amount',
-		'paymentDetails',
 	];
 
 	/**
@@ -74,6 +73,8 @@ final class Session extends DTO {
 	/** 自訂驗證邏輯 */
 	public function validate(): void {
 		parent::validate();
-		ResponseStatus::from( $this->status );
+		if (isset( $this->status)) {
+			ResponseStatus::from( $this->status );
+		}
 	}
 }

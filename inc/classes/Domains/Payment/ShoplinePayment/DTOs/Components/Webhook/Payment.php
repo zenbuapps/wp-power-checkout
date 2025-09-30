@@ -65,7 +65,7 @@ final class Payment extends DTO {
 	 */
 	public static function create( array $args ): self {
 		$args['paidAmount'] = Components\Amount::parse( $args['paidAmount'] );
-		if ( isset( $args['creditCard'] ) ) {
+		if ( isset( $args['creditCard'] ) && $args['creditCard'] ) {
 			$args['creditCard'] = Components\CreditCard::parse( $args['creditCard'] );
 		}
 		if ( isset( $args['virtualAccount'] ) ) {
@@ -83,7 +83,11 @@ final class Payment extends DTO {
 	/** 自訂驗證 */
 	public function validate(): void {
 		parent::validate();
-		Enums\PaymentMethod::from( $this->paymentMethod );
-		Enums\PaymentBehavior::from( $this->paymentBehavior );
+		if (isset( $this->paymentMethod)) {
+			Enums\PaymentMethod::from( $this->paymentMethod );
+		}
+		if (isset( $this->paymentBehavior)) {
+			Enums\PaymentBehavior::from( $this->paymentBehavior );
+		}
 	}
 }
