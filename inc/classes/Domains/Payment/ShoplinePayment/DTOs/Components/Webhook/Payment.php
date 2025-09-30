@@ -67,7 +67,10 @@ final class Payment extends DTO {
 		$args['paidAmount'] = Components\Amount::parse( $args['paidAmount'] );
 		if ( isset( $args['creditCard'] ) && $args['creditCard'] ) {
 			$args['creditCard'] = Components\CreditCard::parse( $args['creditCard'] );
+		} else {
+			unset($args['creditCard']);
 		}
+
 		if ( isset( $args['virtualAccount'] ) ) {
 			$args['virtualAccount'] = Components\VirtualAccount::parse( $args['virtualAccount'] );
 		}
