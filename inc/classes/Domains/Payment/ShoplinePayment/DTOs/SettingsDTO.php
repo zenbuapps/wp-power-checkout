@@ -15,7 +15,7 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums;
 final class SettingsDTO extends DTO {
 
 	/** @var string $mode Enums\Mode::value 模式  */
-	public string $mode = Enums\Mode::TEST->value;
+	public string $mode;
 	/** @var string SLP 平台 ID，平台特店必填，平台特店底下會有子特店 */
 	public string $platformId;
 	/** @var string *直連特店串接：SLP 分配的特店 ID；平台特店串接：SLP 分配的子特店 ID */
@@ -69,7 +69,6 @@ final class SettingsDTO extends DTO {
 	 * @return array
 	 */
 	public function to_array( bool $raw = false ): array {
-		$array = parent::to_array();
 		if ($raw) {
 			$default_array = [
 				'mode'                   => Enums\Mode::TEST->value,

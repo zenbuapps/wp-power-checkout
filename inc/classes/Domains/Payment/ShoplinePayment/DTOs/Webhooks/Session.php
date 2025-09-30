@@ -34,7 +34,7 @@ final class Session extends DTO {
 	public Components\Amount $amount;
 
 	/** @var Components\PaymentDetail[] 付款方式詳細資訊 */
-	public array $paymentDetails;
+	public array|null $paymentDetails = null;
 
 	/** @var array 必填屬性 */
 	protected array $require_properties = [

@@ -64,8 +64,9 @@ final class Payment extends DTO {
 	 * @param array<string, mixed> $args 原始資料
 	 */
 	public static function create( array $args ): self {
-		$args['order']   = Webhook\Order::create( $args['order'] );
-		$args['payment'] = Webhook\Payment::create( $args['payment'] );
+		$args['order']      = Webhook\Order::create( $args['order'] );
+		$args['payment']    = Webhook\Payment::create( $args['payment'] );
+		$args['paymentMsg'] = new Components\PaymentError( $args['paymentMsg'] );
 		return new self( $args );
 	}
 
