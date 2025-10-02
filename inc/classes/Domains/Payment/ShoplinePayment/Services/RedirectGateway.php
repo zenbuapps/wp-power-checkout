@@ -5,6 +5,7 @@ declare (strict_types = 1);
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services;
 
 use J7\PowerCheckout\Domains\Payment\Contracts\IGateway;
+use J7\PowerCheckout\Domains\Payment\Shared\Params;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Abstracts\PaymentGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http\ApiClient;
 
@@ -35,7 +36,6 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 	 * @throws \Exception 如果訂單不存在
 	 */
 	protected function before_process_payment( \WC_Order $order ): string {
-		$this->order = $order;
 		// 取得要跳轉的 url
 		return ( new ApiClient( $this, $order ) )->create_session();
 	}
@@ -120,17 +120,27 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 		<?php
 	}
 
+
 	/**
+	 * 第三方金流 callback 回來之後，頁面 render 前
 	 * 在 /checkout/order-received/{$order_id}/?key=wc_order_{$order_key}
 	 * 前執行
 	 *
-	 * 不需要清空購物車， order-received 本來就會清
+	 * 例如綠界需透過前端網頁導轉(Submit)到綠界付款API網址
 	 *
 	 * @param \WC_Order $order 訂單
-	 * */
+	 */
 	protected function before_order_received( \WC_Order $order ): void {
+		// as_enqueue_async_action( $hook, $args, $group, $unique, $priority );
+		$this->query_session( $order );
+
 		// 狀態轉為保留，因為 SLP 的付款成功狀態是非同步，所以待確認
-		$order->update_status( 'wc-on-hold' );
-		$order->add_order_note( \__( 'Shopline Payment 付款狀態確認中', 'power_checkout' ) );
+		// $order->update_status( 'wc-on-hold' );
+		// $order->add_order_note( \__( 'Shopline Payment 付款狀態確認中', 'power_checkout' ) );
+	}
+
+	private function query_session( \WC_Order $order ) {
+
+		( new ApiClient( $this, $order ) )->create_session();
 	}
 }

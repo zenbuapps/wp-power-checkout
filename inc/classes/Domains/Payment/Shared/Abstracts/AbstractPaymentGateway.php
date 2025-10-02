@@ -242,6 +242,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 			if ( !$order instanceof \WC_Order ) {
 				throw new \Exception( \__( 'Order not found.', 'power_checkout' ) );
 			}
+			$this->record_exception_to_order_note($order);
 
 			$order->add_order_note( \sprintf( \__( 'Pay via %s', 'power_checkout' ), $this->method_title ) );
 
@@ -317,12 +318,12 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 			return;
 		}
 		$order = \wc_get_order( $order_id );
-		if ( !$order ) {
+		if ( !$order instanceof \WC_Order) {
 			return;
 		}
 
 		if ($this->id === $order->get_payment_method() ) {
-			/** @var \WC_Order $order */
+			$this->record_exception_to_order_note($order);
 			$this->before_order_received( $order );
 		}
 	}
@@ -331,6 +332,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	 * 第三方金流 callback 回來之後，頁面 render 前
 	 * 在 /checkout/order-received/{$order_id}/?key=wc_order_{$order_key}
 	 * 前執行
+	 * 不需要清空購物車， order-received 本來就會清
 	 *
 	 * 例如綠界需透過前端網頁導轉(Submit)到綠界付款API網址
 	 *
@@ -406,5 +408,10 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 		}
 
 		return $order_or_id->get_payment_method() === $this->id;
+	}
+
+	/** 設定 order 屬性，就能在呼叫 logger 時同時記錄在 order note 上 */
+	final protected function record_exception_to_order_note( \WC_Order $order ): void {
+		$this->order = $order;
 	}
 }

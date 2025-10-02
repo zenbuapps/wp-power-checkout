@@ -6,8 +6,9 @@ namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http;
 
 use J7\PowerCheckout\Domains\Payment\Shared\Abstracts\AbstractPaymentGateway;
 use J7\PowerCheckout\Domains\Payment\Shared\Params;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Session\Create\RequestParams;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Session\Create\ResponseParams;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Session\RequestParamsCreate;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Session\RequestParamsQuery;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Session\ResponseParams;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Helpers\Requester;
 
 /**
@@ -40,7 +41,7 @@ final class ApiClient {
 	 * @throws \Exception 如果交易建立失敗
 	 *  */
 	public function create_session(): string {
-		$request_body  = RequestParams::create( $this->gateway, $this->order )->to_array();
+		$request_body  = RequestParamsCreate::create( $this->gateway, $this->order )->to_array();
 		$response_body = $this->requester->post( '/trade/sessions/create', $request_body );
 		return ResponseParams::create( $response_body )->sessionUrl;
 	}
@@ -52,16 +53,12 @@ final class ApiClient {
 	 * @throws \Exception 如果結帳交易查詢失敗
 	 *  */
 	public function query_session(): array {
-		$session_id = ( new Params( $this->order ) )->get_response('sessionId');
-		if (!$session_id) {
-			throw new \Exception( 'Session ID not found' );
-		}
-		$response = $this->requester->post(
+		$request_body = RequestParamsQuery::create( $this->order )->to_array();
+
+		$response_body = $this->requester->post(
 			'/trade/sessions/query',
-			[
-				'sessionId' => $session_id,
-			]
+			$request_body
 			);
-		return $response;
+		return ResponseParams::create( $response_body )->to_array();
 	}
 }

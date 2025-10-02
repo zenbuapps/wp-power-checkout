@@ -6,7 +6,7 @@ namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Helpers;
 
 use J7\PowerCheckout\Domains\Payment\Shared\Abstracts\AbstractPaymentGateway;
 use J7\PowerCheckout\Domains\Payment\Shared\Params;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Session\Create\RequestHeader;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Session\RequestHeader;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\SettingsDTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\RegisterIntegration;
 

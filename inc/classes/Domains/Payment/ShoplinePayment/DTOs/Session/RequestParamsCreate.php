@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Session\Create;
+namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Session;
 
 use J7\PowerCheckout\Domains\Payment\Shared\Abstracts\AbstractPaymentGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Components;
@@ -15,7 +15,7 @@ use J7\WpUtils\Classes\DTO;
  *
  * @see https://docs.shoplinepayments.com/api/trade/session/
  */
-final class RequestParams extends DTO {
+final class RequestParamsCreate extends DTO {
 
 	/** @var string *特店訂單號 (32) */
 	public string $referenceId;

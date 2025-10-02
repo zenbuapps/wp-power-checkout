@@ -13,7 +13,7 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\Country;
  * 請求會帶
  *  */
 class Address extends DTO {
-	/** @var Country::value (2) *國家地區編碼，如 TW */
+	/** @var string Country::value (2) *國家地區編碼，如 TW */
 	public string $countryCode;
 
 	/** @var string (12) 州或省代碼 */

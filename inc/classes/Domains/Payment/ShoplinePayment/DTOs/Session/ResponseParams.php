@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Session\Create;
+namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Session;
 
 use J7\WpUtils\Classes\DTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums;
