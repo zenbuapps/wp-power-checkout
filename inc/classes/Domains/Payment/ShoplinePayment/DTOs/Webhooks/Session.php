@@ -19,7 +19,7 @@ final class Session extends DTO {
 	public string $sessionId;
 
 	/** @var string *特店訂單號 (32) */
-	public string $referenceId;
+	public string $referenceId = '';
 
 	/** @var ResponseStatus::value *結帳交易狀態 (16) */
 	public string $status;
