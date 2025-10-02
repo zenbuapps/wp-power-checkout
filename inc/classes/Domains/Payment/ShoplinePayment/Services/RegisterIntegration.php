@@ -32,6 +32,10 @@ final class RegisterIntegration extends BaseRegisterIntegration {
 	/** @var string Integration 圖示 URL */
 	public static string $icon_url = 'https://img.shoplineapp.com/media/image_clips/62297669a344ad002979d725/original.png';
 
+
+	/** @var string 儲存識別碼的參數 key，例如 SLP 的 sessionId */
+	public static string $identity_array_key = 'sessionId';
+
 	/** Register hooks */
 	public static function register_hooks(): void {
 		IntegrationUtils::register(__CLASS__, DomainType::PAYMENTS->value);

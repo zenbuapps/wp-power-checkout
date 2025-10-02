@@ -10,12 +10,17 @@
 
 ```php
 // 成功
-trade.succeeded
-↓
 session.succeeded
+↓
+trade.succeeded
+
+
 
 // 失敗
 trade.failed // 直接失敗 ex 發卡銀行拒絕
+
+// 過期
+session.expired
 ```
 
 ## 信用卡流程(3D)

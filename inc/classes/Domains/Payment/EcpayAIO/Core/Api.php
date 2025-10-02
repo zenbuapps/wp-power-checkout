@@ -136,7 +136,7 @@ final class Api extends ApiBase {
 		// 如果都不是以上狀況那就是 RtnCode=1 (交易成功)
 		// 設定訂單的交易編號
 		$order->set_transaction_id( $response_params->TradeNo );
-		(new Params($order))->save_response( $response_params->to_array() );
+		(new Params($order))->save_response( $response_params->to_array(), RegisterIntegration::$identity_array_key );
 		$order->payment_complete(); // 修改狀態為 processing | completed
 		// phpcs:enable
 

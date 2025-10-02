@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Helpers;
 
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\SettingsDTO;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Session\Create\RequestHeader;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Session\Create\ResponseParams;
-use J7\PowerCheckout\Domains\Payment\Shared\AbstractPaymentGateway;
+use J7\PowerCheckout\Domains\Payment\Shared\Abstracts\AbstractPaymentGateway;
 use J7\PowerCheckout\Domains\Payment\Shared\Params;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Session\Create\RequestHeader;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\SettingsDTO;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\RegisterIntegration;
 
 
 /**
@@ -20,17 +20,17 @@ use J7\PowerCheckout\Domains\Payment\Shared\Params;
  *  */
 final class Requester {
 
-	const API_VERSION = '/api/v1';
+	private const API_VERSION = '/api/v1';
 
-	const TIMEOUT = 60;
+	private const TIMEOUT = 60;
 
 	/** @var SettingsDTO 設定 */
 	public SettingsDTO $settings;
 
 	/** Constructor */
 	public function __construct(
-		public AbstractPaymentGateway $gateway,
-		public \WC_Order $order
+		private readonly AbstractPaymentGateway $gateway,
+		private readonly \WC_Order $order
 	) {
 		$this->settings = new SettingsDTO();
 	}
@@ -40,10 +40,10 @@ final class Requester {
 	 *
 	 *  @param string               $endpoint 端點
 	 *  @param array<string, mixed> $request_body 請求參數
-	 *  @return ResponseParams|null 回應參數
+	 *  @return array Response Body
 	 *  @throws \Exception 發生錯誤時拋出
 	 */
-	public function post( string $endpoint, array $request_body = [] ): ResponseParams|null {
+	public function post( string $endpoint, array $request_body = [] ): array {
 		$api_url = $this->get_endpoint( $endpoint );
 		// 儲存請求參數
 		( new Params( $this->order ) )->save_request( $request_body, $api_url );
@@ -67,7 +67,7 @@ final class Requester {
 		/** @var array<string, mixed>|array{code: int, msg: string} $response_body */
 		$response_body = json_decode( \wp_remote_retrieve_body( $response ), true );
 		// 儲存回應參數
-		( new Params( $this->order ) )->save_response( $response_body );
+		( new Params( $this->order ) )->save_response( $response_body, RegisterIntegration::$identity_array_key );
 		// LOG 記錄
 		$this->gateway->logger(
 				"{$this->gateway->payment_label} 請求參數 #{$this->order->get_id()}",
@@ -89,12 +89,12 @@ final class Requester {
 		}
 
 		$this->gateway->logger(
-				"✅ {$this->gateway->payment_label} 交易成功 #{$this->order->get_id()}",
+				"✅ {$this->gateway->payment_label} 發送請求成功 #{$this->order->get_id()}",
 				'info',
 				$response_body
 				);
 
-		return ResponseParams::create( $response_body );
+		return $response_body;
 	}
 
 	/** 取得 API 端點 @param string $endpoint 端點 /trade/payment/create @return string 端點 */

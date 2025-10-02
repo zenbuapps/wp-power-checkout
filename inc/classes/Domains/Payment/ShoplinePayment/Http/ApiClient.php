@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http;
 
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\SettingsDTO;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Helpers\Requester;
-use J7\PowerCheckout\Domains\Payment\Shared\AbstractPaymentGateway;
+use J7\PowerCheckout\Domains\Payment\Shared\Abstracts\AbstractPaymentGateway;
+use J7\PowerCheckout\Domains\Payment\Shared\Params;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Session\Create\RequestParams;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Session\Create\ResponseParams;
-use J7\PowerCheckout\Domains\Payment\Shared\Params;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Helpers\Requester;
 
 /**
  * Shopline Payment 跳轉式支付服務類 工廠模式
@@ -20,20 +19,16 @@ use J7\PowerCheckout\Domains\Payment\Shared\Params;
  *  */
 final class ApiClient {
 
-	/** @var SettingsDTO 設定 */
-	public SettingsDTO $settings;
-
 	/** @var Requester 請求器 */
-	public Requester $requester;
+	private Requester $requester;
 
 	/** Constructor */
 	public function __construct(
 		/** @var AbstractPaymentGateway 付款閘道 */
-		public AbstractPaymentGateway $gateway,
+		private readonly AbstractPaymentGateway $gateway,
 		/** @var \WC_Order 訂單 */
-		public \WC_Order $order
+		private readonly \WC_Order $order
 	) {
-		$this->settings  = new SettingsDTO();
 		$this->requester = new Requester( $this->gateway, $this->order );
 	}
 
@@ -45,27 +40,26 @@ final class ApiClient {
 	 * @throws \Exception 如果交易建立失敗
 	 *  */
 	public function create_session(): string {
-		$request_body = RequestParams::create( $this->gateway, $this->order )->to_array();
-		$response     = $this->requester->post( '/trade/sessions/create', $request_body );
-		return $response->sessionUrl;
+		$request_body  = RequestParams::create( $this->gateway, $this->order )->to_array();
+		$response_body = $this->requester->post( '/trade/sessions/create', $request_body );
+		return ResponseParams::create( $response_body )->sessionUrl;
 	}
 
 	/**
 	 * 查詢結帳交易
 	 *
 	 * @see https://docs.shoplinepayments.com/api/trade/sessionQuery/
-	 * @throws \Exception 如果交易查詢失敗
+	 * @throws \Exception 如果結帳交易查詢失敗
 	 *  */
-	public function query_session(): ResponseParams|null {
-		$response_params_array = ( new Params( $this->order ) )->get_response();
-		$response_params       = ResponseParams::create( $response_params_array );
-		if (!isset($response_params->sessionId)) {
+	public function query_session(): array {
+		$session_id = ( new Params( $this->order ) )->get_response('sessionId');
+		if (!$session_id) {
 			throw new \Exception( 'Session ID not found' );
 		}
 		$response = $this->requester->post(
 			'/trade/sessions/query',
 			[
-				'sessionId' => $response_params->sessionId,
+				'sessionId' => $session_id,
 			]
 			);
 		return $response;

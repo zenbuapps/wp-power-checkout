@@ -7,7 +7,6 @@ namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services;
 use J7\PowerCheckout\Domains\Payment\Contracts\IGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Abstracts\PaymentGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http\ApiClient;
-use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
 
 /**
  * RedirectGateway 跳轉支付
@@ -31,25 +30,14 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 	 * Shopline 跳轉式支付核心支付邏輯
 	 *
 	 * @see \WC_Payment_Gateway::process_payment
-	 * @param int $order_id 訂單 ID
-	 * @return array{result: ProcessResult::SUCCESS | ProcessResult::FAILED, redirect?: string}
+	 * @param \WC_Order $order 訂單
+	 * @return string
 	 * @throws \Exception 如果訂單不存在
 	 */
-	public function process_payment( $order_id ): array {
-		try {
-			parent::process_payment( $order_id );
-			$order       = \wc_get_order( $order_id );
-			$this->order = $order;
-			$api         = new ApiClient( $this, $order );
-			// 取得要跳轉的 url
-			$redirect = $api->create_session();
-			return ProcessResult::SUCCESS->to_array( $redirect );
-		} catch (\Exception $e) {
-			$this->logger( $e->getMessage(), 'error', [], 5 );
-			// 避免將錯誤資訊 print 到前端
-			\wc_add_notice( "處理結帳時發生錯誤，請查閱 {$this->payment_label} 的 log 紀錄了解詳情", 'error' );
-			return ProcessResult::FAILED->to_array();
-		}
+	protected function before_process_payment( \WC_Order $order ): string {
+		$this->order = $order;
+		// 取得要跳轉的 url
+		return ( new ApiClient( $this, $order ) )->create_session();
 	}
 
 	/**

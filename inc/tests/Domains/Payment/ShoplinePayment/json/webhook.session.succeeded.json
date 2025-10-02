@@ -1,0 +1,32 @@
+{
+  "data": {
+    "amount": {
+      "currency": "TWD",
+      "value": 9900
+    },
+    "createTime": 1759401103309,
+    "expireTime": 1759422703308,
+    "language": "zh-TW",
+    "mode": "regular",
+    "paidAmount": {
+      "currency": "TWD",
+      "value": 9900
+    },
+    "paymentDetails": [
+      {
+        "paymentMethod": "LinePay",
+        "paymentSuccessTime": 1759401116359,
+        "status": "SUCCEEDED",
+        "tradeOrderId": "10012510027198650417193166799"
+      }
+    ],
+    "referenceId": "32271",
+    "returnURL": "https://partnerdemo.wpsite.pro/checkout/order-received/32271/?key=wc_order_C6MhLj1KaVlfc",
+    "sessionId": "se_14012510027198650304467052494",
+    "sessionUrl": "https://pay-sandbox.shoplinepayments.com/checkout/session?sessionToken=BGPGC6M6A4A27OILWBY54WP4J5UDTY3BPE5SSMHPTTORKOPFRM2OWNYQ6C6KM4TFUYFQGWF3EMCDNNQSPCYKU7BDQOFPC4LWQIHJ2XFG2IVC5EDS2V72JOJKEVVOY367KNSOAPJ7OL5Y2OZONXNL2DYM5Q======--v1",
+    "status": "SUCCEEDED"
+  },
+  "id": "00012510027198650523711750409202510",
+  "type": "session.succeeded",
+  "created": 1759401116375
+}

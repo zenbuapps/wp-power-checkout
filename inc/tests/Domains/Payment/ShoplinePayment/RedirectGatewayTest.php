@@ -121,7 +121,7 @@ class RedirectGatewayTest extends WC_UnitTestCase {
         $this->assertArrayNotHasKey( 'redirect', $result, '結果應該沒有 redirect 鍵' );
         
         // 結帳頁印出錯誤
-        $notices = WC()->session->get( 'wc_notices' );
+        $notices = \WC()->session->get( 'wc_notices' );
         $this->assertNotEmpty( $notices, '結帳頁應該有錯誤訊息' );
     }
     
