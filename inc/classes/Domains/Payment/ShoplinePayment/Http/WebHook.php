@@ -13,6 +13,7 @@ use J7\WpUtils\Classes\ApiBase;
 
 /**
  * WebHooks 用來接收 Shopline 的 WebHooks 通知
+ * session.succeeded 將訂單轉為處理中
  *
  * @see https://docs.shoplinepayments.com/api/event/model/session/
  */
@@ -56,26 +57,10 @@ final class WebHook extends ApiBase {
 		$is_valid    = $this->is_valid( $request );
 		$body_params = $request->get_params();
 
-		// TEST ----- ▼ 印出 WC Logger 記得移除 ----- //
-		Plugin::logger(
-			'body_params',
-			'info',
-			[
-				'body_params' => $body_params,
-			]
-		);
-		// TEST ---------- END ---------- //
 		try {
 			$webhook_dto = Body::create( $body_params );
-			$event_type  = EventType::from( $webhook_dto->type );
-
-			match ( $event_type ) {
-				EventType::SESSION_CREATED, EventType::SESSION_EXPIRED, EventType::SESSION_PENDING, EventType::SESSION_SUCCEEDED => $this->handle_session(
-					$webhook_dto
-				),
-				default => null,
-
-			};
+			$event_type  = $webhook_dto->get_event_type();
+			$event_type->get_manager()->update_order_status($webhook_dto);
 
 			// 收到通知就始終回 200 ，不用讓 SLP 重試
 			return new \WP_REST_Response( null, 200 );
@@ -111,8 +96,8 @@ final class WebHook extends ApiBase {
 		// 容許的時間誤差
 		$diff_tolerance = 5 * 60 * 1000; // 300 seconds = 5 mins
 		$timestamp      = $request->get_header( 'timestamp' );
-		$current_time   = time() * 1000;
-		$diff_time      = abs( $current_time - $timestamp );
+		$current_time   = \time() * 1000;
+		$diff_time      = \abs( $current_time - $timestamp );
 		if ( $diff_time > $diff_tolerance ) {
 			throw new \Exception(
 				"Invalid timestamp, current: {$current_time}, received: {$timestamp}, diff: {$diff_time}"
@@ -143,7 +128,7 @@ final class WebHook extends ApiBase {
 		$payload              = "{$timestamp}.{$request->get_body()}";
 		$calculated_signature = $this->generate_hmac_sha256_signature( $payload );
 		$sign                 = $request->get_header( 'sign' );
-		$is_verified          = hash_equals( $sign, $calculated_signature );
+		$is_verified          = \hash_equals( $sign, $calculated_signature );
 		if ( !$is_verified ) {
 			throw new \Exception( "Invalid sign, calculated: {$calculated_signature}, actual: {$sign}" );
 		}
@@ -162,25 +147,5 @@ final class WebHook extends ApiBase {
 		$payload  = mb_convert_encoding( $payload, 'UTF-8', 'auto' );
 		$sign_key = ( new SettingsDTO() )->signKey;
 		return hash_hmac( 'sha256', $payload, $sign_key );
-	}
-
-	/**
-	 * 處理結帳交易
-	 *
-	 * @param Body $webhook_dto 網路請求的 body 資料
-	 *
-	 * @return void
-	 * @throws \Exception 如果訂單不存在
-	 */
-	private function handle_session( Body $webhook_dto ): void {
-		/** @var Session $data */
-		$data     = $webhook_dto->data;
-		$order_id = $data->referenceId;
-		$order    = \wc_get_order( $order_id );
-		if ( !$order ) {
-			throw new \Exception( "Order not found: {$order_id}" );
-		}
-		$event_type = EventType::from( $webhook_dto->type );
-		$event_type->get_manager()->update_order_status( $order );
 	}
 }
