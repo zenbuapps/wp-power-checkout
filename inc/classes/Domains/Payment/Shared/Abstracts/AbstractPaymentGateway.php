@@ -164,7 +164,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	}
 
 	/**
-	 * 過濾表單欄位
+	 * 過濾預設的表單欄位
 	 *
 	 * @param array<string, mixed> $fields 表單欄位
 	 *
@@ -223,7 +223,12 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	}
 
 	/**
-	 * 處理付款
+	 * 處理付款，定義為 final method，不可被覆寫
+	 * 支付邏輯請寫在 before_process_payment 裡面
+	 *
+	 * 共用邏輯：
+	 * 1. order note 紀錄 gateway
+	 * 2. 支付順利的話就扣庫存，不順利就 throw Exception
 	 *
 	 * @param int $order_id 訂單 ID
 	 *
@@ -231,22 +236,38 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	 * @throws \Exception 如果訂單不存在
 	 * @see WC_Payment_Gateway::process_payment
 	 */
-	public function process_payment( $order_id ): array {
-		$order = \wc_get_order( $order_id );
-		if ( !$order instanceof \WC_Order ) {
-			throw new \Exception( \__( 'Order not found.', 'power_checkout' ) );
-		}
+	final public function process_payment( $order_id ): array {
+		try {
+			$order = \wc_get_order( $order_id );
+			if ( !$order instanceof \WC_Order ) {
+				throw new \Exception( \__( 'Order not found.', 'power_checkout' ) );
+			}
 
-		$this->before_process_payment( $order );
-		$order->add_order_note( \sprintf( \__( 'Pay via %s', 'power_checkout' ), $this->method_title ) );
-		\wc_maybe_reduce_stock_levels( $order_id );
-		\wc_release_stock_for_order( $order );
-		$redirect = $order->get_checkout_payment_url( true );
-		return ProcessResult::SUCCESS->to_array( $redirect );
+			$order->add_order_note( \sprintf( \__( 'Pay via %s', 'power_checkout' ), $this->method_title ) );
+
+			$redirect = $this->before_process_payment( $order );
+
+			// 順利通過就扣庫存，不順利就 throw 出去
+			\wc_maybe_reduce_stock_levels( $order_id );
+			\wc_release_stock_for_order( $order );
+			return ProcessResult::SUCCESS->to_array( $redirect );
+		} catch (\Exception $e) {
+			$this->logger( $e->getMessage(), 'error', [], 5 );
+			// 避免將錯誤資訊 print 到前端
+			\wc_add_notice( "處理結帳時發生錯誤，請查閱 {$this->payment_label} 的 log 紀錄了解詳情", 'error' );
+			return ProcessResult::FAILED->to_array();
+		}
 	}
 
-	/** @param \WC_Order $order 訂單 在 process_payment 之前執行 */
-	protected function before_process_payment( \WC_Order $order ): void {}
+	/**
+	 * 核心支付邏輯請寫在這裡，直接覆寫
+	 *
+	 * @param \WC_Order $order 訂單 在 process_payment 之前執行
+	 * @return string 返回結帳付款頁面的 URL
+	 */
+	protected function before_process_payment( \WC_Order $order ): string {
+		return $order->get_checkout_payment_url( true );
+	}
 
 	/**
 	 * 處理退款
@@ -284,12 +305,12 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	public function render_after_billing_address( \WC_Order $order ): void {}
 
 	/**
-	 * 在 /checkout/order-received/{$order_id}/?key=wc_order_{$order_key}
+	 * 在 /checkout/order-received/{$order_id}/?key=wc_order_{$order_key}，定義為 final method，不可被覆寫
 	 * 前執行
 	 *
 	 * @see WC_Shortcode_Checkout::output
 	 * */
-	public function before_page_render(): void {
+	final public function before_page_render(): void {
 		global $wp;
 		$order_id = $wp->query_vars['order-received'] ?? null;
 		if ( !$order_id ) {
@@ -307,6 +328,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	}
 
 	/**
+	 * 第三方金流 callback 回來之後，頁面 render 前
 	 * 在 /checkout/order-received/{$order_id}/?key=wc_order_{$order_key}
 	 * 前執行
 	 *
@@ -326,7 +348,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	}
 
 	/** [後台]顯示錯誤訊息，改用 WC_Admin_Settings */
-	public function display_errors(): void {
+	final public function display_errors(): void {
 		if ( $this->errors ) {
 			foreach ( $this->errors as $error ) {
 				\WC_Admin_Settings::add_error( $error );
@@ -335,7 +357,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	}
 
 	/** 每次請求結束時如果有錯誤就印出錯誤訊息 */
-	public function print_error(): void {
+	final public function print_error(): void {
 		if ( !$this->error->has_errors() ) {
 			return;
 		}
@@ -356,7 +378,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	 * @param array<string, mixed> $args        附加資訊
 	 * @param int                  $trace_limit 追蹤堆疊層數
 	 */
-	public function logger( string $message, string $level = 'debug', array $args = [], $trace_limit = 0 ): void {
+	final public function logger( string $message, string $level = 'debug', array $args = [], $trace_limit = 0 ): void {
 		\J7\WpUtils\Classes\WC::logger( $message, $level, $args, "power_checkout_{$this->id}", $trace_limit );
 		if ( $this->order && in_array( $level, [ 'info', 'error', 'warning' ], true ) ) {
 			$order_note = WP::array_to_html( $args, [ 'title' => $message ] );
@@ -374,7 +396,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	 * @throws \Exception 如果訂單不是實例或不是實例的訂單
 	 */
 	public function validate_order( \WC_Order|int|string $order_or_id ): bool {
-		if ( is_numeric( $order_or_id ) ) {
+		if ( \is_numeric( $order_or_id ) ) {
 			/** @noinspection CallableParameterUseCaseInTypeContextInspection */
 			$order_or_id = \wc_get_order( $order_or_id );
 		}
