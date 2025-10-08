@@ -5,12 +5,13 @@ declare ( strict_types = 1 );
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services;
 
 use J7\PowerCheckout\Domains\Payment\Contracts\IGateway;
+use J7\PowerCheckout\Domains\Payment\Shared\Enums\OrderStatus;
 use J7\PowerCheckout\Domains\Payment\Shared\Params;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Components\Webhook\Payment;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Payment\ResponseParams;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Managers\StatusManager;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Abstracts\PaymentGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http\ApiClient;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\ResponseStatus;
 use J7\WpUtils\Classes\WP;
 
 /**
@@ -41,8 +42,22 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 	 * @see \WC_Payment_Gateway::process_payment
 	 */
 	protected function before_process_payment( \WC_Order $order ): string {
+		$response_dto = ( new ApiClient( $this, $order ) )->create_session();
 		// 取得要跳轉的 url
-		return ( new ApiClient( $this, $order ) )->create_session();
+
+		if (ResponseStatus::tryFrom( $response_dto->status) === ResponseStatus::EXPIRED) {
+			// 訂單過期
+			$msg     = '已超過 Shopline Payment 付款期限，請重新下單';
+			$sys_msg = "session_id: {$response_dto->sessionId}";
+			$order->add_order_note( "{$msg}<br>{$sys_msg}");
+			$order->update_status( OrderStatus::CANCELLED->value);
+			$order_url = $order->get_view_order_url();
+			\wc_add_notice( $msg, 'error' );
+			\wp_safe_redirect( $order_url );
+			exit;
+		}
+
+		return $response_dto->sessionUrl;
 	}
 
 	/**
@@ -111,10 +126,13 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 	 */
 	protected function before_order_received( \WC_Order $order ): void {
 		try {
+			if (!isset($_GET['tradeOrderId'])) { //phpcs:ignore
+				return;
+			}
 			$response_dto   = ( new ApiClient( $this, $order ) )->get_payment();
 			$status_manager = new StatusManager( $response_dto, $order );
 			$status_manager->update_order_status();
-		} catch (\Exception $e) {
+		} catch (\Throwable $e) {
 			$this->logger( "❌ {$this->payment_label} 發生錯誤<br>{$e->getMessage()}", 'error', [], 5 );
 		}
 	}
@@ -131,7 +149,7 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 		}
 		try {
 			$html = ResponseParams::create( $payment_detail_array)->to_human_html();
-		} catch (\Exception $e) {
+		} catch (\Throwable $e) {
 			$html = WP::array_to_html( $payment_detail_array );
 		}
 

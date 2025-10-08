@@ -78,7 +78,7 @@ abstract class Resource implements IResource {
             // COMMIT
             $wpdb->query('COMMIT');
             STDOUT::ok("刪除 {$count} 個{$this->label}成功: " . implode(', ', $ids));
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             // ROLLBACK
             $wpdb->query('ROLLBACK');
             throw $e;

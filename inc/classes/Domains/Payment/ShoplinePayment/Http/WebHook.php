@@ -65,7 +65,7 @@ final class WebHook extends ApiBase {
 
 			// 收到通知就始終回 200 ，不用讓 SLP 重試
 			return new \WP_REST_Response( null, 200 );
-		} catch ( \Exception $e ) {
+		} catch ( \Throwable $e ) {
 			Plugin::logger(
 				'WebHook 處理失敗',
 				'error',

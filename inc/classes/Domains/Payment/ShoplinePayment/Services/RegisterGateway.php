@@ -49,6 +49,7 @@ final class RegisterGateway implements IRegisterGateway {
 		$gateways = \WC()->payment_gateways()->payment_gateways;
 
 		$gateway = General::array_find($gateways, static fn( $gateway ) => $gateway->id === RedirectGateway::ID);
+
 		if (!$gateway) {
 			return;
 		}

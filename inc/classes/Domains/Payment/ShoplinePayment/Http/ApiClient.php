@@ -39,13 +39,13 @@ final class ApiClient {
 	 * 建立結帳交易
 	 *
 	 * @see https://docs.shoplinepayments.com/api/trade/session/
-	 * @return string  shopline payment return 的 session url
+	 * @return SessionResponseParams  shopline payment return 的 session url
 	 * @throws \Exception 如果交易建立失敗
 	 *  */
-	public function create_session(): string {
+	public function create_session(): SessionResponseParams {
 		$request_body  = RequestParamsCreate::create( $this->gateway, $this->order )->to_array();
 		$response_body = $this->requester->post( '/trade/sessions/create', $request_body );
-		return SessionResponseParams::create( $response_body )->sessionUrl;
+		return SessionResponseParams::create( $response_body );
 	}
 
 	/**
@@ -68,6 +68,7 @@ final class ApiClient {
 
 	/**
 	 * 查詢付款交易
+	 * TODO 避免重複發送
 	 *
 	 * @see https://docs.shoplinepayments.com/api/trade/query/
 	 * @return PaymentResponseParams 結帳交易查詢結果

@@ -243,7 +243,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 			if ( !$order instanceof \WC_Order ) {
 				throw new \Exception( \__( 'Order not found.', 'power_checkout' ) );
 			}
-			$this->record_exception_to_order_note($order);
+			$this->record_exception_to_order_note( $order );
 
 			$order->add_order_note( \sprintf( \__( 'Pay via %s', 'power_checkout' ), $this->method_title ) );
 
@@ -253,7 +253,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 			\wc_maybe_reduce_stock_levels( $order_id );
 			\wc_release_stock_for_order( $order );
 			return ProcessResult::SUCCESS->to_array( $redirect );
-		} catch (\Exception $e) {
+		} catch (\Throwable $e) {
 			$this->logger( "❌ {$this->payment_label} 處理結帳時發生錯誤<br>{$e->getMessage()}", 'error', [], 5 );
 			// 避免將錯誤資訊 print 到前端
 			\wc_add_notice( "處理結帳時發生錯誤，請查閱 {$this->payment_label} 的 log 紀錄了解詳情", 'error' );
