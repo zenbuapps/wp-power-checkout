@@ -10,6 +10,7 @@ use J7\PowerCheckout\Domains\Payment\Shared\Enums\OrderStatus;
 use J7\PowerCheckout\Domains\Payment\Shared\Params;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\RedirectSettingsDTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Payment\PaymentDTO;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Refund\RefundDTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Managers\StatusManager;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Abstracts\PaymentGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http\ApiClient;
@@ -180,4 +181,55 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 	public function get_settings(): DTO {
 		return RedirectSettingsDTO::instance();
 	}
+
+	// region 退款
+
+	/**
+	 * 處理退款
+	 * 這不是訂單狀態轉換時觸發，而是 admin 點按部分退款時觸發
+	 *
+	 * @param int        $order_id 訂單 ID
+	 * @param float|null $amount   退款金額
+	 * @param string     $reason   退款原因
+	 *
+	 * @return bool True or false based on success, or a WP_Error object.
+	 * @noinspection PhpMissingReturnTypeInspection
+	 * @see          WC_Payment_Gateway::process_refund
+	 */
+	public function process_refund( $order_id, $amount = null, $reason = '' ) {
+		$order = \wc_get_order( $order_id );
+		if (!$order instanceof \WC_Order || !$amount) {
+			return false;
+		}
+		$response_dto = ( new ApiClient( $this, $order ) )->create_refund( (float) $amount, $reason );
+		return $this->handle_refund_response( $response_dto, $order);
+	}
+
+	/**
+	 * 處理退款 API 回傳結果
+	 *
+	 * @param RefundDTO $response_dto 退款回應資料
+	 * @param \WC_Order $order        WooCommerce 訂單物件
+	 * @return bool|\WP_Error         成功回傳 true，失敗回傳 WP_Error
+	 */
+	private function handle_refund_response( RefundDTO $response_dto, \WC_Order $order ): bool|\WP_Error {
+		$status = ResponseStatus::from( $response_dto->status );
+		$title  = "{$status->emoji()} 訂單 #{$order->get_id()} 退款{$status->label()}";
+		if (isset($response_dto->refundMsg)) {
+			$msg_array = $response_dto->refundMsg->to_human_array();
+			$msg       = \reset( $msg_array);
+			$title    .= ": {$msg}";
+		}
+
+		$html = WP::array_to_html($response_dto->to_human_array(), [ 'title' => $title ] );
+		$order->add_order_note( $html );
+
+		if (isset($response_dto->refundMsg)) {
+			return new \WP_Error( 'refund_failed', $title, $response_dto->to_array() );
+		}
+
+		return $status === ResponseStatus::SUCCEEDED;
+	}
+
+	// endregion
 }

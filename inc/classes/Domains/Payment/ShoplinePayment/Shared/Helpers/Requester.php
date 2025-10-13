@@ -65,12 +65,12 @@ final class Requester {
 		// LOG 記錄
 		$this->gateway->logger(
 				"{$this->gateway->title} {$endpoint} 請求參數 #{$this->order->get_id()}",
-				'debug',
+				'info',
 				[
 					'api_url'        => $api_url,
 					'request_header' => $request_header,
 					'request_body'   => $request_body,
-				]
+				],
 				);
 
 		if ( isset( $response_body['code'] ) ) {

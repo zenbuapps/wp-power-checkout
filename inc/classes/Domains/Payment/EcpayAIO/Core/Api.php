@@ -101,7 +101,6 @@ final class Api extends ApiBase {
 		if (!$transaction_id) {
 			// 訂單已經有交易編號，什麼也不做
 			$gateway->logger( "訂單已經有交易編號 #{$transaction_id}，無法再透過綠界回傳值設定訂單狀態", 'warning' );
-			$order->add_order_note( "訂單已經有交易編號 #{$transaction_id}，無法再透過綠界回傳值設定訂單狀態" );
 			return;
 		}
 
@@ -109,7 +108,6 @@ final class Api extends ApiBase {
 			// 訂單已付款，什麼也不做
 			// 需注意的是 is_paid 只檢查狀態，不代表真的有付款
 			$gateway->logger( '訂單已付款，無法再透過綠界回傳值設定訂單狀態', 'warning' );
-			$order->add_order_note( '訂單已付款，無法再透過綠界回傳值設定訂單狀態' );
 			return;
 		}
 

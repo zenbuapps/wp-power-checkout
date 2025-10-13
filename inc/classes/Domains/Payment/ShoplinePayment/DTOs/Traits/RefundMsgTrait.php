@@ -7,6 +7,6 @@ namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Traits;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Components;
 
 trait RefundMsgTrait {
-    /** @var Components\PaymentError|null 退款失敗原因 選填 */
-    public Components\PaymentError|null $refundMsg;
+    /** @var Components\ErrorMessage|null 退款失敗原因 選填 */
+    public Components\ErrorMessage|null $refundMsg;
 }

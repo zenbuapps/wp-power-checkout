@@ -65,11 +65,10 @@ final class CreateSessionDTO extends DTO {
 
 	/**
 	 * 組成變數的主要邏輯可以寫在裡面
-	 *
-	 *  @param AbstractPaymentGateway $gateway 付款方式
 	 *  @param \WC_Order              $order 訂單
+     *  @param string                 $return_url 回傳 URL
 	 */
-	public static function create( AbstractPaymentGateway $gateway, \WC_Order $order, ): self {
+	public static function create(\WC_Order $order, string $return_url ): self {
 		$settings = new RedirectSettingsDTO();
 		$total    = $order->get_total();
 		$args     = [
@@ -77,7 +76,7 @@ final class CreateSessionDTO extends DTO {
 			'amount'                 => Components\Amount::create( (float) $total ),
 			'language'               => \get_locale() === 'zh_TW' ? 'zh-TW' : 'en',
 			// 'expireTime'             => 360,
-			'returnUrl'              => $gateway->get_return_url( $order ),
+			'returnUrl'              => $return_url,
 			'allowPaymentMethodList' => $settings->allowPaymentMethodList,
 			// 'paymentMethodOptions'   =>  $settings->paymentMethodOptions,
 			'order'                  => Components\Order\Order::create( $order ),

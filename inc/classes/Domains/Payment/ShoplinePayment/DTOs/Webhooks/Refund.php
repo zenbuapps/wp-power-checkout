@@ -47,7 +47,7 @@ final class Refund extends DTO {
 	public static function create( array $args ): self {
 		$args['amount'] = Components\Amount::parse( $args['amount'] );
 		if ( isset( $args['refundMsg'] ) ) {
-			$args['refundMsg'] = Components\PaymentError::parse( $args['refundMsg'] );
+			$args['refundMsg'] = Components\ErrorMessage::parse( $args['refundMsg'] );
 		}
 		return new self( $args );
 	}

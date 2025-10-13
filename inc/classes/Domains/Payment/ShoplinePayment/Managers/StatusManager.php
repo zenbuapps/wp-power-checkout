@@ -23,6 +23,7 @@ use J7\WpUtils\Classes\WP;
 
 /**
  * StatusManager
+ * 依照付款回應，改變訂單狀態
  * */
 final class StatusManager {
 

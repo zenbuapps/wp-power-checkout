@@ -46,7 +46,10 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 		'title',
 	];
 
-	/** Constructor */
+	/** Constructor
+	 *
+	 * @noinspection PhpPossiblePolymorphicInvocationInspection
+	 * */
 	public function __construct() {
 		$settings    = $this->get_settings();
 		$this->error = new \WP_Error();
@@ -190,7 +193,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 
 	/**
 	 * 處理退款
-	 * TODO 實作退款邏輯
+	 * 這不是訂單狀態轉換時觸發，而是 admin 點按部分退款時觸發
 	 *
 	 * @param int        $order_id 訂單 ID
 	 * @param float|null $amount   退款金額
@@ -201,19 +204,6 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	 * @see          WC_Payment_Gateway::process_refund
 	 */
 	public function process_refund( $order_id, $amount = null, $reason = '' ) {
-
-		// TEST ----- ▼ 印出 WC Logger 記得移除 ----- //
-		\J7\WpUtils\Classes\WC::logger(
-			'process_refund',
-			'info',
-			[
-				'order_id' => $order_id,
-				'amount'   => $amount,
-				'reason'   => $reason,
-			]
-			);
-		// TEST ---------- END ---------- //
-
 		return false;
 	}
 
@@ -321,10 +311,17 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	 * @param string               $level       等級 info | error | alert | critical | debug | emergency | warning | notice
 	 * @param array<string, mixed> $args        附加資訊
 	 * @param int                  $trace_limit 追蹤堆疊層數
+	 * @param bool|null            $order_note 是否紀錄在 order note
 	 */
-	final public function logger( string $message, string $level = 'debug', array $args = [], $trace_limit = 0 ): void {
+	final public function logger( string $message, string $level = 'debug', array $args = [], $trace_limit = 0, bool|null $order_note = null ): void {
 		\J7\WpUtils\Classes\WC::logger( $message, $level, $args, "power_checkout_{$this->id}", $trace_limit );
-		if ( $this->order && in_array( $level, [ 'error', 'warning' ], true ) ) {
+		if (!$this->order) {
+			return;
+		}
+
+		$order_note = $order_note ?? \in_array( $level, [ 'error', 'warning' ], true );
+
+		if ( $order_note ) {
 			$order_note = WP::array_to_html( $args, [ 'title' => $message ] );
 			$this->order->add_order_note( $order_note );
 		}
