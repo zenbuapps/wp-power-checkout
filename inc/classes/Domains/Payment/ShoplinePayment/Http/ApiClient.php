@@ -6,12 +6,12 @@ namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http;
 
 use J7\PowerCheckout\Domains\Payment\Shared\Abstracts\AbstractPaymentGateway;
 use J7\PowerCheckout\Domains\Payment\Shared\Params;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Session\RequestParamsCreate;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Session\RequestParamsQuery;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Session\ResponseParams as SessionResponseParams;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Session\CreateSessionDTO;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Session\QuerySessionDTO;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Session\SessionDTO as SessionResponseParams;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Helpers\Requester;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Payment\RequestParamsGet;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Payment\ResponseParams as PaymentResponseParams;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Payment\GetPaymentDTO;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Payment\PaymentDTO as PaymentResponseParams;
 
 /**
  * Shopline Payment 跳轉式支付服務類 工廠模式
@@ -43,7 +43,7 @@ final class ApiClient {
 	 * @throws \Exception 如果交易建立失敗
 	 *  */
 	public function create_session(): SessionResponseParams {
-		$request_body  = RequestParamsCreate::create( $this->gateway, $this->order )->to_array();
+		$request_body  = CreateSessionDTO::create( $this->gateway, $this->order )->to_array();
 		$response_body = $this->requester->post( '/trade/sessions/create', $request_body );
 		return SessionResponseParams::create( $response_body );
 	}
@@ -56,7 +56,7 @@ final class ApiClient {
 	 * @throws \Exception 如果結帳交易查詢失敗
 	 *  */
 	public function get_session(): SessionResponseParams {
-		$request_body = RequestParamsQuery::create( $this->order )->to_array();
+		$request_body = QuerySessionDTO::create( $this->order )->to_array();
 
 		$response_body = $this->requester->post(
 			'/trade/sessions/query',
@@ -74,7 +74,7 @@ final class ApiClient {
 	 * @throws \Exception 如果結帳交易查詢失敗
 	 *  */
 	public function get_payment(): PaymentResponseParams {
-		$request_body = RequestParamsGet::create()->to_array();
+		$request_body = GetPaymentDTO::create()->to_array();
 
 		$response_body = $this->requester->post(
 			'/trade/payment/get',

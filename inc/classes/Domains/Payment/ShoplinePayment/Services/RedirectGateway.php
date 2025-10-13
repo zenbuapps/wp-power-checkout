@@ -9,7 +9,7 @@ use J7\PowerCheckout\Domains\Payment\Contracts\IGatewaySettings;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\OrderStatus;
 use J7\PowerCheckout\Domains\Payment\Shared\Params;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\RedirectSettingsDTO;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Payment\ResponseParams;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Payment\PaymentDTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Managers\StatusManager;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Abstracts\PaymentGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http\ApiClient;
@@ -168,7 +168,7 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 			return;
 		}
 		try {
-			$html = ResponseParams::create( $payment_detail_array)->to_human_html();
+			$html = PaymentDTO::create( $payment_detail_array)->to_human_html();
 		} catch (\Throwable $e) {
 			$html = WP::array_to_html( $payment_detail_array );
 		}

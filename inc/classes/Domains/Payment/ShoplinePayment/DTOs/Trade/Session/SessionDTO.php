@@ -10,11 +10,11 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Components;
 
 /**
- * Shopline Payment 跳轉式支付 ResponseParams
+ * Shopline Payment 跳轉式支付 SessionDTO
  *
  * @see https://docs.shoplinepayments.com/api/trade/session/
  */
-final class ResponseParams extends DTO {
+final class SessionDTO extends DTO {
 	use StatusTrait;
 
 	/** @var string *SLP 結帳交易訂單編號 (32) */

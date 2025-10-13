@@ -6,8 +6,8 @@ namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Managers;
 
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\OrderStatus;
 use J7\PowerCheckout\Domains\Payment\Shared\Params;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Payment\RequestParamsGet;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Payment\ResponseParams;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Payment\GetPaymentDTO;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Payment\PaymentDTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Webhooks\Body;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Webhooks\Payment;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Webhooks\Session;
@@ -30,7 +30,7 @@ final class StatusManager {
 	private readonly DTO|null $_payment_detail; // phpcs:ignore
 
 	/** Constructor */
-	public function __construct( private readonly ResponseParams $_response_dto, private readonly \WC_Order $_order ) {
+	public function __construct( private readonly PaymentDTO $_response_dto, private readonly \WC_Order $_order ) {
 		$this->_payment_detail = $this->get_payment_detail();
 	}
 

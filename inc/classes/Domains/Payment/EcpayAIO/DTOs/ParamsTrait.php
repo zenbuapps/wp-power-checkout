@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\DTOs;
 
 /**
- * 綠界全方位金流 API RequestParams & ResponseParams 共用屬性
+ * 綠界全方位金流 API RequestParams & SessionDTO 共用屬性
  *
  * @see https://developers.ecpay.com.tw/?p=2862
  * @see https://developers.ecpay.com.tw/?p=2878
