@@ -174,14 +174,42 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 			}
 		}
 
-		$refund_detail_array = ( new Params($order) )->get_refund_detail();
-		if ($refund_detail_array) {
-			try {
-				echo WebhooksRefundDTO::create( $refund_detail_array)->to_human_html();
-			} catch (\Throwable $e) {
-				echo WP::array_to_html( $refund_detail_array );
+		/** @var \WC_Order_Refund[] $refunds */
+		$refunds = $order->get_refunds();
+
+		foreach ($refunds as $refund) {
+			echo '<div style="width: 100%;height: 24px;"></div>';
+			$output_array = [
+				'金額' => \wc_price( $refund->get_amount()),
+			];
+
+			$user_id = $refund->get_refunded_by();
+			$user    = \get_user_by( 'id', $user_id );
+			if ($user instanceof \WP_User) {
+				$display_name        = $user->display_name;
+				$output_array['操作者'] = "{$display_name} #{$user_id}";
 			}
+
+			$output_array['退款時間'] = $refund->get_date_created()?->date_i18n('Y-m-d H:i');
+
+			echo WP::array_to_html(
+				$output_array,
+				[
+					'title' => "退款 #{$refund->get_id()}：{$refund->get_reason()}",
+				]
+				);
+
 		}
+
+		// $refund_detail_array = ( new Params($order) )->get_refund_detail();
+		// if ($refund_detail_array) {
+		// echo '<div style="width: 100%;height: 24px;"></div>';
+		// try {
+		// echo WebhooksRefundDTO::create( $refund_detail_array)->to_human_html();
+		// } catch (\Throwable $e) {
+		// echo WP::array_to_html( $refund_detail_array );
+		// }
+		// }
 	}
 
 	// region 取得設定
@@ -196,59 +224,97 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 	// region 退款
 
 	/**
-	 * 處理退款
+	 * 能否處理退款
 	 * 這不是訂單狀態轉換時觸發，而是 admin 點按部分退款時觸發
 	 *
 	 * @param int        $order_id 訂單 ID
 	 * @param float|null $amount   退款金額
 	 * @param string     $reason   退款原因
 	 *
-	 * @return bool True or false based on success, or a WP_Error object.
-	 * @noinspection PhpMissingReturnTypeInspection
+	 * @return bool|\WP_Error True or false based on success, or a WP_Error object.
 	 * @see          WC_Payment_Gateway::process_refund
 	 */
-	public function process_refund( $order_id, $amount = null, $reason = '' ) {
+	public function process_refund( $order_id, $amount = null, $reason = '' ): bool|\WP_Error {
 		$order = \wc_get_order( $order_id );
 		if (!$order instanceof \WC_Order || !$amount) {
 			return false;
 		}
-		$response_dto = ( new ApiClient( $this, $order ) )->create_refund( (float) $amount, $reason );
-		return self::handle_refund_response( $response_dto, $order);
+
+		try {
+			$payment_dto = PaymentDTO::from_order($order);
+			return $payment_dto->get_payment_method()->can_refund( $order, (float) $amount);
+		} catch (\Throwable $e) {
+			$this->logger("❌ #{$order_id} 退款失敗： {$e->getMessage()}", 'error', $e->getTrace(), 5, false );
+			return new \WP_Error( 'refund_failed', '❌ 退款失敗，詳情請查閱 log 紀錄' );
+		}
 	}
+
+
+	/**
+	 * 退款邏輯，API 發送
+	 * 退款創建時觸發
+	 *
+	 * @param int $order_id 訂單 id
+	 * @param int $refund_id 退款 id
+	 *
+	 * @return void
+	 */
+	public function handle_payment_gateway_refund( int $order_id, int $refund_id ): void {
+		if (!$this->is_this_gateway( $order_id)) {
+			return;
+		}
+
+		/** @var \WC_Order_Refund $refund */
+		$refund = \wc_get_order( $refund_id );
+		if (!$refund->get_refunded_payment()) { // 如果是手動退款，就不做
+			return;
+		}
+
+		global $wpdb;
+		/** @var \WC_Order $order */
+		$order = \wc_get_order( $order_id );
+
+		try {
+			$wpdb->query('START TRANSACTION'); // phpcs:ignore
+			$reason       = $refund->get_reason();
+			$response_dto = ( new ApiClient( $this, $order ) )->create_refund( (float) $refund->get_amount(), $reason );
+			self::handle_refund_response( $response_dto, $order, $reason);
+			$wpdb->query('COMMIT'); // phpcs:ignore
+		} catch (\Throwable $e) {
+			$wpdb->query('ROLLBACK'); // phpcs:ignore
+			$order->add_order_note( "❌ 退款失敗：{$e->getMessage()}" );
+			$refund->delete(true);
+		}
+	}
+
+
 
 	/**
 	 * 處理退款 API 回傳結果
 	 *
-	 * @param RefundDTO $response_dto 退款回應資料
-	 * @param \WC_Order $order        WooCommerce 訂單物件
-	 * @return bool|\WP_Error         成功回傳 true，失敗回傳 WP_Error
+	 * @param RefundDTO|WebhooksRefundDTO $response_dto 退款回應資料
+	 * @param \WC_Order                   $order        WooCommerce 訂單物件
+	 * @param string                      $reason 原因
+	 * @return void
+	 * @throws \Exception 如果退款失敗
 	 */
-	public static function handle_refund_response( RefundDTO $response_dto, \WC_Order $order ): bool|\WP_Error {
-		$html = $response_dto->to_human_html();
+	public static function handle_refund_response( RefundDTO|WebhooksRefundDTO $response_dto, \WC_Order $order, string $reason ): void {
+		$html         = $response_dto->to_human_html($reason);
+		$from_webhook = $response_dto instanceof WebhooksRefundDTO;
 		$order->add_order_note( $html );
 
-		// TEST ----- ▼ 印出 WC Logger 記得移除 ----- //
-		\J7\WpUtils\Classes\WC::logger(
-			'response_dto: ' . $response_dto::class,
-			'info',
-			[
-				'update_refund_detail' => $response_dto instanceof WebhooksRefundDTO ? 'true' : 'false',
-				'code'                 => $response_dto->refundMsg?->code,
-				'bool_code'            => ( (bool) $response_dto->refundMsg?->code ) ? 'true' : 'false',
-				'refundMsg'            => $response_dto->refundMsg?->to_array(),
-			]
-			);
-		// TEST ---------- END ---------- //
-
-		if ($response_dto instanceof WebhooksRefundDTO) {
+		if ($from_webhook) {
 			( new Params($order) )->update_refund_detail($response_dto->to_array() );
 		}
 
 		if ($response_dto->refundMsg?->code) {
-			return new \WP_Error( 'refund_failed', $response_dto->to_human_title(), $response_dto->to_array() );
+			throw new \Exception( $response_dto->to_human_title($reason));
 		}
 
-		return true; // 沒有失敗的話，就是成功
+		if (!$from_webhook) {
+			$order->update_meta_data( 'tmp_refund_reason', $reason);
+			$order->save_meta_data();
+		}
 	}
 
 	// endregion

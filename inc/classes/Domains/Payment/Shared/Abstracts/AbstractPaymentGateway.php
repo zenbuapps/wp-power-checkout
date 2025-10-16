@@ -8,6 +8,7 @@ namespace J7\PowerCheckout\Domains\Payment\Shared\Abstracts;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\GatewaySupport;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
 use J7\PowerCheckout\Domains\Payment\Shared\Params;
+use J7\PowerCheckout\Domains\Payment\Shared\Enums\OrderStatus;
 use J7\WpUtils\Classes\DTO;
 use J7\WpUtils\Classes\WP;
 
@@ -37,9 +38,6 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	/** @var \WC_Order|null 訂單 */
 	public \WC_Order|null $order = null;
 
-	/** @var \WP_Error 錯誤訊息 */
-	public \WP_Error $error;
-
 	/** @var array<string> 必須設定的屬性 */
 	private array $require_properties = [
 		'id',
@@ -51,8 +49,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	 * @noinspection PhpPossiblePolymorphicInvocationInspection
 	 * */
 	public function __construct() {
-		$settings    = $this->get_settings();
-		$this->error = new \WP_Error();
+		$settings = $this->get_settings();
 
 		$this->init_settings();
 		$this->icon              = $settings->icon;
@@ -76,7 +73,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 		}
 
 		// 儲存欄位
-		\add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, [ $this, 'process_admin_options' ] );
+		\add_action( "woocommerce_update_options_payment_gateways_{$this->id}", [ $this, 'process_admin_options' ] );
 
 		// [Admin] 在後台 order detail 頁地址下方顯示資訊
 		\add_action( 'woocommerce_admin_order_data_after_billing_address', [ $this, 'render_after_billing_address' ] );
@@ -89,7 +86,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 		// 註冊 power checkout 的 payment gateway
 		\add_filter( 'power_checkout_payment_gateway_ids', fn( array $gateway_ids ) => [ ...$gateway_ids, $this->id ] );
 
-		\add_action( 'shutdown', [ $this, 'print_error' ] );
+		\add_action('woocommerce_order_refunded', [ $this, 'handle_payment_gateway_refund' ], 10, 2);
 	}
 
 	/** @return DTO 取得 gateway 設定 */
@@ -199,7 +196,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	 * @param float|null $amount   退款金額
 	 * @param string     $reason   退款原因
 	 *
-	 * @return bool True or false based on success, or a WP_Error object.
+	 * @return bool|\WP_Error True or false based on success, or a WP_Error object.
 	 * @noinspection PhpMissingReturnTypeInspection
 	 * @see          WC_Payment_Gateway::process_refund
 	 */
@@ -293,18 +290,6 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 		}
 	}
 
-	/** 每次請求結束時如果有錯誤就印出錯誤訊息 */
-	final public function print_error(): void {
-		if ( !$this->error->has_errors() ) {
-			return;
-		}
-
-		$error_messages = $this->error->get_error_messages();
-		if ( !$error_messages ) {
-			return;
-		}
-		$this->logger( $error_messages[0], 'critical', [ 'messages' => $error_messages ], 5 );
-	}
 
 	/**
 	 * 記錄 log
@@ -324,7 +309,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 
 		$allow_order_note = $allow_order_note ?? \in_array( $level, [ 'error', 'warning' ], true );
 		if ( $allow_order_note ) {
-			$order_note = WP::array_to_html( $args, [ 'title' => "{$message} <p>&nbsp;</p>" ] );
+			$order_note = WP::array_to_html( $args, [ 'title' => "{$message} <p style='margin-bottom: 0;'>&nbsp;</p>" ] );
 			$this->order->add_order_note( $order_note );
 		}
 	}
@@ -338,7 +323,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	 * @return bool
 	 * @throws \Exception 如果訂單不是實例或不是實例的訂單
 	 */
-	public function validate_order( \WC_Order|int|string $order_or_id ): bool {
+	public function is_this_gateway( \WC_Order|int|string $order_or_id ): bool {
 		if ( \is_numeric( $order_or_id ) ) {
 			/** @noinspection CallableParameterUseCaseInTypeContextInspection */
 			$order_or_id = \wc_get_order( $order_or_id );
@@ -354,5 +339,17 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	/** 設定 order 屬性，就能在呼叫 logger 時同時記錄在 order note 上 */
 	final protected function record_exception_to_order_note( \WC_Order $order ): void {
 		$this->order = $order;
+	}
+
+	/**
+	 * 退款邏輯，API 發送
+	 * 退款創建時觸發
+	 *
+	 * @param int $order_id 訂單 id
+	 * @param int $refund_id 退款 id
+	 *
+	 * @return void
+	 */
+	public function handle_payment_gateway_refund( int $order_id, int $refund_id ): void {
 	}
 }

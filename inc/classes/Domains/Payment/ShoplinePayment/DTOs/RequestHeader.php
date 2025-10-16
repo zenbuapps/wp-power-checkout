@@ -39,7 +39,7 @@ final class RequestHeader extends DTO {
 	public string $idempotentKey;
 
 	/** @var array<string> 必填屬性 */
-	protected $required_properties = [
+	protected array $required_properties = [
 		'merchantId',
 		'apiKey',
 		'requestId',

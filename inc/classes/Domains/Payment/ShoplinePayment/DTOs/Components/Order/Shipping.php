@@ -28,7 +28,7 @@ final class Shipping extends DTO {
 	public Address $address;
 
 	/** @var array<string> 必填屬性 */
-	protected $required_properties = [
+	protected array $required_properties = [
 		'shippingMethod',
 		'carrier',
 		'personalInfo',

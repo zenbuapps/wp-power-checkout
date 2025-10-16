@@ -23,7 +23,7 @@ final class Address extends BaseAddress {
 
 
 	/** @var array<string> 必填屬性 */
-	protected $required_properties = [];
+	protected array $required_properties = [];
 
 	/** 自訂驗證邏輯 */
 	protected function validate(): void {

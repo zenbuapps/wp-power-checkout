@@ -51,7 +51,7 @@ final class Body extends DTO {
 	}
 
 	/** 自訂驗證邏輯 */
-    protected function validate(): void {
+	protected function validate(): void {
 		parent::validate();
 		if (isset( $this->type)) {
 			EventType::from($this->type);
@@ -61,12 +61,12 @@ final class Body extends DTO {
 	/** @return \WC_Order|null 取得 Webhook 關聯的訂單，只有 Session|Payment 的 EventType 會拿到 Order */
 	public function get_order(): \WC_Order|null {
 		$data = $this->data;
-		if (!isset($data->referenceId) && !isset($data->referenceOrderId)) {
+		if (!isset($data->referenceId)) {
 			return null;
 		}
 
 		/** @var Session|Payment $data */
-		$order_id = $data->referenceId ?: $data->referenceOrderId;
+		$order_id = $data->referenceId;
 
 		$order = \wc_get_order( $order_id );
 		if (!$order instanceof \WC_Order) {

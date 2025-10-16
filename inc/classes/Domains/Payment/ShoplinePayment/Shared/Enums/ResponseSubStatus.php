@@ -19,9 +19,14 @@ enum ResponseSubStatus: string {
 	case RISK_REJECTED = 'RISK_REJECTED';
 	/** @var string 授權失敗 */
 	case AUTHORIZATION_FAILED = 'AUTHORIZATION_FAILED';
+
+	/** @var string 授權失敗 */
+	case CONFIRM_FAILED = 'CONFIRM_FAILED';
+
 	/** @var string 請款失敗 */
 	case CAPTURE_FAILED = 'CAPTURE_FAILED';
 
+	/** @var string 交易失敗 */
 	case FAILED = 'FAILED';
 
 	/**
@@ -35,9 +40,10 @@ enum ResponseSubStatus: string {
 			self::PENDING_REVIEW => '人工審核中',
 			self::RISK_PENDING => '風控審核中',
 			self::RISK_REJECTED => '風控拒絕',
-			self::AUTHORIZATION_FAILED => '授權失敗',
+			self::AUTHORIZATION_FAILED,
+			self::CONFIRM_FAILED => '授權失敗',
 			self::CAPTURE_FAILED => '請款失敗',
-			self::FAILED => '',
+			self::FAILED => '交易失敗',
 			default => $this->value,
 		};
 	}

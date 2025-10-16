@@ -14,7 +14,7 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Components\Amount;
  * 請求會帶
  *  */
 final class Product extends DTO {
-    use AmountTrait;
+	use AmountTrait;
 
 	/** @var string (64) *商品編號 */
 	public string $id;
@@ -24,7 +24,7 @@ final class Product extends DTO {
 
 	/** @var int *商品數量 */
 	public int $quantity;
- 
+
 	/** @var string (512) 商品描述 */
 	public string $desc;
 
@@ -35,7 +35,7 @@ final class Product extends DTO {
 	public string $sku;
 
 	/** @var array<string> 必填屬性 */
-	protected $required_properties = [
+	protected array $required_properties = [
 		'id',
 		'name',
 		'quantity',

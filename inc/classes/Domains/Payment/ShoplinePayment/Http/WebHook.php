@@ -9,8 +9,10 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\RedirectSettingsDTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Webhooks\Body;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Webhooks;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\RedirectGateway;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\ResponseStatus;
 use J7\PowerCheckout\Plugin;
 use J7\WpUtils\Classes\ApiBase;
+use function _\last;
 
 /**
  * WebHooks 用來接收 Shopline 的 WebHooks 通知
@@ -61,9 +63,10 @@ final class WebHook extends ApiBase {
 		try {
 			$webhook_dto = Body::create( $body_params );
 
-			\J7\WpUtils\Classes\WC::logger( "webhook type: {$webhook_dto->type} id: {$webhook_dto->id}", 'debug', $body_params, 'power_checkout_' . RedirectGateway::ID, 0 );
-
 			$webhook_data_dto = $webhook_dto->data;
+
+			\J7\WpUtils\Classes\WC::logger( "webhook type: {$webhook_dto->type} id: {$webhook_dto->id}", 'debug', $body_params, 'power_checkout_' . RedirectGateway::ID, 0 ); // phpcs:ignore
+
 			// 處理退款
 			if ($webhook_data_dto instanceof Webhooks\Refund) {
 				$this->handle_refund($webhook_data_dto);
@@ -175,7 +178,21 @@ final class WebHook extends ApiBase {
 			throw new \Exception("找不到訂單，tradeOrderId: {$refund_dto->tradeOrderId}");
 		}
 
-		$result = RedirectGateway::handle_refund_response($refund_dto, $order);
+		// 如果 webhook 通知退款失敗
+		if ($refund_dto->status === ResponseStatus::FAILED->value) {
+			$refunds       = $order->get_refunds();
+			$latest_refund = \reset( $refunds);
+			if ($latest_refund instanceof \WC_Order_Refund) {
+				$latest_refund->delete(true);
+			}
+
+			return;
+		}
+
+		$reason = $order->get_meta( 'tmp_refund_reason');
+		$order->delete_meta_data( 'tmp_refund_reason');
+
+		$result = RedirectGateway::handle_refund_response($refund_dto, $order, $reason);
 		if (\is_wp_error($result)) {
 			throw new \Exception($result->get_error_message());
 		}

@@ -23,5 +23,5 @@ final class PaymentDetail extends DTO {
 	public string $paymentMethod;
 
 	/** @var array<string> 必填屬性 */
-	protected $required_properties = [ 'tradeOrderId', 'status', 'paymentSuccessTime', 'paymentMethod' ];
+	protected array $required_properties = [ 'tradeOrderId', 'status', 'paymentSuccessTime', 'paymentMethod' ];
 }

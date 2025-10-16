@@ -15,7 +15,7 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums;
  */
 final class Payment extends DTO {
 
-	/** @var Enums\PaymentMethod::value *付款方式 (16) */
+	/** @var string Enums\PaymentMethod::value *付款方式 (16) */
 	public string $paymentMethod;
 
 	/** @var string|null 子付款方式 (16) 選填 */
@@ -27,7 +27,7 @@ final class Payment extends DTO {
 	/** @var bool 自動請款，默認為 true 選填 */
 	public bool $autoCapture;
 
-	/** @var Enums\PaymentBehavior::value *付款場景 (32) 必填參考 */
+	/** @var string Enums\PaymentBehavior::value *付款場景 (32) 必填參考 */
 	public string $paymentBehavior;
 
 	/** @var string|null 付款成功时间 (32) 選填 13位 timestamp */
@@ -36,10 +36,10 @@ final class Payment extends DTO {
 	/** @var Components\Amount *必填 */
 	public Components\Amount $paidAmount;
 
-	/** @var string 第三方平台流水號，街口支付和 LINE Pay 特店對帳使用 選填 */
+	/** @var string|null 第三方平台流水號，街口支付和 LINE Pay 特店對帳使用 選填 */
 	public string|null $channelDealId;
 
-	/** @var string SHOPLINE Payments 付款會員 ID，快捷付款、定期扣款場景必填 (32) 選填 */
+	/** @var string|null SHOPLINE Payments 付款會員 ID，快捷付款、定期扣款場景必填 (32) 選填 */
 	public string|null $paymentCustomerId;
 
 	/** @var Components\CreditCard|null 信用卡資訊 (32) 選填 */
@@ -84,7 +84,7 @@ final class Payment extends DTO {
 	}
 
 	/** 自訂驗證 */
-    protected function validate(): void {
+	protected function validate(): void {
 		parent::validate();
 		if (isset( $this->paymentMethod)) {
 			Enums\PaymentMethod::from( $this->paymentMethod );

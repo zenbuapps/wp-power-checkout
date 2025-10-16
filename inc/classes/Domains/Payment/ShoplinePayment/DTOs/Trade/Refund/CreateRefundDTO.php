@@ -45,14 +45,15 @@ class CreateRefundDTO extends DTO {
 	public static function create( \WC_Order $order, float $amount, string $reason = '' ): self {
 		try {
 			$payment_dto = PaymentDTO::from_order($order);
-
-			$args = [
-				'referenceOrderId' => $payment_dto->referenceOrderId,
+			$args        = [
+				// Refund 的 referenceOrderID 是自己定義的，不是使用 payment 的 referenceOrderID
+				// 也不能重複，如果重複會導致 1001 重複下單
+				'referenceOrderId' => "RF_{$order->get_id()}_" . \time(),
 				'tradeOrderId'     => $payment_dto->tradeOrderId,
 				'amount'           => Amount::create($amount),
 				'reason'           => $reason ?: static::get_default_reason($amount),
 				'callbackUrl'      => WebHook::get_webhook_url(),
-			// 'additionalData' => ''
+				// 'additionalData' => ''
 			];
 
 			return new self($args);
@@ -62,12 +63,12 @@ class CreateRefundDTO extends DTO {
 	}
 
 	/** @return string 取得預設的 reason */
-	private static function get_default_reason( float $amount ): string {
-		$current_user = \wp_get_current_user();
-		$reason       = "網站後台退款 {$amount} 元";
-		if ($current_user) {
-			$reason .= "，由 {$current_user->display_name} 操作";
-		}
+	public static function get_default_reason( float $amount ): string {
+		$reason = "網站後台退款 {$amount} 元";
+		// $current_user = \wp_get_current_user();
+		// if ($current_user) {
+		// $reason .= "，由 {$current_user->display_name} 操作";
+		// }
 		return $reason;
 	}
 

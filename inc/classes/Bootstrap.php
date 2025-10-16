@@ -50,34 +50,38 @@ final class Bootstrap {
 	public static function custom_css(): void {
 		?>
 		<style>
-            .order_notes{
-                .array_to_html{
-                    grid-template-columns: 72px 1fr;
-                }
-            }
-            .array_to_html{
-                display: grid;
-                grid-template-columns: 1fr 2fr;
-                gap: 0;width: 100%;
-                align-items: start;
-                font-size: 12px;
-                justify-content: start;
-                word-break: break-all;
-                white-space: normal;
+			.order_notes{
+				.array_to_html{
+					grid-template-columns: 72px 1fr;
+				}
+			}
+			.array_to_html{
+				display: grid;
+				grid-template-columns: 1fr 2fr;
+				gap: 0;width: 100%;
+				align-items: start;
+				font-size: 12px;
+				justify-content: start;
+				word-break: break-all;
+				white-space: normal;
 
-                & > div:nth-child(odd) {
-                    padding-right: 4px;
-                    font-weight: bold;
-                    border-bottom: 1px solid #aaa;
-                    height:100%;
-                }
+				& > div:nth-child(odd) {
+					padding-right: 4px;
+					font-weight: bold;
+					border-bottom: 1px solid #aaa;
+					height:100%;
+				}
 
-                & > div:nth-child(even) {
-                    border-bottom: 1px solid #aaa;
-                    height:100%;
-                    overflow-wrap: anywhere;
-                }
-            }
+				& > div:nth-child(even) {
+					border-bottom: 1px solid #aaa;
+					height:100%;
+					overflow-wrap: anywhere;
+				}
+			}
+			
+			.order_data_column > p {
+				margin: 0;
+			}
 		</style>
 		<?php
 	}

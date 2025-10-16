@@ -20,13 +20,18 @@ final class ErrorMessage extends DTO {
 	public string $msg;
 
 	/** @var array<string> 必填屬性 */
-	protected $required_properties = [
+	protected array $required_properties = [
 		'code',
 		'msg',
 	];
 
 	/** @return array 人類可讀文字 */
 	public function to_human_array(): array {
+		if (!\str_replace( ' ', '', $this->code)) {
+			// 如果 code 是空字串
+			return [];
+		}
+
 		$msg  = ErrorCode::tryFrom($this->code)?->label() ?? $this->msg;
 		$msg .= " ( 錯誤碼：{$this->code} )";
 		return [

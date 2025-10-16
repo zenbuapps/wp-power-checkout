@@ -8,6 +8,7 @@ use Automattic\WooCommerce\Blocks\Payments\PaymentMethodRegistry;
 use J7\PowerCheckout\Domains\Payment\Contracts\IRegisterGateway;
 use J7\PowerCheckout\Domains\Payment\Shared\Utils\GatewayUtils;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\RedirectSettingsDTO;
+use J7\PowerCheckout\Plugin;
 use J7\WpUtils\Classes\General;
 use J7\PowerCheckout\Domains\Payment\Shared\BlocksIntegration;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http\WebHook;
@@ -45,6 +46,10 @@ final class RegisterGateways implements IRegisterGateway {
 	public static function register_checkout_blocks( PaymentMethodRegistry $payment_method_registry ): void {
 		if (!\class_exists('\Automattic\WooCommerce\Blocks\Payments\Integrations\AbstractPaymentMethodType')) {
 			return;
+		}
+
+		if (!\class_exists(GatewayUtils::class)) {
+			require_once Plugin::$dir . '/inc/classes/Domains/Payment/Shared/Utils/GatewayUtils.php';
 		}
 
 		$gateway = GatewayUtils::get_gateway( RedirectGateway::ID);

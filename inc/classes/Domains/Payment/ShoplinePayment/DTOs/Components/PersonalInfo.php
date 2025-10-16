@@ -26,7 +26,7 @@ class PersonalInfo extends DTO {
 	public string $phone;
 
 	/** @var array<string> 必填屬性 */
-	protected $required_properties = [
+	protected array $required_properties = [
 		'lastName',
 	];
 

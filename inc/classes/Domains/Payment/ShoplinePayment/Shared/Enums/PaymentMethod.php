@@ -56,4 +56,24 @@ enum PaymentMethod: string {
 			]
 			);
 	}
+
+	/**
+	 * @param \WC_Order $order 訂單
+	 * @param float     $amount 退款金額
+	 *
+	 * @return bool|\WP_Error
+	 */
+	public function can_refund( \WC_Order $order, float $amount ): bool|\WP_Error {
+		if (self::VIRTUALACCOUNT === $this) {
+			return new \WP_Error('refund_not_support', "❌ {$this->label()} 不支援退款");
+		}
+
+		// 中租零角只支援全額退款
+		$full_refund = ( (float) $order->get_total() ) === $amount;
+		if (self::CHAILEASEBNPL === $this && !$full_refund) {
+			return new \WP_Error('refund_not_support', "❌ {$this->label()} 僅支援全額退款，不支援部分退款");
+		}
+
+		return true;
+	}
 }

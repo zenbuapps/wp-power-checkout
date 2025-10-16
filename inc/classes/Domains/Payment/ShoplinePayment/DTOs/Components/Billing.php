@@ -23,7 +23,7 @@ final class Billing extends DTO {
 	public Address $address;
 
 	/** @var array<string> 必填屬性 */
-	protected $required_properties = [
+	protected array $required_properties = [
 		'personalInfo',
 		'address',
 	];

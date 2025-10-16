@@ -44,7 +44,7 @@ final class Client extends DTO {
 	public string $accept;
 
 	/** @var array<string> 必填屬性 */
-	protected $required_properties = [
+	protected array $required_properties = [
 		'ip',
 	];
 

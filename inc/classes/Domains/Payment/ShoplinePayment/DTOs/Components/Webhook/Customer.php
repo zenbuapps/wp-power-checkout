@@ -20,7 +20,7 @@ final class Customer extends DTO {
 	public string $customerId;
 
 	/** @var array<string> 必填屬性 */
-	protected $required_properties = [
+	protected array $required_properties = [
 		'referenceCustomerId',
 		'customerId',
 	];

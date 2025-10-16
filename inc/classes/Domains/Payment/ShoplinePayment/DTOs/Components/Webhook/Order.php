@@ -16,11 +16,11 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Components;
  *  */
 final class Order extends DTO {
 	use ReferenceOrderIdTrait;
-    use AmountTrait;
+	use AmountTrait;
 
 	/** @var string *特店 ID (32)*/
 	public string $merchantId;
- 
+
 	/** @var int *訂單建立時間*/
 	public int $createTime;
 
@@ -31,7 +31,7 @@ final class Order extends DTO {
 	public int|null $expireTime;
 
 	/** @var array<string> 必填屬性 */
-	protected $required_properties = [
+	protected array $required_properties = [
 		'merchantId',
 		'amount',
 		'referenceOrderId',

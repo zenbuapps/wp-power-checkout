@@ -29,7 +29,7 @@ final class VirtualAccount extends DTO {
 	public string $paymentBankCode = '';
 
 	/** @var array<string> 必填屬性 */
-	protected $required_properties = [
+	protected array $required_properties = [
 		'dueDate',
 		'dueDateDesc',
 		'recipientAccountNum',
@@ -39,11 +39,11 @@ final class VirtualAccount extends DTO {
 	/** 轉換成人類可讀的陣列 */
 	public function to_human_array(): array {
 		return [
-			'付款期限'        => $this->dueDate,
-			'轉帳虛擬帳號'      => $this->recipientAccountNum,
-			'轉帳虛擬帳號銀行代碼'  => $this->recipientBankCode,
-			'付款人轉出帳號'     => $this->paymentAccountNum,
-			'付款人轉出帳號銀行代碼' => $this->paymentBankCode,
+			'付款期限'       => $this->dueDate,
+			'收款虛擬帳號'     => $this->recipientAccountNum,
+			'收款虛擬帳號銀行代碼' => $this->recipientBankCode,
+			'付款人帳號'      => $this->paymentAccountNum,
+			'付款人帳號銀行代碼'  => $this->paymentBankCode,
 		];
 	}
 }

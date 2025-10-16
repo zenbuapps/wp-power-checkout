@@ -21,7 +21,7 @@ final class Amount extends DTO {
 	public string $currency = 'TWD';
 
 	/** @var array<string> 必填屬性 */
-	protected $required_properties = [
+	protected array $required_properties = [
 		'value',
 		'currency',
 	];
@@ -53,9 +53,13 @@ final class Amount extends DTO {
 
 	/** 轉換成人類可讀的陣列 */
 	public function to_human_array(): array {
-		$amount = $this->value / 100;
 		return [
-			'金額' => "{$amount} {$this->currency}",
+			'金額' => "{$this->to_human_value()} {$this->currency}",
 		];
+	}
+
+	/** 轉換成人類可讀的數值 */
+	public function to_human_value(): float {
+		return (float) $this->value / 100;
 	}
 }
