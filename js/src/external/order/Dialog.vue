@@ -1,36 +1,20 @@
 <script setup lang="ts">
-// const originOrderStatus = document.querySelector("#order_status")?.value
-// let isChecked = false;
-//
-// form.on('submit', function (e) {
-//     if (isChecked) {
-//         return;
-//     }
-//     e.preventDefault();
-//     e.stopPropagation();
-//
-//     const formData = new FormData(form[0]);
-//     const order_status = formData.get('order_status');
-//
-//     if ('wc-refunded' !== order_status || originOrderStatus === order_status) {
-//         isChecked = true;
-//         form.submit();
-//         return;
-//     }
-//
-//     alert("1305100611060156")
-//
-// })
-
-
 import {ref, onMounted, onUnmounted} from "vue";
 import {IOrderData, DEFAULT_ORDER_DATA} from "./types"
 import apiClient from "@/api";
 import {useMutation} from "@tanstack/vue-query";
 
-const form = document.querySelector('form#order') as HTMLFormElement;
+enum EOrderStatus {
+    NAME = 'order_status',
+    REFUNDED = 'wc-refunded',
+}
+
+const form = document.querySelector('form#order, form#post') as HTMLFormElement;
+if (!form) {
+    console.error("找不到 form#order, form#post 訂單表單")
+}
 const fromFormData = new FormData(form);
-const fromOrderStatus = fromFormData.get('order_status');
+const fromOrderStatus = fromFormData.get(EOrderStatus.NAME);
 
 const showDialog = ref(false)
 
@@ -43,11 +27,14 @@ const dialogContent = `<p>執行退款，會將此訂單剩餘可退金額 ${ord
 
 function handleSubmit(e: Event) {
     const toFormData = new FormData(form);
-    const toOrderStatus = toFormData.get('order_status');
+    const toOrderStatus = toFormData.get(EOrderStatus.NAME);
 
-    console.log('toOrderStatus', toOrderStatus)
-    console.log('fromOrderStatus', fromOrderStatus)
-    if (toOrderStatus !== 'wc-refunded') {
+    console.log(`handleSubmit ${EOrderStatus.NAME} ${EOrderStatus.REFUNDED}`, {
+        fromOrderStatus,
+        toOrderStatus,
+    })
+
+    if (toOrderStatus !== EOrderStatus.REFUNDED) {
         return;
     }
 

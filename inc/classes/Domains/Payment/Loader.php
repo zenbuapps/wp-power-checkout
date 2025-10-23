@@ -18,6 +18,7 @@ final class Loader {
 		// EcpayAIO\Core\Init::register_hooks();
 
 		\add_action( 'woocommerce_refund_created', [ __CLASS__, 'default_refund_reason' ], 10, 2 );
+		\add_action('woocommerce_order_refunded', [ __CLASS__, 'add_order_note__manual_refund' ], 10, 2);
 		\add_action( 'admin_enqueue_scripts', [ __CLASS__, 'refund_script' ], 20 );
 	}
 
@@ -38,6 +39,9 @@ final class Loader {
 	}
 
 
+	/*
+	* 退款的 script
+	*/
 	public static function refund_script( $hook ): void {
 		if (!OrderUtils::is_order_detail($hook)) {
 			return;
@@ -68,5 +72,23 @@ final class Loader {
 
 			]
 		);
+	}
+
+
+	/**
+	 * 手動退款就打 Order Note
+	 *
+	 * @param int $order_id 訂單 id
+	 * @param int $refund_id 退款 id
+	 *
+	 * @return void
+	 */
+	public static function add_order_note__manual_refund( int $order_id, int $refund_id ): void {
+		$refund = \wc_get_order($refund_id);
+		if (!$refund->get_refunded_payment()) {
+			$order         = \wc_get_order( $order_id );
+			$refund_amount = \wc_price($refund->get_amount() );
+			$order->add_order_note( "手動退款 {$refund_amount} 元");
+		}
 	}
 }

@@ -15,5 +15,5 @@ interface IRegisterGateway {
 	public static function add_method( array $methods ): array;
 
 	/** 註冊區塊結帳支援 */
-	public static function register_checkout_blocks( PaymentMethodRegistry $payment_method_registry ): void;
+	public static function register_checkout_blocks(): void;
 }

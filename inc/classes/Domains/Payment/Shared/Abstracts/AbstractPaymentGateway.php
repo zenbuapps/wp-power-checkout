@@ -32,7 +32,21 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	// endregion
 
 	/** @var array<GatewaySupport::value> 支援的特性預設支援退款、tokenization、區塊結帳 */
-	public $supports = [ 'products', 'refunds', 'tokenization', 'checkout-blocks' ];
+	public $supports = [
+		'products',
+		'refunds',
+		'tokenization',
+		'checkout-blocks',
+		'block_checkout',
+		// 'pre-orders',
+		// 'subscriptions',
+		// 'subscription_cancellation',
+		// 'subscription_suspension',
+		// 'subscription_reactivation',
+		// 'subscription_amount_changes',
+		// 'subscription_date_changes',
+		// 'multiple_subscriptions'
+	];
 
 	/** @var \WC_Order|null 訂單 */
 	public \WC_Order|null $order = null;
@@ -86,6 +100,11 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 		\add_filter( 'power_checkout_payment_gateway_ids', fn( array $gateway_ids ) => [ ...$gateway_ids, $this->id ] );
 
 		\add_action('woocommerce_order_refunded', [ $this, 'handle_payment_gateway_refund' ], 10, 2);
+
+		// 訂閱收款
+		// \add_action( 'woocommerce_scheduled_subscription_payment_dummy', array( $this, 'process_subscription_payment' ), 10, 2 );
+
+		// add_action ( 'wc_pre_orders_process_pre_order_completion_payment_' . $this->id, array( $this, 'process_pre_order_release_payment' ), 10 );
 	}
 
 	/** @return DTO 取得 gateway 設定 */
@@ -103,7 +122,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 			}
 		}
 
-		\array_map( static fn( $support ) => GatewaySupport::from( $support ), $this->supports );
+		// \array_map( static fn( $support ) => GatewaySupport::from( $support ), $this->supports );
 	}
 
 	/**
@@ -115,6 +134,11 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	public function is_available(): bool {
 
 		$is_available = ( 'yes' === $this->enabled );
+
+		if (\is_admin()) {
+			return $is_available;
+		}
+
 		if ( !$is_available ) {
 			return false;
 		}
@@ -343,8 +367,6 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	/**
 	 * 退款邏輯，API 發送
 	 * 退款創建時觸發
-	 *
-	 * TODO 之後改為抽像方法
 	 *
 	 * @param int $order_id 訂單 id
 	 * @param int $refund_id 退款 id

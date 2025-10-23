@@ -9,7 +9,6 @@ use J7\PowerCheckout\Domains\Payment\Contracts\IRegisterGateway;
 use J7\PowerCheckout\Domains\Payment\Shared\Utils\GatewayUtils;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\RedirectSettingsDTO;
 use J7\PowerCheckout\Plugin;
-use J7\WpUtils\Classes\General;
 use J7\PowerCheckout\Domains\Payment\Shared\BlocksIntegration;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http\WebHook;
 
@@ -33,7 +32,7 @@ final class RegisterGateways implements IRegisterGateway {
 		// 添加付款方式
 
 		// 整合區塊結帳
-		\add_action( 'woocommerce_blocks_payment_method_type_registration', [ __CLASS__, 'register_checkout_blocks' ] );
+		\add_action( 'woocommerce_blocks_loaded', [ __CLASS__, 'register_checkout_blocks' ] );
 	}
 
 	/** 添加付款方式 @param array<string> $methods 付款方式 @return array<string> */
@@ -43,21 +42,26 @@ final class RegisterGateways implements IRegisterGateway {
 	}
 
 	/** 註冊區塊結帳支援 */
-	public static function register_checkout_blocks( PaymentMethodRegistry $payment_method_registry ): void {
-		if (!\class_exists('\Automattic\WooCommerce\Blocks\Payments\Integrations\AbstractPaymentMethodType')) {
-			return;
-		}
+	public static function register_checkout_blocks(): void {
+		\add_action(
+			'woocommerce_blocks_payment_method_type_registration',
+			function ( PaymentMethodRegistry $payment_method_registry ): void {
+				if (!\class_exists('\Automattic\WooCommerce\Blocks\Payments\Integrations\AbstractPaymentMethodType')) {
+					return;
+				}
 
-		if (!\class_exists(GatewayUtils::class)) {
-			require_once Plugin::$dir . '/inc/classes/Domains/Payment/Shared/Utils/GatewayUtils.php';
-		}
+				if (!\class_exists(GatewayUtils::class)) {
+					require_once Plugin::$dir . '/inc/classes/Domains/Payment/Shared/Utils/GatewayUtils.php';
+				}
 
-		$gateway = GatewayUtils::get_gateway( RedirectGateway::ID);
+				$gateway = GatewayUtils::get_gateway( RedirectGateway::ID);
 
-		if (!$gateway) {
-			return;
-		}
+				if (!$gateway) {
+					return;
+				}
 
-		$payment_method_registry->register(new BlocksIntegration($gateway));
+				$payment_method_registry->register(new BlocksIntegration($gateway));
+			}
+		);
 	}
 }

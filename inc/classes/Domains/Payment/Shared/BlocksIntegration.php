@@ -49,16 +49,19 @@ class BlocksIntegration extends \Automattic\WooCommerce\Blocks\Payments\Integrat
 	/** @return array<string> 區塊結帳支援的腳本 */
 	public function get_payment_method_script_handles(): array {
 		$handle = "wc-{$this->name}-blocks-integration";
+
 		\wp_register_script(
 					$handle,
 					Plugin::$url . "/inc/assets/dist/blocks/{$this->name}.js",
 					[
 						'react',
-						'wc-blocks-registry',
 						'wc-settings',
+						'wp-block-editor',
+						'wp-blocks',
+						'wp-components',
 						'wp-element',
-						'wp-html-entities',
 						'wp-i18n',
+						'wp-primitives',
 					],
 					Plugin::$version,
 					true
