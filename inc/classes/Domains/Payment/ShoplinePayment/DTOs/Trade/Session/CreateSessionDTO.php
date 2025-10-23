@@ -65,17 +65,18 @@ final class CreateSessionDTO extends DTO {
 
 	/**
 	 * 組成變數的主要邏輯可以寫在裡面
-	 *  @param \WC_Order              $order 訂單
-     *  @param string                 $return_url 回傳 URL
+	 *
+	 *  @param \WC_Order $order 訂單
+	 *  @param string    $return_url 回傳 URL
 	 */
-	public static function create(\WC_Order $order, string $return_url ): self {
+	public static function create( \WC_Order $order, string $return_url ): self {
 		$settings = new RedirectSettingsDTO();
 		$total    = $order->get_total();
 		$args     = [
 			'referenceId'            => $order->get_id(),
 			'amount'                 => Components\Amount::create( (float) $total ),
 			'language'               => \get_locale() === 'zh_TW' ? 'zh-TW' : 'en',
-			// 'expireTime'             => 360,
+			'expireTime'             => $settings->expire_min,
 			'returnUrl'              => $return_url,
 			'allowPaymentMethodList' => $settings->allowPaymentMethodList,
 			// 'paymentMethodOptions'   =>  $settings->paymentMethodOptions,

@@ -92,7 +92,7 @@ abstract class GatewayUtils {
 		return \update_option( self::get_option_name( $gateway_id ), $settings_array );
 	}
 
-	/** @return string payment gateway 儲存在 wp_option  的 option_name */
+	/** @return string payment gateway 儲存在 wp_option 的 option_name */
 	public static function get_option_name( string $gateway_id ): string {
 		return "woocommerce_{$gateway_id}_settings";
 	}

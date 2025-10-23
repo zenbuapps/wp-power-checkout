@@ -61,11 +61,11 @@ final class SettingApiService extends ApiBase {
 	 */
 	public static function get_gateways_settings_with_id_callback( \WP_REST_Request $request ): \WP_REST_Response {
 		$gateway_id = (string) $request['gateway_id'];
-        $gateway    = GatewayUtils::get_gateway($gateway_id);
-        if(!$gateway) {
-            throw new \Exception("Can't find Gateway with gateway_id:{$gateway_id}");
-        }
-		$settings   =$gateway->get_settings();
+		$gateway    = GatewayUtils::get_gateway($gateway_id);
+		if (!$gateway) {
+			throw new \Exception("Can't find Gateway with gateway_id:{$gateway_id}");
+		}
+		$settings = $gateway->get_settings();
 
 		return new \WP_REST_Response(
 			[

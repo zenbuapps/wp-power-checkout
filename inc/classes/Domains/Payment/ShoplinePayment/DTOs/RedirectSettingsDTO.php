@@ -6,7 +6,6 @@ namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs;
 
 use J7\PowerCheckout\Domains\Payment\Contracts\IGatewaySettings;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\RedirectGateway;
-use J7\PowerCheckout\Domains\Settings\Services\SettingTabService;
 use J7\WpUtils\Classes\DTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums;
 
@@ -28,19 +27,19 @@ final class RedirectSettingsDTO extends DTO implements IGatewaySettings {
 	public string $title = 'Shopline Payment (導轉式)';
 
 	/** @var string 前台顯示付款方式描述 */
-	public string $description = '';
+	public string $description = '提供八間銀行分期付款，以及 LINE Pay、街口支付、APPLE PAY 等付款方式';
 
 	/** @var string 前台顯示付款方式按鈕文字 */
 	public string $order_button_text = '';
 
 	/** @var int 付款期限(分鐘)，通常 ATM / CVS / BARCODE 才有 */
-	public int $expire_min;
+	public int $expire_min = 360;
 
 	/** @var int 付款方式最小金額 */
-	public int $min_amount;
+	public int $min_amount = 0;
 
 	/** @var int 付款方式最大金額 */
-	public int $max_amount;
+	public int $max_amount = 0;
 
 	/** @var string $mode Enums\Mode::value 模式  */
 	public string $mode = 'test';
@@ -78,6 +77,25 @@ final class RedirectSettingsDTO extends DTO implements IGatewaySettings {
 		return new self($settings_array);
 	}
 
+	/**  @return void 型別轉換 */
+	protected function before_init(): void {
+		$int_keys = [
+			'expire_min',
+			'min_amount',
+			'max_amount',
+		];
+		foreach ($int_keys as $key) {
+			if (!isset($this->dto_data[ $key ])) {
+				continue;
+			}
+			$this->dto_data[ $key ] = (int) $this->dto_data[ $key ];
+		}
+
+		if (!isset($this->dto_data['order_button_text'])) {
+			$this->dto_data['order_button_text'] = \sprintf(\__( '使用 %s 付款', 'power_checkout' ), $this->title);
+		}
+	}
+
 	/**
 	 * 實例化後，如果是 測試模式就修改屬性
 	 *
@@ -109,17 +127,7 @@ final class RedirectSettingsDTO extends DTO implements IGatewaySettings {
 	 */
 	public function to_array( bool $raw = false ): array {
 		if ($raw) {
-			$default_array = [
-				'mode'                   => Enums\Mode::TEST->value,
-				'allowPaymentMethodList' => [
-					'CreditCard',
-					'VirtualAccount',
-					'JKOPay',
-					'ApplePay',
-					'LinePay',
-					'ChaileaseBNPL',
-				],
-			];
+			$default_array = ( new self() )->to_array();
 			return \wp_parse_args( $this->dto_data, $default_array);
 		}
 
