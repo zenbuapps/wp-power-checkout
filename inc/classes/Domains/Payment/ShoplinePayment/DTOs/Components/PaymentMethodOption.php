@@ -16,13 +16,19 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\PaymentMethod;
 final class PaymentMethodOption extends DTO {
 
 	/** @var 'CreditCardOption' | 'ChaileaseBNPLOption' | 'JKOPayOption' | 'VirtualAccountOption' 付款方式類型 */
-	private string $type;
+	public string $type;
 
 	/** @var array<string> 設定支援的分期期數，0 指一般交易。若不帶入則默認只設定為一般交易 */
 	public array $installmentCounts;
 
 	/** @var int 設定付款方式的逾時時間，單位：min。為了顧客體驗，建議帶入4320（即3天）。若不帶入則默認為 4320（即3天）。若不滿足整數天，則會向上取整 */
 	public int $paymentExpireTime;
+
+	/** 創建實例 */
+	public static function create( array $args, string $type ): self {
+		$args['type'] = $type;
+		return new self($args);
+	}
 
 
 	/**
@@ -49,5 +55,13 @@ final class PaymentMethodOption extends DTO {
 		if ( in_array( $this->type, [ 'JKOPayOption', 'VirtualAccountOption' ], true ) && isset( $this->installmentCounts ) ) {
 			throw new \Exception('JKOPayOption 不需要 installmentCounts 設定');
 		}
+	}
+
+
+	/** 改寫 to_array */
+	public function to_array(): array {
+		$array = parent::to_array();
+		unset($array['type']);
+		return $array;
 	}
 }

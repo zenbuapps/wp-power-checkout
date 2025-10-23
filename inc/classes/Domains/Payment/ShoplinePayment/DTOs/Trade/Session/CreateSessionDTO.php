@@ -6,6 +6,7 @@ namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Session;
 
 use J7\PowerCheckout\Domains\Payment\Shared\Abstracts\AbstractPaymentGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Components;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Components\PaymentMethodOptions;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\RedirectSettingsDTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Traits\AmountTrait;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Traits\LanguageTrait;
@@ -79,7 +80,7 @@ final class CreateSessionDTO extends DTO {
 			'expireTime'             => $settings->expire_min,
 			'returnUrl'              => $return_url,
 			'allowPaymentMethodList' => $settings->allowPaymentMethodList,
-			// 'paymentMethodOptions'   =>  $settings->paymentMethodOptions,
+			'paymentMethodOptions'   => PaymentMethodOptions::create($settings->paymentMethodOptions),
 			'order'                  => Components\Order\Order::create( $order ),
 			'billing'                => Components\Billing::create( $order ),
 			'customer'               => Components\Customer::create( $order ),

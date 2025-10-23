@@ -47,7 +47,7 @@ enum PaymentMethod: string {
 	 */
 	public static function get_option_names(): array {
 		return array_map(
-			fn ( PaymentMethod $payment_method ) => "{$payment_method->value}Option",
+			fn ( PaymentMethod $payment_method ) => "{$payment_method->value}",
 			[
 				self::CREDITCARD,
 				self::VIRTUALACCOUNT,

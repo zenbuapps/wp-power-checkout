@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs;
 
 use J7\PowerCheckout\Domains\Payment\Contracts\IGatewaySettings;
+use J7\PowerCheckout\Domains\Payment\Shared\Utils\GatewayUtils;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\RedirectGateway;
 use J7\WpUtils\Classes\DTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums;
@@ -69,10 +70,19 @@ final class RedirectSettingsDTO extends DTO implements IGatewaySettings {
 		'ChaileaseBNPL',
 	];
 
+	/** @var array<string, array<string>> $paymentMethodOptions */
+	public array $paymentMethodOptions = [
+		'CreditCard' => [
+			'installmentCounts' => [ '0', '3', '6', '9', '12', '18', '24' ],
+		],
+		'ChaileaseBNPL' => [
+			'installmentCounts' => [ '0', '3', '6', '12', '18', '24', '30', '36' ],
+		],
+	];
+
 	/** 取得實例 */
 	public static function instance(): self {
-		$gateway_id     = RedirectGateway::ID;
-		$settings_array = \get_option( "woocommerce_{$gateway_id}_settings", [] );
+		$settings_array = GatewayUtils::get_option_name(RedirectGateway::ID);
 		$settings_array = \is_array( $settings_array ) ? $settings_array : [];
 		return new self($settings_array);
 	}

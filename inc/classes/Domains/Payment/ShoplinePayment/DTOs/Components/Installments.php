@@ -24,7 +24,7 @@ final class Installments extends DTO {
 	public function to_human_array(): array {
 		return [
 			'分期期數' => $this->count,
-			'首期金額' => $this->installDownPay,
+			'首期金額' => $this->installDownPay / 100,
 			'每期金額' => $this->installPay / 100,
 		];
 	}

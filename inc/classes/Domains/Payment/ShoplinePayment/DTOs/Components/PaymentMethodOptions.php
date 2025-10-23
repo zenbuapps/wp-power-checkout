@@ -16,14 +16,32 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Components\PaymentMeth
 final class PaymentMethodOptions extends DTO {
 
 	/** @var Option 信用卡付款方式設定，包含一般交易和分期交易*/
-	public Option $CreditCardOption;
+	public Option $CreditCard;
 
 	/** @var Option 中租 zingla 銀角零卡付款方式設定*/
-	public Option $ChaileaseBNPLOption;
+	public Option $ChaileaseBNPL;
 
 	/** @var Option 街口支付付款方式設定*/
-	public Option $JKOPayOption;
+	public Option $JKOPay;
 
 	/** @var Option ATM 銀行轉帳付款方式設定*/
-	public Option $VirtualAccountOption;
+	public Option $VirtualAccount;
+
+	/**
+	 * @param array $args
+	 *
+	 * @return self
+	 * @throws \Exception DTO 失敗
+	 */
+	public static function create( array $args ): self {
+		$fields = [ 'CreditCard', 'ChaileaseBNPL', 'JKOPay', 'VirtualAccount' ];
+		foreach ($fields as $field) {
+			if ( ! isset( $args[ $field ] ) ) {
+				continue;
+			}
+			$args[ $field ] = Option::create( $args[ $field ], $field );
+		}
+
+		return new self( $args );
+	}
 }

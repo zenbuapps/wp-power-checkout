@@ -8,7 +8,7 @@ use J7\PowerCheckout\Domains\Payment\EcpayAIO\DTOs\ResponseParams;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Utils\Base as EcpayUtils;
 use J7\PowerCheckout\Domains\Payment\Shared\Params;
 use J7\Powerhouse\Utils\Base as PowerhouseUtils;
-use J7\WpUtils\Classes\ApiBase;
+use J7\PowerCheckout\Vendor\J7\WpUtils\Classes\ApiBase;
 
 /** Api */
 final class Api extends ApiBase {

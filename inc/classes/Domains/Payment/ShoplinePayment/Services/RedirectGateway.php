@@ -34,7 +34,7 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 	public $method_title = 'Shopline Payment (導轉式)';
 
 	/** @var string 後台顯示付款方式描述 */
-	public $method_description = '';
+	public $method_description = '提供八間銀行分期付款，以及 LINE Pay、街口支付、APPLE PAY 等付款方式';
 
 	/**
 	 * Shopline 跳轉式支付核心支付邏輯
