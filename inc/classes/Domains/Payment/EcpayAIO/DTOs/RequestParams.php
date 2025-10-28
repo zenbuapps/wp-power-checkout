@@ -8,7 +8,7 @@ use J7\PowerCheckout\Domains\Payment\EcpayAIO\Services\Services;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Utils\Base as EcpayUtils;
 use J7\PowerCheckout\Domains\Payment\Shared\Abstracts\AbstractPaymentGateway;
 use J7\PowerCheckout\Domains\Payment\Shared\Params;
-use J7\PowerCheckout\Utils\Helper;
+use J7\PowerCheckout\Utils\StrHelper;
 use J7\WpUtils\Classes\DTO;
 
 /**
@@ -226,8 +226,8 @@ final class RequestParams extends DTO {
 			throw new \Exception("PaymentType 必須為 aio, 但目前為 {$this->PaymentType}");
 		}
 
-		( new Helper($this->MerchantTradeNo, 'MerchantTradeNo', 20) )->validate();
-		( new Helper($this->TradeDesc, 'TradeDesc', 200) )->validate_strlen();
+		( new StrHelper( $this->MerchantTradeNo, 'MerchantTradeNo', 20) )->validate();
+		( new StrHelper( $this->TradeDesc, 'TradeDesc', 200) )->validate_strlen();
 
 		$payment_options = [ 'Credit', 'TWQR', 'WebATM', 'ATM', 'CVS', 'BARCODE', 'ApplePay', 'BNPL' ];
 		if (!in_array($this->ChoosePayment, [ ...$payment_options, 'ALL' ], true)) {

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Components;
 
 use J7\WpUtils\Classes\DTO;
-use J7\PowerCheckout\Utils\Helper;
+use J7\PowerCheckout\Utils\StrHelper;
 
 /**
  * Billing 帳單資訊
@@ -34,7 +34,7 @@ final class Billing extends DTO {
 	 */
 	public static function create( \WC_Order $order ): self {
 		$args = [
-			'description'  => ( new Helper($order->get_customer_note(), 'description', 32) )->substr()->value,
+			'description'  => ( new StrHelper( $order->get_customer_note(), 'description', 32) )->substr()->value,
 			'personalInfo' => PersonalInfo::create( $order ),
 			'address'      => Address::create( $order ),
 		];
@@ -50,7 +50,7 @@ final class Billing extends DTO {
 		parent::validate();
 
 		if ( isset( $this->description ) ) {
-			( new Helper($this->description, 'description', 32) )->get_strlen(true);
+			( new StrHelper( $this->description, 'description', 32) )->get_strlen( true);
 		}
 	}
 }

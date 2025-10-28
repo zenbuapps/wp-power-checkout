@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Components\Order;
 
 use J7\WpUtils\Classes\DTO;
-use J7\PowerCheckout\Utils\Helper;
+use J7\PowerCheckout\Utils\StrHelper;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Components\PersonalInfo;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Components\Address;
 
@@ -42,8 +42,8 @@ final class Shipping extends DTO {
 	 */
 	public static function create( \WC_Order $order ): self {
 		$args = [
-			'shippingMethod' => ( new Helper($order->get_shipping_method() ?: 'N/A', 'shippingMethod', 64) )->substr()->value,
-			'carrier'        => ( new Helper($order->get_shipping_method() ?: 'N/A', 'carrier', 64) )->substr()->value,
+			'shippingMethod' => ( new StrHelper( $order->get_shipping_method() ?: 'N/A', 'shippingMethod', 64) )->substr()->value,
+			'carrier'        => ( new StrHelper( $order->get_shipping_method() ?: 'N/A', 'carrier', 64) )->substr()->value,
 			'personalInfo'   => PersonalInfo::create( $order ),
 			'address'        => Address::create( $order ),
 		];
@@ -58,7 +58,7 @@ final class Shipping extends DTO {
 	 *  */
 	protected function validate(): void {
 		parent::validate();
-		( new Helper($this->shippingMethod, 'shippingMethod', 64) )->get_strlen(true);
-		( new Helper($this->carrier, 'carrier', 64) )->get_strlen(true);
+		( new StrHelper( $this->shippingMethod, 'shippingMethod', 64) )->get_strlen( true);
+		( new StrHelper( $this->carrier, 'carrier', 64) )->get_strlen( true);
 	}
 }

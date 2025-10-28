@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Components;
 
 use J7\WpUtils\Classes\DTO;
-use J7\PowerCheckout\Utils\Helper;
+use J7\PowerCheckout\Utils\StrHelper;
 
 /**
  * Client 終端資訊
@@ -56,8 +56,8 @@ final class Client extends DTO {
 		$args = [
 			'ip'        => $order->get_customer_ip_address(),
 			'userAgent' => $order->get_customer_user_agent(),
-			'accept'    => ( new Helper( \sanitize_text_field( \wp_unslash( $_SERVER['HTTP_ACCEPT'] ?? '' ) ), 'HTTP_ACCEPT', 128 ) )->substr()->value,
-			'language'  => ( new Helper( \sanitize_text_field( \wp_unslash( $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '' ) ), 'HTTP_ACCEPT_LANGUAGE', 32 ) )->substr()->value,
+			'accept'    => ( new StrHelper( \sanitize_text_field( \wp_unslash( $_SERVER['HTTP_ACCEPT'] ?? '' ) ), 'HTTP_ACCEPT', 128 ) )->substr()->value,
+			'language'  => ( new StrHelper( \sanitize_text_field( \wp_unslash( $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '' ) ), 'HTTP_ACCEPT_LANGUAGE', 32 ) )->substr()->value,
 		];
 		return new self($args);
 	}
@@ -70,42 +70,42 @@ final class Client extends DTO {
 	protected function validate(): void {
 		parent::validate();
 
-		( new Helper($this->ip, 'ip', 32) )->get_strlen(true);
+		( new StrHelper( $this->ip, 'ip', 32) )->get_strlen( true);
 
 		if ( isset( $this->screenWidth ) ) {
-			( new Helper($this->screenWidth, 'screenWidth', 16) )->get_strlen(true);
+			( new StrHelper( $this->screenWidth, 'screenWidth', 16) )->get_strlen( true);
 		}
 
 		if ( isset( $this->screenHeight ) ) {
-			( new Helper($this->screenHeight, 'screenHeight', 16) )->get_strlen(true);
+			( new StrHelper( $this->screenHeight, 'screenHeight', 16) )->get_strlen( true);
 		}
 
 		if ( isset( $this->javaEnabled ) ) {
-			( new Helper($this->javaEnabled, 'javaEnabled', 16) )->get_strlen(true);
+			( new StrHelper( $this->javaEnabled, 'javaEnabled', 16) )->get_strlen( true);
 		}
 
 		if ( isset( $this->timeZoneOffset ) ) {
-			( new Helper($this->timeZoneOffset, 'timeZoneOffset', 16) )->get_strlen(true);
+			( new StrHelper( $this->timeZoneOffset, 'timeZoneOffset', 16) )->get_strlen( true);
 		}
 
 		if ( isset( $this->transactionWebSite ) ) {
-			( new Helper($this->transactionWebSite, 'transactionWebSite', 512) )->get_strlen(true);
+			( new StrHelper( $this->transactionWebSite, 'transactionWebSite', 512) )->get_strlen( true);
 		}
 
 		if ( isset( $this->userAgent ) ) {
-			( new Helper($this->userAgent, 'userAgent', 128) )->get_strlen(true);
+			( new StrHelper( $this->userAgent, 'userAgent', 128) )->get_strlen( true);
 		}
 
 		if ( isset( $this->language ) ) {
-			( new Helper($this->language, 'language', 32) )->get_strlen(true);
+			( new StrHelper( $this->language, 'language', 32) )->get_strlen( true);
 		}
 
 		if ( isset( $this->colorDepth ) ) {
-			( new Helper($this->colorDepth, 'colorDepth', 16) )->get_strlen(true);
+			( new StrHelper( $this->colorDepth, 'colorDepth', 16) )->get_strlen( true);
 		}
 
 		if ( isset( $this->accept ) ) {
-			( new Helper($this->accept, 'accept', 128) )->get_strlen(true);
+			( new StrHelper( $this->accept, 'accept', 128) )->get_strlen( true);
 		}
 	}
 }

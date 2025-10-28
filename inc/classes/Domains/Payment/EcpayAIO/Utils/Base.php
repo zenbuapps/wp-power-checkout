@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\Utils;
 
-use J7\PowerCheckout\Utils\Helper;
+use J7\PowerCheckout\Utils\StrHelper;
 
 /** Utils */
 abstract class Base {
@@ -19,11 +19,11 @@ abstract class Base {
 		$item_names = [];
 		foreach ($order->get_items() as $item) {
 			// 移除商品名稱中的 # 符號
-			$item_name    = ( new Helper($item->get_name()) )->filter()->value;
+			$item_name    = ( new StrHelper( $item->get_name()) )->filter()->value;
 			$item_names[] = $item_name;
 
 			// 檢查累計字串長度是否超過 400
-			$item_names_helper = new Helper(implode('#', $item_names), 'item_names', 400);
+			$item_names_helper = new StrHelper( implode( '#', $item_names), 'item_names', 400);
 			if ($item_names_helper->get_strlen() >= 400) {
 				// 如果超過 400 ，則去除剛剛加入的商品名稱
 				$item_names = array_slice($item_names, 0, -1);
@@ -79,7 +79,7 @@ abstract class Base {
 	 */
 	public static function decode_trade_no( string $trade_no ): string {
 		$order_prefix = '';
-		$offset       = ( new Helper($order_prefix) )->get_strlen();
+		$offset       = ( new StrHelper( $order_prefix) )->get_strlen();
 		// $order_prefix = RY_WT::get_option( 'ecpay_gateway_order_prefix');
 		$order_id = substr( $trade_no, $offset, strrpos( $trade_no, 'TS' ) ?: 0 );
 		return $order_id;

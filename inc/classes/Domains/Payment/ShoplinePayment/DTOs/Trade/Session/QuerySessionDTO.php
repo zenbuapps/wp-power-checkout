@@ -6,7 +6,7 @@ namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Session;
 
 use J7\PowerCheckout\Domains\Payment\Shared\Params;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Traits\SessionIdTrait;
-use J7\PowerCheckout\Utils\Helper;
+use J7\PowerCheckout\Utils\StrHelper;
 use J7\WpUtils\Classes\DTO;
 
 /**
@@ -44,6 +44,6 @@ final class QuerySessionDTO extends DTO {
 	 *  */
 	protected function validate(): void {
 		parent::validate();
-		( new Helper( $this->sessionId, 'sessionId', 32) )->validate_strlen();
+		( new StrHelper( $this->sessionId, 'sessionId', 32) )->validate_strlen();
 	}
 }

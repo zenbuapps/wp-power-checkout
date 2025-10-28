@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Components;
 
 use J7\WpUtils\Classes\DTO;
-use J7\PowerCheckout\Utils\Helper;
+use J7\PowerCheckout\Utils\StrHelper;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\Country;
 
 /**
@@ -48,11 +48,11 @@ class Address extends DTO {
 		$street = $order->get_billing_address_1() . ' ' . $order->get_billing_address_2();
 
 		$args = [
-			'countryCode' => ( new Helper($order->get_billing_country(), 'billing_country', 2) )->substr()->value,
-			'city'        => ( new Helper($order->get_billing_state(), 'billing_state', 128) )->substr()->value,
-			'district'    => ( new Helper($order->get_billing_city(), 'billing_city', 128) )->substr()->value,
-			'street'      => ( new Helper($street, 'street', 128) )->substr()->value,
-			'postcode'    => ( new Helper($order->get_billing_postcode(), 'billing_postcode', 32) )->substr()->value,
+			'countryCode' => ( new StrHelper( $order->get_billing_country(), 'billing_country', 2) )->substr()->value,
+			'city'        => ( new StrHelper( $order->get_billing_state(), 'billing_state', 128) )->substr()->value,
+			'district'    => ( new StrHelper( $order->get_billing_city(), 'billing_city', 128) )->substr()->value,
+			'street'      => ( new StrHelper( $street, 'street', 128) )->substr()->value,
+			'postcode'    => ( new StrHelper( $order->get_billing_postcode(), 'billing_postcode', 32) )->substr()->value,
 		];
 		return new self($args);
 	}
@@ -65,11 +65,11 @@ class Address extends DTO {
 	protected function validate(): void {
 		parent::validate();
 		Country::from( $this->countryCode );
-		( new Helper($this->stateCode, 'stateCode', 12) )->get_strlen(true);
-		( new Helper($this->state, 'state', 128) )->get_strlen(true);
-		( new Helper($this->city, 'city', 128) )->get_strlen(true);
-		( new Helper($this->district, 'district', 128) )->get_strlen(true);
-		( new Helper($this->street, 'street', 128) )->get_strlen(true);
-		( new Helper($this->postcode, 'postcode', 32) )->get_strlen(true);
+		( new StrHelper( $this->stateCode, 'stateCode', 12) )->get_strlen( true);
+		( new StrHelper( $this->state, 'state', 128) )->get_strlen( true);
+		( new StrHelper( $this->city, 'city', 128) )->get_strlen( true);
+		( new StrHelper( $this->district, 'district', 128) )->get_strlen( true);
+		( new StrHelper( $this->street, 'street', 128) )->get_strlen( true);
+		( new StrHelper( $this->postcode, 'postcode', 32) )->get_strlen( true);
 	}
 }

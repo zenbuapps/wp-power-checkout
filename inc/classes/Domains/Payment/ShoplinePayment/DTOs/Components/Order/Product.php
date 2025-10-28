@@ -6,7 +6,7 @@ namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Components\Order
 
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Traits\AmountTrait;
 use J7\WpUtils\Classes\DTO;
-use J7\PowerCheckout\Utils\Helper;
+use J7\PowerCheckout\Utils\StrHelper;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Components\Amount;
 
 /**
@@ -49,8 +49,8 @@ final class Product extends DTO {
 	public static function create( \WC_Order_Item_Product $item ): self {
 		$id   = (string) ( $item->get_variation_id() ?: $item->get_product_id() );
 		$args = [
-			'id'       => ( new Helper($id, 'id', 64) )->filter()->substr()->value,
-			'name'     => ( new Helper($item->get_name(), 'name', 128) )->filter()->substr()->value,
+			'id'       => ( new StrHelper( $id, 'id', 64) )->filter()->substr()->value,
+			'name'     => ( new StrHelper( $item->get_name(), 'name', 128) )->filter()->substr()->value,
 			'quantity' => $item->get_quantity(),
 			'amount'   => Amount::create( (float) $item->get_total() ),
 		];
@@ -58,13 +58,13 @@ final class Product extends DTO {
 		$product = $item->get_product();
 		if ( $product ) { // 預防有人訂單產生後，刪除產品，就會拿不到資料
 			/** @var \WC_Product $product */
-			$args['desc'] = ( new Helper($product->get_short_description(), 'desc', 512) )->filter()->substr()->value;
+			$args['desc'] = ( new StrHelper( $product->get_short_description(), 'desc', 512) )->filter()->substr()->value;
 			$url          = $product->get_permalink();
 			if ( strlen( $url ) <= 256 ) {
 				$args['url'] = $url;
 			}
 
-			$args['sku'] = ( new Helper($product->get_sku(), 'sku', 64) )->filter()->substr()->value;
+			$args['sku'] = ( new StrHelper( $product->get_sku(), 'sku', 64) )->filter()->substr()->value;
 		}
 
 		return new self( $args );
@@ -77,10 +77,10 @@ final class Product extends DTO {
 	 *  */
 	protected function validate(): void {
 		parent::validate();
-		( new Helper($this->id, 'id', 64) )->get_strlen(true);
-		( new Helper($this->name, 'name', 128) )->get_strlen(true);
-		( new Helper($this->desc, 'desc', 512) )->get_strlen(true);
-		( new Helper($this->url, 'url', 256) )->get_strlen(true);
-		( new Helper($this->sku, 'sku', 64) )->get_strlen(true);
+		( new StrHelper( $this->id, 'id', 64) )->get_strlen( true);
+		( new StrHelper( $this->name, 'name', 128) )->get_strlen( true);
+		( new StrHelper( $this->desc, 'desc', 512) )->get_strlen( true);
+		( new StrHelper( $this->url, 'url', 256) )->get_strlen( true);
+		( new StrHelper( $this->sku, 'sku', 64) )->get_strlen( true);
 	}
 }

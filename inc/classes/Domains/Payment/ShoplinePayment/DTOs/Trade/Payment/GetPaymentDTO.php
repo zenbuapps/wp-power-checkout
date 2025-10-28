@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Payment;
 
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Traits\TradeOrderIdTrait;
-use J7\PowerCheckout\Utils\Helper;
+use J7\PowerCheckout\Utils\StrHelper;
 use J7\WpUtils\Classes\DTO;
 
 /**
@@ -40,8 +40,8 @@ final class GetPaymentDTO extends DTO {
 	 *
 	 * @throws \Exception 如果驗證失敗
 	 *  */
-    protected function validate(): void {
+	protected function validate(): void {
 		parent::validate();
-		( new Helper( $this->tradeOrderId, 'tradeOrderId', 32) )->validate_strlen();
+		( new StrHelper( $this->tradeOrderId, 'tradeOrderId', 32) )->validate_strlen();
 	}
 }

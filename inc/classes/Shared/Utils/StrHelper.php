@@ -5,13 +5,13 @@ declare (strict_types = 1);
 namespace J7\PowerCheckout\Utils;
 
 /**
- * Helper 輔助函數，協助字串轉換、驗證
+ * StrHelper 輔助函數，協助字串轉換、驗證
  *
  * @example
  * // 過濾特殊字元+最大長度10
  * $name = (new Helper( 'Hello, World!' ))->filter()->max( 10 )->value;
  * */
-final class Helper {
+final class StrHelper {
 
 	/** Constructor */
 	public function __construct( public string $value, public string $name = '', public ?int $max_length = null ) {

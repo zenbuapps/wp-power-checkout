@@ -11,7 +11,7 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\ErrorCode;
 
 
 /**
- * Requester 請求器 工廠模式
+ * Requester 請求器
  * 用來發請求 & 格式化回應
  * 預先填好 Header
  *
@@ -92,7 +92,7 @@ final class Requester {
 		}
 
 		$this->gateway->logger(
-				"✅ {$this->gateway->title} 發送 {$endpoint} 請求成功 #{$this->order->get_id()}",
+				"✅ {$this->gateway->title} {$endpoint} 發送請求成功 #{$this->order->get_id()}",
 				'info',
 				$response_body
 				);

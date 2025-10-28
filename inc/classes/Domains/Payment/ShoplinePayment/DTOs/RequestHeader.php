@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs;
 
 use J7\WpUtils\Classes\DTO;
-use J7\PowerCheckout\Utils\Helper;
+use J7\PowerCheckout\Utils\StrHelper;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\RedirectSettingsDTO;
 
 /**
@@ -56,7 +56,7 @@ final class RequestHeader extends DTO {
 		$args         = [
 			'merchantId' => $settings->merchantId,
 			'apiKey'     => $settings->apiKey,
-			'requestId'  => ( new Helper($request_id, 'requestId', 32) )->substr()->value,
+			'requestId'  => ( new StrHelper( $request_id, 'requestId', 32) )->substr()->value,
 		];
 
 		return new self($args);

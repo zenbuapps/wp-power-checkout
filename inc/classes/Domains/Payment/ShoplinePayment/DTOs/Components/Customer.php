@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Components;
 
 use J7\WpUtils\Classes\DTO;
-use J7\PowerCheckout\Utils\Helper;
+use J7\PowerCheckout\Utils\StrHelper;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\CustomerType;
 
 /**
@@ -39,7 +39,7 @@ final class Customer extends DTO {
 		}
 
 		$args = [
-			'referenceCustomerId' => ( new Helper( (string) $customer_ref, 'customer_ref', 64) )->substr()->value,
+			'referenceCustomerId' => ( new StrHelper( (string) $customer_ref, 'customer_ref', 64) )->substr()->value,
 			'type'                => $order->get_customer_id() ? CustomerType::MEMBER->value : CustomerType::GUEST->value,
 			'personalInfo'        => PersonalInfo::create( $order ),
 		];

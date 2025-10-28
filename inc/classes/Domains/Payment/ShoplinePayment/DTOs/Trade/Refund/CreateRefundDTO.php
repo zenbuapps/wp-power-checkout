@@ -11,7 +11,7 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Traits\ReferenceOrderI
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Traits\TradeOrderIdTrait;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Traits\AmountTrait;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http\WebHook;
-use J7\PowerCheckout\Utils\Helper;
+use J7\PowerCheckout\Utils\StrHelper;
 use J7\WpUtils\Classes\DTO;
 
 class CreateRefundDTO extends DTO {
@@ -81,10 +81,10 @@ class CreateRefundDTO extends DTO {
 	protected function validate(): void {
 		parent::validate();
 		if (isset($this->reason)) {
-			( new Helper($this->reason, 'reason', 256 ) )->validate_strlen();
+			( new StrHelper( $this->reason, 'reason', 256 ) )->validate_strlen();
 		}
 		if (isset($this->callbackUrl)) {
-			( new Helper($this->callbackUrl, 'callbackUrl', 256 ) )->validate_strlen();
+			( new StrHelper( $this->callbackUrl, 'callbackUrl', 256 ) )->validate_strlen();
 		}
 	}
 }
