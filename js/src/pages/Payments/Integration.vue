@@ -279,7 +279,7 @@ const apiUrl = window.power_checkout_data.env.API_URL
 				<span class="flex gap-x-2 items-center">
 					<span>啟用測試模式</span>
 					<el-tooltip
-						content="啟用後，將使用測試的串接碼測試付款"
+						content="開發人員專用，啟用後將使用測試的串接碼測試付款"
 						placement="top"
 					>
 						<el-icon><InfoFilled /></el-icon>
@@ -331,12 +331,25 @@ const apiUrl = window.power_checkout_data.env.API_URL
 			<el-input v-model="form.clientKey" :disabled="isTestMode" clearable />
 		</el-form-item>
 
-		<el-form-item :required="!isTestMode" prop="signKey" label="Sign Key">
-			<el-input v-model="form.signKey" :disabled="isTestMode" clearable />
-			<p class="text-sm text-gray-500">
-				Sign Key 簽名密鑰，需要設定完 WebHook (
-				<code>{{ apiUrl }}/power-checkout/slp/webhook</code> ) 後，由 Shopline
-				窗口提供
+		<el-form-item
+			:required="!isTestMode"
+			prop="signKey"
+			label="Sign Key"
+			class="[&_p]:text-sm [&_p]:text-gray-500 [&_p]:mb-2 [&_p]:mt-0"
+		>
+			<el-input
+				class="mb-4"
+				v-model="form.signKey"
+				:disabled="isTestMode"
+				clearable
+			/>
+			<p>提供以下資訊給 Shopline 窗口後取得 Sign Key</p>
+			<p>
+				Webhook URL: <code>{{ apiUrl }}/power-checkout/slp/webhook</code>
+			</p>
+			<p>
+				Webhook Event: <code>trade.refund.succeeded</code>,
+				<code>trade.refund.failed</code>
 			</p>
 		</el-form-item>
 

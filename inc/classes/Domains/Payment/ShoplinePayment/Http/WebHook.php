@@ -65,8 +65,6 @@ final class WebHook extends ApiBase {
 
 			$webhook_data_dto = $webhook_dto->data;
 
-			\J7\WpUtils\Classes\WC::logger( "webhook type: {$webhook_dto->type} id: {$webhook_dto->id}", 'debug', $body_params, 'power_checkout_' . RedirectGateway::ID, 0 ); // phpcs:ignore
-
 			// 處理退款
 			if ($webhook_data_dto instanceof Webhooks\Refund) {
 				$this->handle_refund($webhook_data_dto);

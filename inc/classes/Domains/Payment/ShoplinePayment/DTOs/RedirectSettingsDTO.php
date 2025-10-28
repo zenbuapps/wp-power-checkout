@@ -25,13 +25,13 @@ final class RedirectSettingsDTO extends DTO implements IGatewaySettings {
 	public string $icon = 'https://img.shoplineapp.com/media/image_clips/62297669a344ad002979d725/original.png';
 
 	/** @var string 前台顯示付款方式標題 */
-	public string $title = 'Shopline Payment (導轉式)';
+	public string $title = 'Shopline Payment 線上付款';
 
 	/** @var string 前台顯示付款方式描述 */
-	public string $description = '提供八間銀行分期付款，以及 LINE Pay、街口支付、APPLE PAY 等付款方式';
+	public string $description = '提供信用卡一次付清、分期付款、虛擬帳號轉帳，以及 LINE Pay、街口支付、APPLE PAY 等付款方式';
 
 	/** @var string 前台顯示付款方式按鈕文字 */
-	public string $order_button_text = '';
+	public string $order_button_text = '前往付款';
 
 	/** @var int 付款期限(分鐘)，通常 ATM / CVS / BARCODE 才有 */
 	public int $expire_min = 360;
@@ -139,6 +139,10 @@ final class RedirectSettingsDTO extends DTO implements IGatewaySettings {
 	public function to_array( bool $raw = false ): array {
 		if ($raw) {
 			$default_array = ( new self() )->to_array();
+			$unset_keys    = [ 'platformId', 'merchantId', 'apiKey', 'clientKey', 'signKey' ];
+			foreach ($unset_keys as $key) {
+				unset($default_array[ $key ]);
+			}
 			return \wp_parse_args( $this->dto_data, $default_array);
 		}
 
