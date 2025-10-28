@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Settings\Services;
 
 use J7\PowerCheckout\Domains\Payment\Shared\Utils\GatewayUtils;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\RedirectSettingsDTO;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\RedirectGateway;
+use J7\PowerCheckout\Shared\Utils\IntegrationUtils;
 use J7\WpUtils\Classes\ApiBase;
 use J7\WpUtils\Classes\WP;
 use J7\WpUtils\Traits\SingletonTrait;
@@ -92,13 +95,13 @@ final class SettingApiService extends ApiBase {
 		$params = $request->get_params();
 		$params = WP::sanitize_text_field_deep($params, false );
 
-		GatewayUtils::update_option( $gateway_id, $params);
+		IntegrationUtils::update_option( $gateway_id, $params);
 
 		return new \WP_REST_Response(
 			[
 				'code'    => 'success',
 				'message' => '儲存成功',
-				'data'    => GatewayUtils::get_option( $gateway_id),
+				'data'    => IntegrationUtils::get_option( $gateway_id),
 			],
 			200
 		);
@@ -138,8 +141,8 @@ final class SettingApiService extends ApiBase {
 			throw new \Exception("Can't find Gateway with gateway_id:{$gateway_id}");
 		}
 
-		GatewayUtils::toggle( $gateway_id);
-		$toggle_text = \wc_string_to_bool( GatewayUtils::get_option( $gateway_id, 'enabled')) ? '啟用' : '禁用';
+		IntegrationUtils::toggle( $gateway_id);
+		$toggle_text = \wc_string_to_bool( IntegrationUtils::get_option( $gateway_id, 'enabled')) ? '啟用' : '禁用';
 
 		return new \WP_REST_Response(
 			[

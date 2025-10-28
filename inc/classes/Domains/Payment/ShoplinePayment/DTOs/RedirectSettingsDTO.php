@@ -7,6 +7,8 @@ namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs;
 use J7\PowerCheckout\Domains\Payment\Contracts\IGatewaySettings;
 use J7\PowerCheckout\Domains\Payment\Shared\Utils\GatewayUtils;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\RedirectGateway;
+use J7\PowerCheckout\Shared\Traits\EnableTrait;
+use J7\PowerCheckout\Shared\Utils\IntegrationUtils;
 use J7\WpUtils\Classes\DTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums;
 
@@ -15,11 +17,9 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums;
  * 從 woocommerce_{$gateway_id}_settings 取得資料
  */
 final class RedirectSettingsDTO extends DTO implements IGatewaySettings {
+	use EnableTrait;
 
 	// region 基礎通用欄位
-
-	/** @var string 'yes'|'no'  */
-	public string $enabled = 'yes';
 
 	/** @var string 付款方式 icon */
 	public string $icon = 'https://img.shoplineapp.com/media/image_clips/62297669a344ad002979d725/original.png';
@@ -82,7 +82,7 @@ final class RedirectSettingsDTO extends DTO implements IGatewaySettings {
 
 	/** 取得實例 */
 	public static function instance(): self {
-		$option_name    = GatewayUtils::get_option_name(RedirectGateway::ID);
+		$option_name    = IntegrationUtils::get_option_name(RedirectGateway::ID);
 		$settings_array = \get_option( $option_name, [] );
 		$settings_array = \is_array( $settings_array ) ? $settings_array : [];
 		return new self($settings_array);
@@ -166,10 +166,5 @@ final class RedirectSettingsDTO extends DTO implements IGatewaySettings {
 		foreach ( $this->allowPaymentMethodList as $payment_method ) {
 			Enums\PaymentMethod::from( $payment_method );
 		}
-	}
-
-	/** @return bool 是否啟用 */
-	public function is_enabled(): bool {
-		return 'yes' === $this->enabled;
 	}
 }
