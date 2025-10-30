@@ -5,7 +5,7 @@ import { useRoute } from 'vue-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import apiClient from '@/api'
 import type { FormRules } from 'element-plus'
-import { merge } from 'lodash-es'
+import { pick, merge } from 'lodash-es'
 
 type TFormData = {
 	// --- 一般設定 --- //
@@ -80,7 +80,9 @@ watch(
 	data,
 	(newData) => {
 		if (newData) {
-			merge(form, newData) // 深層合併
+			// 深層合併，只合併 form 存在的屬性
+			const filteredData = pick(newData, Object.keys(form))
+			merge(form, filteredData)
 			// 將 API 回傳資料輸入表單
 		}
 	},
@@ -90,6 +92,7 @@ watch(
 const isTestMode = computed(() => form.mode === 'test')
 
 const onSubmit = async () => {
+	console.log('toRaw(form)', toRaw(form))
 	await formRef.value.validate((valid: boolean) => {
 		if (valid) {
 			save(toRaw(form)) // 呼叫 mutation
@@ -337,12 +340,7 @@ const apiUrl = window.power_checkout_data.env.API_URL
 			label="Sign Key"
 			class="[&_p]:text-sm [&_p]:text-gray-500 [&_p]:mb-2 [&_p]:mt-0"
 		>
-			<el-input
-				class="mb-4"
-				v-model="form.signKey"
-				:disabled="isTestMode"
-				clearable
-			/>
+			<el-input class="mb-4" v-model="form.signKey" clearable />
 			<p>提供以下資訊給 Shopline 窗口後取得 Sign Key</p>
 			<p>
 				Webhook URL: <code>{{ apiUrl }}/power-checkout/slp/webhook</code>

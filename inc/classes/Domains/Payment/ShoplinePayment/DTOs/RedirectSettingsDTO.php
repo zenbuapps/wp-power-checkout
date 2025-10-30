@@ -118,8 +118,9 @@ final class RedirectSettingsDTO extends DTO implements IGatewaySettings {
 			$this->apiKey     = 'sk_sandbox_fc8d1884a9064b6ba4b2cc16d124663c';
 			$this->clientKey  = 'pk_sandbox_f03ae82192c946888fbf0901b8d2053a';
 			$this->apiUrl     = 'https://api-sandbox.shoplinepayments.com';
-			// TODO 這 signKey 是 partnerdemo 的 signKey，需要改成實際的 signKey
-			$this->signKey = 'fea6681d4e8f4889ac06f944450e43b7';
+			// TODO 這 signKey 是 partnerdemo 的 signKey，需要改成實際的 signKey // fea6681d4e8f4889ac06f944450e43b7
+		} else {
+			$this->apiUrl = 'https://api.shoplinepayments.com';
 		}
 
 		if ( !empty( $this->signKey ) ) {
