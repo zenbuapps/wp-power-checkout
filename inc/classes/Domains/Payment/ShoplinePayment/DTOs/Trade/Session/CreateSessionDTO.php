@@ -25,7 +25,7 @@ final class CreateSessionDTO extends DTO {
 	use AmountTrait;
 
 	/** @var int 設定結帳交易的逾時時間，若不設定則默认為 360, 單位：min */
-	public string $expireTime;
+	public int $expireTime = 360;
 
 	/** @var string *顧客付款完成之後回到特店的頁面 */
 	public string $returnUrl;
@@ -77,7 +77,7 @@ final class CreateSessionDTO extends DTO {
 			'referenceId'            => $order->get_id(),
 			'amount'                 => Components\Amount::create( (float) $total ),
 			'language'               => \get_locale() === 'zh_TW' ? 'zh-TW' : 'en',
-			'expireTime'             => $settings->expire_min,
+			'expireTime'             => (int) $settings->expire_min,
 			'returnUrl'              => $return_url,
 			'allowPaymentMethodList' => $settings->allowPaymentMethodList,
 			'paymentMethodOptions'   => PaymentMethodOptions::create($settings->paymentMethodOptions),
