@@ -13,7 +13,7 @@ use J7\PowerCheckout\Utils\Helper;
  *  */
 class PersonalInfo extends DTO {
 
-	/** @var string (128) *顧客名字，firstName 和 lastName 加總長度不可超過 128 */
+	/** @var string (128) 顧客名字，firstName 和 lastName 加總長度不可超過 128 */
 	public string $firstName;
 
 	/** @var string (128) *顧客名字，firstName 和 lastName 加總長度不可超過 128 */
@@ -35,12 +35,13 @@ class PersonalInfo extends DTO {
 	 * @return self 創建實例
 	 */
 	public static function create( \WC_Order $order ): self {
-		$args          = [
-			'firstName' => ( new Helper($order->get_billing_first_name(), 'firstName', 128) )->filter()->substr()->value,
-			'lastName'  => ( new Helper($order->get_billing_last_name(), 'lastName', 128) )->filter()->substr()->value,
+		[$firstName, $lastName] = self::handle_name($order);
+		$args                   = [
+			'firstName' => $firstName,
+			'lastName'  => $lastName,
 			'email'     => ( new Helper($order->get_billing_email(), 'email', 128) )->substr()->value,
 		];
-		$billing_phone = $order->get_billing_phone();
+		$billing_phone          = $order->get_billing_phone();
 		if ($billing_phone) {
 			$phone_util    = \libphonenumber\PhoneNumberUtil::getInstance();
 			$phone_proto   = $phone_util->parse($billing_phone, $order->get_billing_country());
@@ -62,5 +63,25 @@ class PersonalInfo extends DTO {
 		if ( ! isset( $this->email ) && ! isset( $this->phone ) ) {
 			throw new \Exception('郵箱和電話二者需至少傳入其一');
 		}
+	}
+
+	/**
+	 * @param \WC_Order $order 訂單
+	 *
+	 * @return array{0:string, 1:string} [firstName, lastName]
+	 */
+	private static function handle_name( \WC_Order $order ): array {
+        // phpcs:disable
+		$firstName = ( new Helper($order->get_billing_first_name(), 'firstName', 128) )->filter()->substr()->value;
+		$lastName  = ( new Helper($order->get_billing_last_name(), 'lastName', 128) )->filter()->substr()->value;
+
+		// 因為 lastName 必填，所以必須確保有值
+		if (!$lastName) {
+			$lastName  = $firstName;
+			$firstName = '';
+		}
+
+		return [ $firstName, $lastName ];
+        // phpcs:enable
 	}
 }
