@@ -64,10 +64,10 @@ final class RedirectSettingsDTO extends DTO implements IGatewaySettings {
 	public array $allowPaymentMethodList = [
 		'CreditCard',
 		'VirtualAccount',
-		'JKOPay',
-		'ApplePay',
-		'LinePay',
-		'ChaileaseBNPL',
+		// 'JKOPay',
+					'ApplePay',
+		// 'LinePay',
+					'ChaileaseBNPL',
 	];
 
 	/** @var array<string, array<string>> $paymentMethodOptions */

@@ -1,37 +1,14 @@
 <script lang="ts" setup>
-import { Back, InfoFilled } from '@element-plus/icons-vue'
+import { Back, InfoFilled, WarningFilled } from '@element-plus/icons-vue'
 import { computed, reactive, ref, toRaw, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import apiClient from '@/api'
 import type { FormRules } from 'element-plus'
 import { pick, merge } from 'lodash-es'
-
-type TFormData = {
-	// --- 一般設定 --- //
-	title: string
-	description: string
-	order_button_text: string
-	min_amount: number
-	max_amount: number
-	expire_min: number
-	// --- API --- //
-	mode: string
-	// platformId?: string
-	merchantId: string
-	apiKey: string
-	clientKey: string
-	signKey: string
-	allowPaymentMethodList: string[]
-	paymentMethodOptions: {
-		CreditCard: {
-			installmentCounts: string[]
-		}
-		ChaileaseBNPL: {
-			installmentCounts: string[]
-		}
-	}
-}
+import { TFormData, PAYMENT_METHODS } from '@/pages/Payments/Shared/types'
+import { EPaymentMethods } from '@/pages/Payments/Shared/enums'
+import Checkbox from '@/pages/Payments/Checkbox.vue'
 
 const route = useRoute()
 const gatewayId = route.params.id
@@ -130,11 +107,11 @@ const rules = reactive<FormRules<TFormData>>({
 	allowPaymentMethodList: [
 		{
 			validator: (_, value, callback) => {
-				if (Array.isArray(value) && value.length > 0) {
-					callback()
-				} else {
+				if (Array.isArray(value) && value.length === 0) {
 					callback(new Error('請至少選擇一種付款方式'))
+					return
 				}
+				callback()
 			},
 		},
 	],
@@ -350,19 +327,42 @@ const apiUrl = window.power_checkout_data.env.API_URL
 			</p>
 		</el-form-item>
 
+		<el-alert
+			v-if="form.allowPaymentMethodList.includes(EPaymentMethods.LINE_PAY)"
+			title="Shopline Payment 可能尚未支援 Line Pay，請先確認是否可使用，否則可能導致用戶無法結帳"
+			type="error"
+			class="mb-4"
+			:closable="false"
+			show-icon
+		>
+			<template #icon>
+				<WarningFilled />
+			</template>
+		</el-alert>
+		<el-alert
+			v-if="form.allowPaymentMethodList.includes(EPaymentMethods.JKO_PAY)"
+			title="請先確認您已經在 Shopline Payment 後台申請並啟用街口支付，否則可能導致用戶無法結帳"
+			type="error"
+			class="mb-4"
+			:closable="false"
+			show-icon
+		>
+			<template #icon>
+				<WarningFilled />
+			</template>
+		</el-alert>
 		<el-form-item prop="allowPaymentMethodList" label="允許的付款方式">
 			<el-checkbox-group v-model="form.allowPaymentMethodList">
-				<el-checkbox label="CreditCard"> 信用卡 </el-checkbox>
-				<el-checkbox label="VirtualAccount"> ATM 虛擬帳號 </el-checkbox>
-				<el-checkbox label="JKOPay"> 街口支付 </el-checkbox>
-				<el-checkbox label="ApplePay"> Apple Pay </el-checkbox>
-				<el-checkbox label="LinePay"> Line Pay </el-checkbox>
-				<el-checkbox label="ChaileaseBNPL"> 中租 </el-checkbox>
+				<Checkbox
+					v-for="paymentMethod in PAYMENT_METHODS"
+					:key="paymentMethod.value"
+					v-bind="paymentMethod"
+				/>
 			</el-checkbox-group>
 		</el-form-item>
 
 		<el-form-item
-			v-if="form.allowPaymentMethodList.includes('CreditCard')"
+			v-if="form.allowPaymentMethodList.includes(EPaymentMethods.CREDIT_CARD)"
 			prop="paymentMethodOptions.CreditCard.installmentCounts"
 			label="信用卡分期期數"
 		>
@@ -380,7 +380,9 @@ const apiUrl = window.power_checkout_data.env.API_URL
 		</el-form-item>
 
 		<el-form-item
-			v-if="form.allowPaymentMethodList.includes('ChaileaseBNPL')"
+			v-if="
+				form.allowPaymentMethodList.includes(EPaymentMethods.CHAILEASE_BNPL)
+			"
 			prop="paymentMethodOptions.ChaileaseBNPL.installmentCounts"
 			label="中租分期期數"
 		>
