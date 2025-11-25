@@ -12,13 +12,15 @@ import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
  * 開發票、做廢發票
  * @constructor
  */
+
+export const appData = window?.power_checkout_invoice_metabox_app_data
+
 const Module = () => {
-	const data = window?.power_checkout_invoice_metabox_app_data
-	if (!data) {
+	if (!appData) {
 		return
 	}
 
-	const CONTAINER_ID = data?.render_id
+	const CONTAINER_ID = appData?.render_id
 
 	// Mount Vue app
 	const app = createApp(App)

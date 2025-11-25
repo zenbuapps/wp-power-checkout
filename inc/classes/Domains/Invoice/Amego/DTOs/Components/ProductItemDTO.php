@@ -39,12 +39,14 @@ final class ProductItemDTO extends DTO {
 		'TaxType',
 	];
 
+	/** 小數點精度 */
 	protected function after_init(): void {
-		$this->Quantity  = round( $this->Quantity, 7 );
-		$this->UnitPrice = round( $this->UnitPrice, 7 );
-		$this->Amount    = round( $this->Amount, 7 );
+		$this->Quantity  = \round( $this->Quantity, 7 );
+		$this->UnitPrice = \round( $this->UnitPrice, 7 );
+		$this->Amount    = \round( $this->Amount, 7 );
 	}
 
+	/** 參數驗證 */
 	protected function validate(): void {
 		parent::validate();
 		( new StrHelper( $this->Description, 'Description', 256) )->validate();

@@ -5,7 +5,7 @@ declare (strict_types = 1);
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Managers;
 
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\OrderStatus;
-use J7\PowerCheckout\Domains\Payment\Shared\Helpers\Params;
+use J7\PowerCheckout\Domains\Payment\Shared\Helpers\MetaKeys;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Payment\GetPaymentDTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Payment\PaymentDTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Webhooks\Body;
@@ -31,7 +31,7 @@ final class StatusManager {
 	private readonly DTO|null $_payment_detail; // phpcs:ignore
 
 	/** Constructor */
-	public function __construct( private readonly PaymentDTO $_response_dto, private readonly \WC_Order $_order ) {
+	public function __construct( private readonly PaymentDTO $_response_dto, private readonly \WC_Order $order ) {
 		$this->_payment_detail = $this->get_payment_detail();
 	}
 
@@ -47,8 +47,8 @@ final class StatusManager {
 	 */
 	public function update_order_status(): void {
 		$payment_detail_html = $this->_response_dto->to_human_html();
-		$this->_order->add_order_note($payment_detail_html);
-		( new Params($this->_order) )->update_payment_detail($this->_response_dto->to_array() );
+		$this->order->add_order_note($payment_detail_html);
+		( new MetaKeys($this->order) )->update_payment_detail($this->_response_dto->to_array() );
 
 		$status_enum  = ResponseStatus::tryFrom($this->_response_dto->status);
 		$order_status = match ( $status_enum ) {
@@ -59,7 +59,7 @@ final class StatusManager {
 			default => OrderStatus::PENDING,
 		};
 
-		$this->_order->update_status($order_status->value);
+		$this->order->update_status($order_status->value);
 	}
 
 

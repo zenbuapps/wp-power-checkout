@@ -7,7 +7,7 @@ namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\DTOs;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Services\Services;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Utils\Base as EcpayUtils;
 use J7\PowerCheckout\Domains\Payment\Shared\Abstracts\AbstractPaymentGateway;
-use J7\PowerCheckout\Domains\Payment\Shared\Helpers\Params;
+use J7\PowerCheckout\Domains\Payment\Shared\Helpers\MetaKeys;
 use J7\PowerCheckout\Shared\Utils\StrHelper;
 use J7\WpUtils\Classes\DTO;
 
@@ -202,7 +202,7 @@ final class RequestParams extends DTO {
 		$args = \wp_parse_args( $gateway->extra_request_params(), $default_args );
 
 		// 將 request params 存到訂單
-		// ( new Params($order) )->save_request( $args );
+		// ( new MetaKeys($order) )->save_request( $args );
 
 		// $args = self::add_type_info( $args, $order, $gateway );
 

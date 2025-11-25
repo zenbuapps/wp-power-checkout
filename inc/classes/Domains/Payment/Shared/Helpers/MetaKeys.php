@@ -8,19 +8,19 @@ namespace J7\PowerCheckout\Domains\Payment\Shared\Helpers;
  * 請求、回應參數
  * 每次付款請求，不論是哪種付款方式，都將請求參數、回應參數 raw data 儲存在 order meta 中
  */
-class Params {
+class MetaKeys {
 
 	/** @var string 專門儲存第三方金流那邊的識別碼，可以對應訂單 例如：SLP 的 sessionId  */
-	private const IDENTITY_KEY = 'pc_identity';
+	private const IDENTITY_KEY = '_pc_identity';
 
 	/** @var string 專門儲存第三方金流那邊的識別碼，可以對應付款(因為一筆訂單可以有多次付款) 例如：SLP 的 tradeOrderId  */
-	private const IDENTITY_PAYMENT_KEY = 'pc_payment_identity';
+	private const IDENTITY_PAYMENT_KEY = '_pc_payment_identity';
 
 	/** @var string 紀錄付款詳情 */
-	private const PAYMENT_DETAIL_KEY = 'pc_payment_detail';
+	private const PAYMENT_DETAIL_KEY = '_pc_payment_detail';
 
 	/** @var string 紀錄退款詳情 */
-	private const REFUND_DETAIL_KEY = 'pc_refund_detail';
+	private const REFUND_DETAIL_KEY = '_pc_refund_detail';
 
 	/** Construct */
 	public function __construct(

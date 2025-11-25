@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Payment\Shared\Utils;
 
-use J7\PowerCheckout\Domains\Payment\Contracts\IGateway;
+use J7\PowerCheckout\Domains\Payment\Shared\Interfaces\IGateway;
 
 /** Payment Gateway Utils */
 abstract class GatewayUtils {

@@ -3,15 +3,15 @@ import { computed } from 'vue'
 import Card from '@/components/Card.vue'
 import { useQuery } from '@tanstack/vue-query'
 import apiClient from '@/api'
-import { IGateway } from '@/types'
+import { TIGateway } from '@/types'
 
 const { isPending, data, error } = useQuery({
 	queryKey: [
-		'gateways',
+		'settings',
 	],
-	queryFn: async () => await apiClient.get('gateways'),
+	queryFn: async () => await apiClient.get('settings'),
 	select: (response) => {
-		return response.data || response
+		return response?.data?.data?.gateways || response
 	},
 })
 
@@ -20,7 +20,7 @@ if (error.value) {
 	console.log('API Error:', error.value)
 }
 
-const gateways = computed(() => Object.values(data?.value || {}) as IGateway[])
+const gateways = computed(() => Object.values(data?.value || {}) as TIGateway[])
 </script>
 
 <template>

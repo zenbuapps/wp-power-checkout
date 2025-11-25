@@ -8,16 +8,19 @@ use J7\PowerCheckout\Domains\Invoice\Amego\DTOs\Components\ProductItemDTO;
 use J7\PowerCheckout\Domains\Invoice\Amego\Shared\Enums\ECarrierType;
 use J7\PowerCheckout\Domains\Invoice\Amego\Shared\Enums\EDetailVat;
 use J7\PowerCheckout\Domains\Invoice\Amego\Shared\Enums\EPrintDetail;
+use J7\PowerCheckout\Domains\Invoice\Amego\Shared\Enums\EDetailAmountRound;
 use J7\PowerCheckout\Domains\Invoice\Amego\Shared\Enums\EPrinterLang;
 use J7\PowerCheckout\Domains\Invoice\Amego\Shared\Enums\EPrinterType;
 use J7\PowerCheckout\Domains\Invoice\Amego\Shared\Enums\ETaxType;
 use J7\PowerCheckout\Domains\Invoice\Amego\Shared\Enums\EZeroTaxRateReason;
-use J7\PowerCheckout\Domains\Invoice\Shared\Params;
+use J7\PowerCheckout\Domains\Invoice\Shared\Helpers\MetaKeys;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Components\Order\Order;
+use J7\PowerCheckout\Shared\Utils\OrderUtils;
 use J7\PowerCheckout\Shared\Utils\StrHelper;
 use J7\WpUtils\Classes\DTO;
 
 
-final class IssueInvoiceDTO extends DTO {
+final class IssueInvoiceParamsDTO extends DTO {
 
 	/** @var string 訂單編號，不可重複，不可超過40字 */
 	public string $OrderId;
@@ -96,8 +99,8 @@ final class IssueInvoiceDTO extends DTO {
 	/** @var EDetailVat 明細的單價及小計 為 含稅價 或 未稅價，預設為含稅價，0:未稅價 1：含稅價 */
 	public EDetailVat $DetailVat;
 
-	/** @var int 明細的小計處理方式，預設為小數精準度到7位數，0:小數精準度到7位數 1:一律四捨五入到整數 */
-	public int $DetailAmountRound;
+	/** @var EDetailAmountRound 明細的小計處理方式，預設為小數精準度到7位數，0:小數精準度到7位數 1:一律四捨五入到整數 */
+	public EDetailAmountRound $DetailAmountRound;
 
 	/** @var EPrinterType 熱感應機型號代碼 */
 	public EPrinterType $PrinterType;
@@ -151,45 +154,47 @@ final class IssueInvoiceDTO extends DTO {
 
 	/** 從訂單創建實例 */
 	public static function create( \WC_Order $order ): self {
-		$params = new Params( $order );
+		$params = new MetaKeys( $order );
 
-		$SalesAmount        = 0;
-		$FreeTaxSalesAmount = 0;
-		$ZeroTaxSalesAmount = 0;
+		$SalesAmount        = 0.0;
+		$FreeTaxSalesAmount = 0.0;
+		$ZeroTaxSalesAmount = 0.0;
 
 		$product_items = [];
 		/** @var \WC_Order_Item_Product $item */
-		foreach ( $order->get_items() as $item ) {
+		foreach ( $order->get_items([ 'line_item', 'fee', 'shipping', 'coupon' ]) as $item ) {
 			// 取得數量
 			$Quantity = $item->get_quantity();
 
 			// 取得合計 (結算完折扣、未稅)
-			$total = $item->get_total();
+			$total = \round( (float) $item->get_total());
 
 			// 單價 = 合計 ÷ 數量
 			$UnitPrice = $Quantity > 0 ? ( $total / $Quantity ) : 0;
 
-			$TaxType = self::get_tax_type( $item );
+			$TaxType = OrderUtils::get_tax_type( $item );
 
-			$SalesAmount        += ( 1 === $TaxType ) ? 0 : $total;
-			$ZeroTaxSalesAmount += ( 2 === $TaxType ) ? 0 : $total;
-			$FreeTaxSalesAmount += ( 3 === $TaxType ) ? 0 : $total;
+			$SalesAmount        += ( ETaxType::TAXABLE === $TaxType ) ? $total : 0;
+			$ZeroTaxSalesAmount += ( ETaxType::ZERO_RATED === $TaxType ) ? $total : 0;
+			$FreeTaxSalesAmount += ( ETaxType::EXEMPT === $TaxType ) ? $total : 0;
 
-			$item_data = [
-				'Description' => $item->get_name(),
+			$item_data        = [
+				'Description' => ( new StrHelper($item->get_name() ) )->filter()->value,
 				'Quantity'    => $Quantity,
-				'UnitPrice'   => $UnitPrice,
-				'Amount'      => $total,
+				'UnitPrice'   => \round($UnitPrice, 7),
+				'Amount'      => \round($total, 7),
 				'Remark'      => '',
 				'TaxType'     => $TaxType,
 			];
+			$product_item_dto = new ProductItemDTO($item_data);
 
-			$product_items[] = $item_data;
+			$product_items[] = $product_item_dto;
 		}
 
+		$settings   = AmegoSettingsDTO::instance();
 		$order_args = [
 			'OrderId'              => $order->get_id(),
-			'BuyerAddress'         => $order->get_formatted_billing_address(),
+			'BuyerAddress'         => OrderUtils::get_full_address($order),
 			'BuyerTelephoneNumber' => $order->get_billing_phone(),
 			'BuyerEmailAddress'    => $order->get_billing_email(),
 			'RandomNumber'         => $order->get_id(),
@@ -198,56 +203,36 @@ final class IssueInvoiceDTO extends DTO {
 			'FreeTaxSalesAmount'   => $FreeTaxSalesAmount,
 			'ZeroTaxSalesAmount'   => $ZeroTaxSalesAmount,
 			'TaxType'              => self::get_order_tax_type( $SalesAmount, $FreeTaxSalesAmount, $ZeroTaxSalesAmount ),
-			'TaxRate'              => '0.05',
+			'TaxRate'              => (string) $settings->tax_rate,
 			'TotalAmount'          => $order->get_total(),
-			'DetailVat'            => 1, // 含稅
-			'DetailAmountRound'    => 1, // 四捨五入
+			'DetailVat'            => EDetailVat::INCLUDING_TAX, // 含稅
+			'DetailAmountRound'    => EDetailAmountRound::ROUND_TO_INT, // 四捨五入
 		];
-		$args       = \wp_parse_args( $params->get_issue_data(), $order_args );
+		// TODO $params->get_issue_params() 還需要過一個 mapper, DTO
+		$args = \wp_parse_args( $params->get_issue_params(), $order_args );
 
 		return new self( $args );
 	}
-
-	private static function get_tax_type( \WC_Order_Item_Product $item ): int {
-		$enabled_tax = \get_option( 'woocommerce_calc_taxes' ) === 'yes';
-		if ( $enabled_tax ) {
-			return 1; // 應稅
-		}
-
-		$status = $item->get_tax_status();
-		$tax    = $item->get_subtotal_tax();
-
-		if ( 'taxable' === $status && !$tax ) {
-			return 2; // 零稅率
-		}
-
-		if ( 'none' === $status && !$tax ) {
-			return 3;
-		}
-
-		return 1;
-	}
-
 
 	/**
 	 * 課稅別
 	 * 目前沒有考慮 4：應稅(特種稅率)　9：混合應稅與免稅或零稅率(限訊息C0401使用)
 	 *
-	 * @param int $SalesAmount 應稅銷售額合計
-	 * @param int $FreeTaxSalesAmount 免稅銷售額合計
-	 * @param int $ZeroTaxSalesAmount 零稅率銷售額合計
+	 * @param float $SalesAmount 應稅銷售額合計
+	 * @param float $FreeTaxSalesAmount 免稅銷售額合計
+	 * @param float $ZeroTaxSalesAmount 零稅率銷售額合計
 	 *
-	 * @return int
+	 * @return ETaxType
 	 * @see https://invoice.amego.tw/api_doc/#api-%E7%99%BC%E7%A5%A8-Invoice
 	 */
-	private static function get_order_tax_type( int $SalesAmount, int $FreeTaxSalesAmount, int $ZeroTaxSalesAmount ): int {
+	private static function get_order_tax_type( float $SalesAmount, float $FreeTaxSalesAmount, float $ZeroTaxSalesAmount ): ETaxType {
 		if (!$SalesAmount && !$FreeTaxSalesAmount && $ZeroTaxSalesAmount) {
-			return 2;
+			return ETaxType::ZERO_RATED;
 		}
 
 		if (!$SalesAmount && $FreeTaxSalesAmount && !$ZeroTaxSalesAmount) {
-			return 3;
+			return ETaxType::EXEMPT;
 		}
-		return 1;
+		return ETaxType::TAXABLE;
 	}
 }

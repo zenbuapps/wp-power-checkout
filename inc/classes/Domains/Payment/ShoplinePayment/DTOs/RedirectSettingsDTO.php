@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs;
 
-use J7\PowerCheckout\Domains\Payment\Contracts\IGatewaySettings;
-use J7\PowerCheckout\Domains\Payment\Shared\Utils\GatewayUtils;
+use J7\PowerCheckout\Domains\Payment\Shared\Interfaces\IGatewaySettings;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\RedirectGateway;
+use J7\PowerCheckout\Shared\Enums\Mode;
 use J7\PowerCheckout\Shared\Traits\EnableTrait;
 use J7\PowerCheckout\Shared\Utils\IntegrationUtils;
 use J7\WpUtils\Classes\DTO;
@@ -82,8 +82,7 @@ final class RedirectSettingsDTO extends DTO implements IGatewaySettings {
 
 	/** 取得實例 */
 	public static function instance(): self {
-		$option_name    = IntegrationUtils::get_option_name(RedirectGateway::ID);
-		$settings_array = \get_option( $option_name, [] );
+		$settings_array = IntegrationUtils::get_option( RedirectGateway::ID );
 		$settings_array = \is_array( $settings_array ) ? $settings_array : [];
 		return new self($settings_array);
 	}
@@ -113,7 +112,7 @@ final class RedirectSettingsDTO extends DTO implements IGatewaySettings {
 	 * @return void
 	 */
 	protected function after_init(): void {
-		if (Enums\Mode::TEST->value === $this->mode) {
+		if (Mode::TEST->value === $this->mode) {
 			$this->merchantId = '3252264968486264832';
 			$this->apiKey     = 'sk_sandbox_fc8d1884a9064b6ba4b2cc16d124663c';
 			$this->clientKey  = 'pk_sandbox_f03ae82192c946888fbf0901b8d2053a';
@@ -133,25 +132,6 @@ final class RedirectSettingsDTO extends DTO implements IGatewaySettings {
 	}
 
 	/**
-	 * @param bool $raw true: 拿原始資料
-	 *
-	 * @return array
-	 */
-	public function to_array( bool $raw = false ): array {
-		if ($raw) {
-			$default_array = ( new self() )->to_array();
-			$unset_keys    = [ 'platformId', 'merchantId', 'apiKey', 'clientKey', 'signKey' ];
-			foreach ($unset_keys as $key) {
-				unset($default_array[ $key ]);
-			}
-			return \wp_parse_args( $this->dto_data, $default_array);
-		}
-
-		return parent::to_array();
-	}
-
-
-	/**
 	 * 自訂驗證邏輯
 	 *
 	 * @throws \Exception 如果驗證失敗
@@ -161,7 +141,7 @@ final class RedirectSettingsDTO extends DTO implements IGatewaySettings {
 	protected function validate(): void {
 		parent::validate();
 		if (isset( $this->mode)) {
-			Enums\Mode::from( $this->mode );
+			Mode::from( $this->mode );
 		}
 		foreach ( $this->allowPaymentMethodList as $payment_method ) {
 			Enums\PaymentMethod::from( $payment_method );

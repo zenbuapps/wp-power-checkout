@@ -5,21 +5,48 @@ declare (strict_types = 1);
 namespace J7\PowerCheckout\Domains\Payment;
 
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Refund\CreateRefundDTO;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\RedirectGateway;
 use J7\PowerCheckout\Domains\Settings\Services\SettingTabService;
 use J7\PowerCheckout\Plugin;
+use J7\PowerCheckout\Shared\Utils\IntegrationUtils;
 use J7\PowerCheckout\Shared\Utils\OrderUtils;
 
-/** Loader 載入付款方式 */
-final class Loader {
+/** ServiceRegister 註冊付款方式 */
+final class ServiceRegister {
+
+	/** @var array<string, string> $gateway_services [id, class]  */
+	private static array $gateway_services = [
+		ShoplinePayment\Services\RedirectGateway::ID => ShoplinePayment\Services\RedirectGateway::class,
+	];
+
 	/** Register hooks */
 	public static function register_hooks(): void {
-		ShoplinePayment\Services\RegisterGateways::register_hooks();
 		Shared\Services\PaymentApiService::register_hooks();
 		// EcpayAIO\Core\Init::register_hooks();
 
+		\add_filter( 'woocommerce_payment_gateways', [ __CLASS__ , 'add_method' ] );
 		\add_action( 'woocommerce_refund_created', [ __CLASS__, 'default_refund_reason' ], 10, 2 );
 		\add_action('woocommerce_order_refunded', [ __CLASS__, 'add_order_note__manual_refund' ], 10, 2);
 		\add_action( 'admin_enqueue_scripts', [ __CLASS__, 'refund_script' ], 20 );
+
+		foreach (self::$gateway_services as $gateway_id => $gateway_service) {
+			if (!IntegrationUtils::is_enabled($gateway_id)) {
+				continue;
+			}
+			// 取得 WC_Payment_Gateways 單例
+			$gateways = \WC_Payment_Gateways::instance();
+			// 取得所有 gateway 實例 (陣列)
+			$all_gateways                               = $gateways?->payment_gateways();
+			IntegrationUtils::$container[ $gateway_id ] = $all_gateways[ $gateway_id ];
+		}
+	}
+
+	/** 添加付款方式 @param array<string> $methods 付款方式 @return array<string> */
+	public static function add_method( array $methods ): array {
+		foreach (self::$gateway_services as $gateway_service) {
+			$methods[] = $gateway_service;
+		}
+		return $methods;
 	}
 
 	/** 修改預設的退款原因 */

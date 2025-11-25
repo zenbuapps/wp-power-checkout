@@ -1,14 +1,34 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ElMessageBox } from 'element-plus'
+import { useMutation } from '@tanstack/vue-query'
+import apiClient from '@/api'
+import { appData } from './index'
 import Steps from './Steps/index.vue'
 
-// TODO
-const dialogVisible = ref(true)
+const dialogVisible = ref(false)
+
+const { mutate: cancelInvoice, isPending: isCanceling } = useMutation({
+	mutationFn: async (orderId: string) =>
+		await apiClient.post(`/invoices/cancel/${orderId}`),
+	onSuccess: () => {},
+	onError: (err) => {
+		console.error('作廢電子發票失敗', err)
+	},
+})
+
+const handleCancel = () => {
+	const orderId = appData?.order?.id
+	cancelInvoice(orderId)
+}
 </script>
 
 <template>
-	<el-button type="primary" @click="dialogVisible = true">開立發票</el-button>
+	<div class="flex justify-between items-center">
+		<el-button type="danger" @click="handleCancel" :loading="isCanceling"
+			>作廢發票</el-button
+		>
+		<el-button type="primary" @click="dialogVisible = true">開立發票</el-button>
+	</div>
 
 	<el-dialog
 		v-model="dialogVisible"

@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Settings\Services;
 
-use J7\PowerCheckout\Domains\Invoice\Shared\Utils\InvoiceUtils;
+use J7\PowerCheckout\Domains\Invoice\ServiceRegister;
 use J7\PowerCheckout\Domains\Payment\Shared\Utils\GatewayUtils;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\RedirectSettingsDTO;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\RedirectGateway;
 use J7\PowerCheckout\Shared\Utils\IntegrationUtils;
 use J7\WpUtils\Classes\ApiBase;
 use J7\WpUtils\Classes\WP;
@@ -31,23 +29,19 @@ final class SettingApiService extends ApiBase {
 			'method'   => 'get',
 		],
 		[
-			'endpoint' => 'gateways',
-			'method'   => 'get',
-		],
-		[
-			'endpoint' => 'gateways/(?P<gateway_id>[a-zA-Z_-]+)/toggle',
+			'endpoint' => 'settings/(?P<integration_id>[a-zA-Z_-]+)/toggle',
 			'method'   => 'post',
-			'callback' => [ __CLASS__, 'toggle_gateways_with_gateway_id_callback' ],
+			'callback' => [ __CLASS__, 'toggle_integrations_with_id_callback' ],
 		],
 		[
-			'endpoint' => 'gateways/(?P<gateway_id>[a-zA-Z_-]+)/settings',
+			'endpoint' => 'settings/(?P<integration_id>[a-zA-Z_-]+)',
 			'method'   => 'get',
-			'callback' => [ __CLASS__, 'get_gateways_settings_with_id_callback' ],
+			'callback' => [ __CLASS__, 'get_integrations_with_id_callback' ],
 		],
 		[
-			'endpoint' => 'gateways/(?P<gateway_id>[a-zA-Z_-]+)/settings',
+			'endpoint' => 'settings/(?P<integration_id>[a-zA-Z_-]+)',
 			'method'   => 'post',
-			'callback' => [ __CLASS__, 'post_gateways_settings_with_id_callback' ],
+			'callback' => [ __CLASS__, 'post_integrations_with_id_callback' ],
 		],
 	];
 
@@ -67,15 +61,40 @@ final class SettingApiService extends ApiBase {
 	 */
 	public static function get_settings_callback( \WP_REST_Request $request ): \WP_REST_Response {
 		$gateways = GatewayUtils::get_gateways(false, true);
+
 		return new \WP_REST_Response(
 			[
 				'code'    => 'get_settings_success',
 				'message' => '取得設定成功',
 				'data'    => [
 					'gateways'  => $gateways,
-					'invoices'  =>InvoiceUtils::get_registered_integration_dtos(),
+					'invoices'  => ServiceRegister::get_registered_integration_dtos(),
 					'logistics' => [],
 				],
+			],
+			200
+		);
+	}
+
+
+	/**
+	 * 開關服務
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 *
+	 * @return \WP_REST_Response
+	 * @throws \Exception 如果 gateway_key 無效或其他錯誤
+	 */
+	public static function toggle_integrations_with_id_callback( \WP_REST_Request $request ): \WP_REST_Response {
+		$integration_id = (string) $request['integration_id'];
+		IntegrationUtils::toggle( $integration_id);
+		$toggle_text = IntegrationUtils::is_enabled( $integration_id) ? '啟用' : '禁用';
+
+		return new \WP_REST_Response(
+			[
+				'code'    => 'success',
+				'message' => "{$integration_id} {$toggle_text}成功",
+				'data'    => $integration_id,
 			],
 			200
 		);
@@ -88,22 +107,22 @@ final class SettingApiService extends ApiBase {
 	 *
 	 * @return \WP_REST_Response
 	 */
-	public static function get_gateways_settings_with_id_callback( \WP_REST_Request $request ): \WP_REST_Response {
-		$gateway_id = (string) $request['gateway_id'];
-		$gateway    = GatewayUtils::get_gateway($gateway_id);
-		if (!$gateway) {
-			throw new \Exception("Can't find Gateway with gateway_id:{$gateway_id}");
+	public static function get_integrations_with_id_callback( \WP_REST_Request $request ): \WP_REST_Response {
+		$integration_id = (string) $request['integration_id'];
+		$integration    = IntegrationUtils::get_integration_instance( $integration_id);
+		if (!$integration) {
+			throw new \Exception("Can't find Integration with integration_id: {$integration_id}");
 		}
-		$settings = $gateway->get_settings();
+		$settings = $integration->get_settings();
 
 		return new \WP_REST_Response(
 			[
 				'code'    => 'success',
-				'message' => "取得 {$gateway_id} 設定成功",
-				'data'    => $settings->to_array(true),
+				'message' => "取得 {$integration->method_title} 設定成功",
+				'data'    => $settings,
 			],
 			200
-			);
+		);
 	}
 
 	/**
@@ -113,70 +132,19 @@ final class SettingApiService extends ApiBase {
 	 *
 	 * @return \WP_REST_Response
 	 */
-	public static function post_gateways_settings_with_id_callback( \WP_REST_Request $request ): \WP_REST_Response {
-		$gateway_id = (string) $request['gateway_id'];
-		$gateway    = GatewayUtils::get_gateway($gateway_id);
-		if (!$gateway) {
-			throw new \Exception("Can't find Gateway with gateway_id:{$gateway_id}");
-		}
+	public static function post_integrations_with_id_callback( \WP_REST_Request $request ): \WP_REST_Response {
+		$integration_id = (string) $request['integration_id'];
 
 		$params = $request->get_params();
 		$params = WP::sanitize_text_field_deep($params, false );
 
-		IntegrationUtils::update_option( $gateway_id, $params);
+		IntegrationUtils::update_option( $integration_id, $params);
 
 		return new \WP_REST_Response(
 			[
 				'code'    => 'success',
 				'message' => '儲存成功',
-				'data'    => IntegrationUtils::get_option( $gateway_id),
-			],
-			200
-		);
-	}
-
-	// endregion
-
-
-
-	// region Gateways 相關
-
-	/**
-	 * 取得 gateways 設定
-	 *
-	 * @param \WP_REST_Request $request Request.
-	 *
-	 * @return \WP_REST_Response
-	 */
-	public function get_gateways_callback( \WP_REST_Request $request ): \WP_REST_Response {
-		$gateways = GatewayUtils::get_gateways(false, true);
-		return new \WP_REST_Response( $gateways, 200 );
-	}
-
-	/**
-	 * 開關 Gateway
-	 *
-	 * @param \WP_REST_Request $request Request.
-	 *
-	 * @return \WP_REST_Response
-	 * @throws \Exception 如果 gateway_key 無效或其他錯誤
-	 */
-	public static function toggle_gateways_with_gateway_id_callback( \WP_REST_Request $request ): \WP_REST_Response {
-		$gateway_id = (string) $request['gateway_id'];
-		$gateway    = GatewayUtils::get_gateway($gateway_id);
-
-		if (!$gateway) {
-			throw new \Exception("Can't find Gateway with gateway_id:{$gateway_id}");
-		}
-
-		IntegrationUtils::toggle( $gateway_id);
-		$toggle_text = \wc_string_to_bool( IntegrationUtils::get_option( $gateway_id, 'enabled')) ? '啟用' : '禁用';
-
-		return new \WP_REST_Response(
-			[
-				'code'    => 'success',
-				'message' => "{$gateway?->title} {$toggle_text}成功",
-				'data'    => $gateway,
+				'data'    => IntegrationUtils::get_option( $integration_id),
 			],
 			200
 		);

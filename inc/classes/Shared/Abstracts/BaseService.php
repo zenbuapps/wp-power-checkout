@@ -3,10 +3,10 @@
 
 declare ( strict_types = 1 );
 
-namespace J7\PowerCheckout\Domains\Invoice\Shared\Abstracts;
+namespace J7\PowerCheckout\Shared\Abstracts;
 
 /** 電子發票服務抽象類別單例模式 */
-abstract class AbstractInvoiceService {
+abstract class BaseService {
 
 	/** @var string $id Id */
 	public string $id = '';
@@ -22,4 +22,15 @@ abstract class AbstractInvoiceService {
 
 	/** @var string $method_description 描述 */
 	public string $method_description = '';
+
+	/** 初始化 */
+	public static function init(): void {}
+
+
+	/**
+	 * @param bool $with_default 是否有預設值，還是只拿 DB 值
+	 *
+	 * @return array 取得設定
+	 */
+	abstract public static function get_settings( bool $with_default = true ): array;
 }

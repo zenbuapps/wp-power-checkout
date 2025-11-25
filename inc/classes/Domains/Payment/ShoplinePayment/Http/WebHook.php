@@ -4,7 +4,7 @@ declare ( strict_types = 1 );
 
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http;
 
-use J7\PowerCheckout\Domains\Payment\Shared\Helpers\Params;
+use J7\PowerCheckout\Domains\Payment\Shared\Helpers\MetaKeys;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\RedirectSettingsDTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Webhooks\Body;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Webhooks;
@@ -171,7 +171,7 @@ final class WebHook extends ApiBase {
 
 	/** 處理退款資訊 */
 	private function handle_refund( Webhooks\Refund $refund_dto ): void {
-		$order = Params::get_order_by_identity_payment_key($refund_dto->tradeOrderId );
+		$order = MetaKeys::get_order_by_identity_payment_key( $refund_dto->tradeOrderId );
 		if (!$order) {
 			throw new \Exception("找不到訂單，tradeOrderId: {$refund_dto->tradeOrderId}");
 		}

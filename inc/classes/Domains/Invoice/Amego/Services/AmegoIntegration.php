@@ -4,32 +4,17 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Invoice\Amego\Services;
 
-use J7\PowerCheckout\Domains\Invoice\Amego\DTOs\IssueInvoiceDTO;
-use J7\PowerCheckout\Domains\Invoice\Shared\Abstracts\AbstractInvoiceService;
+use J7\PowerCheckout\Domains\Invoice\Amego\DTOs\AmegoSettingsDTO;
+use J7\PowerCheckout\Domains\Invoice\Amego\Http\ApiClient;
 use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\IInvoiceService;
-use J7\PowerCheckout\Domains\Invoice\Shared\Utils\InvoiceUtils;
-use J7\PowerCheckout\Shared\Interfaces\IIntegration;
+use J7\PowerCheckout\Shared\Abstracts\BaseService;
+use J7\PowerCheckout\Shared\Utils\IntegrationUtils;
 use J7\WpUtils\Classes\WP;
 
-final class AmegoIntegration extends AbstractInvoiceService implements IIntegration, IInvoiceService {
+final class AmegoIntegration extends BaseService implements IInvoiceService {
+	use \J7\WpUtils\Traits\SingletonTrait;
 
 	public const ID = 'amego';
-
-	/** @var string $id Id */
-	public string $id = self::ID;
-
-	/** @var string $icon Icon */
-	public string $icon = 'https://invoice-static.amego.tw/www/images/amego_1024_icon.png';
-
-	/** @var string $method_title 標題 */
-	public string $method_title = '光貿電子發票';
-
-	/** @var string $method_description 描述 */
-	public string $method_description = '光貿電子發票加值中心-電子發票系統，不綁約、無限制開立張數、月費199元開到飽。免費協助營業人快速申請用電子發票，並提供一般商家、各種電子商務系統、蝦皮、松果、雅虎、Pchome、露天、旋轉賣家輕鬆快速開立電子發票。';
-
-	/** @var self|null $instance */
-	private static ?self $instance = null;
-
 
 	/**
 	 * 記錄 log
@@ -47,32 +32,45 @@ final class AmegoIntegration extends AbstractInvoiceService implements IIntegrat
 			return;
 		}
 
-		$order_note = WP::array_to_html( $args, [ 'title' => "{$message} <p style='margin-bottom: 0;'>&nbsp;</p>" ] );
+		if ($args) {
+			$message .= "<p style='margin-bottom: 0;'>&nbsp;</p>";
+		}
+
+		$order_note = WP::array_to_html( $args, [ 'title' => $message ] );
 		$order->add_order_note( $order_note );
 	}
 
+	/**
+	 * @param \WC_Order $order 訂單
+	 *
+	 * @return array
+	 */
 	public function issue( \WC_Order $order ): array {
-		// TODO: Implement issue() method.
-
-		$params = IssueInvoiceDTO::create($order);
-		return [];
+		$client = new ApiClient( $order);
+		$result = $client->issue();
+		return $result?->to_array() ?? [];
 	}
 
+	/**
+	 * @param \WC_Order $order 訂單
+	 *
+	 * @return array
+	 */
 	public function cancel( \WC_Order $order ): array {
-		// TODO: Implement cancel() method.
-		return [];
+		$client = new ApiClient( $order);
+		$result = $client->cancel();
+		return $result?->to_array() ?? [];
 	}
 
-	/** @return self 取得實例  */
-	public static function instance(): self {
-		if (!self::$instance) {
-			self::$instance = new self();
+	/**
+	 * @param bool $with_default 是否有預設值，還是只拿 DB 值
+	 *
+	 * @return array 取得設定
+	 */
+	public static function get_settings( bool $with_default = true ): array {
+		if (!$with_default) {
+			return IntegrationUtils::get_option( self::ID);
 		}
-		return self::$instance;
-	}
-
-	/** @return array 取得設定 */
-	public static function get_settings(): array {
-		return InvoiceUtils::get_settings( self::ID);
+		return AmegoSettingsDTO::instance()->to_array();
 	}
 }

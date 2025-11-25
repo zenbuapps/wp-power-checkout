@@ -6,7 +6,7 @@ namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\Core;
 
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\DTOs\ResponseParams;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Utils\Base as EcpayUtils;
-use J7\PowerCheckout\Domains\Payment\Shared\Helpers\Params;
+use J7\PowerCheckout\Domains\Payment\Shared\Helpers\MetaKeys;
 use J7\Powerhouse\Utils\Base as PowerhouseUtils;
 use J7\PowerCheckout\Vendor\J7\WpUtils\Classes\ApiBase;
 

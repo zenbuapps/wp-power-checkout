@@ -8,10 +8,6 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Invoice\Shared\Services;
 
-if ( class_exists( 'J7\PowerCheckout\Domains\Invoice\Shared\Services\InvoiceMetaBoxService' ) ) {
-	return;
-}
-
 /**
  * Invoice MetaBox Service
  */

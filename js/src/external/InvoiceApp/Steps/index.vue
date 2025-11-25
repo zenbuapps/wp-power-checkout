@@ -2,9 +2,14 @@
 import { reactive, ref, toRaw } from 'vue'
 import { TFormData } from '@/external/InvoiceApp/Shared/types'
 import {
+	EIndividuals,
+	EInvoiceTypes,
 	individuals,
 	invoiceTypes,
 } from '@/external/InvoiceApp/Shared/constants'
+import { useMutation } from '@tanstack/vue-query'
+import apiClient from '@/api'
+import { appData } from '@/external/InvoiceApp'
 
 const active = ref(0)
 
@@ -17,6 +22,7 @@ const form = reactive<TFormData>({
 	invoiceType: undefined, // 發票類型
 	individual: undefined, // 個人發票類型 雲端載具、手機條碼、自然人憑證
 	carrier: '', // 載具
+	moica: '', //自然人憑證
 	companyName: '',
 	companyId: '',
 	donateCode: '', // 捐贈碼
@@ -26,12 +32,67 @@ const prev = () => {
 	if (active.value-- < 0) active.value = 0
 }
 const next = () => {
-	console.log(active.value)
 	if (active.value++ > 2) active.value = 0
 }
+
+const { mutate: issueInvoice, isPending } = useMutation({
+	mutationFn: async ({ orderId, data }: { orderId: string; data: TFormData }) =>
+		await apiClient.post(`/invoices/issue/${orderId}`, data),
+	onError: (err) => {
+		console.error('發行電子發票失敗', err)
+	},
+})
+
 const handleIssue = async () => {
 	await formRef.value.validate((valid: boolean) => {
+		if (form.invoiceType === EInvoiceTypes.DONATE) {
+			form.carrier = ''
+			form.moica = ''
+			form.companyName = ''
+			form.companyId = ''
+		}
+
+		if (form.invoiceType === EInvoiceTypes.COMPANY) {
+			form.carrier = ''
+			form.moica = ''
+			form.donateCode = ''
+		}
+
+		if (form.invoiceType === EInvoiceTypes.INDIVIDUAL) {
+			if (
+				form.individual === EIndividuals.CLOUD ||
+				form.individual === EIndividuals.PAPER
+			) {
+				form.carrier = ''
+				form.moica = ''
+			}
+
+			if (form.individual === EIndividuals.BARCODE) {
+				form.moica = ''
+			}
+
+			if (form.individual === EIndividuals.MOICA) {
+				form.carrier = ''
+			}
+
+			form.companyName = ''
+			form.companyId = ''
+			form.donateCode = ''
+		}
+
+		if (!valid) {
+			return
+		}
+
 		console.log(toRaw(form))
+		const orderId = appData?.order?.id
+		const isAdmin = appData?.is_admin // 是否在後台 還是 前台 checkout
+		if (isAdmin) {
+			issueInvoice({
+				orderId,
+				data: toRaw(form),
+			})
+		}
 		// if (valid) {
 		// 	save(toRaw(form)) // 呼叫 mutation
 		// }
@@ -96,7 +157,12 @@ const handleIssue = async () => {
 				'tw-hidden': active !== 2,
 			}"
 		>
-			<el-form-item prop="individual">
+			<el-form-item
+				prop="individual"
+				:class="{
+					'tw-hidden': form.invoiceType !== EInvoiceTypes.INDIVIDUAL,
+				}"
+			>
 				<el-radio-group
 					v-model="form.individual"
 					class="grid grid-cols-3 gap-4 [&_label]:w-full w-full"
@@ -107,16 +173,49 @@ const handleIssue = async () => {
 				</el-radio-group>
 			</el-form-item>
 
-			<el-form-item prop="carrier" label="載具">
+			<el-form-item
+				prop="carrier"
+				label="載具"
+				:class="{
+					'tw-hidden': form.individual !== EIndividuals.BARCODE,
+				}"
+			>
 				<el-input v-model="form.carrier" clearable />
 			</el-form-item>
-			<el-form-item prop="companyName" label="公司名稱">
+			<el-form-item
+				prop="moica"
+				label="自然人憑證"
+				:class="{
+					'tw-hidden': form.individual !== EIndividuals.MOICA,
+				}"
+			>
+				<el-input v-model="form.moica" clearable />
+			</el-form-item>
+			<el-form-item
+				prop="companyName"
+				label="公司名稱"
+				:class="{
+					'tw-hidden': form.invoiceType !== EInvoiceTypes.COMPANY,
+				}"
+			>
 				<el-input v-model="form.companyName" clearable />
 			</el-form-item>
-			<el-form-item prop="companyId" label="統一編號">
+			<el-form-item
+				prop="companyId"
+				label="統一編號"
+				:class="{
+					'tw-hidden': form.invoiceType !== EInvoiceTypes.COMPANY,
+				}"
+			>
 				<el-input v-model="form.companyId" clearable />
 			</el-form-item>
-			<el-form-item prop="donateCode" label="捐贈碼">
+			<el-form-item
+				prop="donateCode"
+				label="捐贈碼"
+				:class="{
+					'tw-hidden': form.invoiceType !== EInvoiceTypes.DONATE,
+				}"
+			>
 				<el-input v-model="form.donateCode" clearable />
 			</el-form-item>
 		</div>
@@ -135,6 +234,9 @@ const handleIssue = async () => {
 			:class="{
 				'tw-hidden': active === 2,
 			}"
+			:disabled="
+				(active === 0 && !form.provider) || (active === 1 && !form.invoiceType)
+			"
 			>下一步</el-button
 		>
 		<el-button
@@ -143,6 +245,7 @@ const handleIssue = async () => {
 				'tw-hidden': active !== 2,
 			}"
 			type="primary"
+			:loading="isPending"
 			>開立發票</el-button
 		>
 	</div>

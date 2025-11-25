@@ -7,6 +7,8 @@ namespace J7\PowerCheckout\Domains\Invoice\Amego\DTOs;
 use J7\WpUtils\Classes\DTO;
 
 /**
+ * 每支 API 都要傳入的基本參數
+ *
  * @see https://invoice.amego.tw/api_doc/#api-%E7%99%BC%E7%A5%A8-Invoice
  */
 final class UniParamsDTO extends DTO {
@@ -25,14 +27,14 @@ final class UniParamsDTO extends DTO {
 
 	/** @return self 取得實例 */
 	public static function create( DTO $dto ): self {
-		$settings = AmegoSettingsDTO::instace();
+		$settings = AmegoSettingsDTO::instance();
 		$data     = \wp_json_encode( $dto->to_array() );
 		$time     = \time();
 		$args     = [
-			'invoice' => $settings->sInvoice,
+			'invoice' => $settings->invoice,
 			'data'    => $data,
 			'time'    => $time,
-			'sign'    => \md5("{$data}{$time}{$settings->sApp_Key}"),
+			'sign'    => \md5("{$data}{$time}{$settings->app_key}"),
 		];
 
 		return new self($args);

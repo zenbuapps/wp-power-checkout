@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Session;
 
-use J7\PowerCheckout\Domains\Payment\Shared\Helpers\Params;
+use J7\PowerCheckout\Domains\Payment\Shared\Helpers\MetaKeys;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Traits\SessionIdTrait;
 use J7\PowerCheckout\Shared\Utils\StrHelper;
 use J7\WpUtils\Classes\DTO;
@@ -27,7 +27,7 @@ final class QuerySessionDTO extends DTO {
 	 * @throws \Exception 如果找不到 session id
 	 */
 	public static function create( \WC_Order $order ): self {
-		$session_id = ( new Params( $order) )->get_identity();
+		$session_id = ( new MetaKeys( $order) )->get_identity();
 		if (!$session_id) {
 			throw new \Exception( "Session ID not found, order_id #{$order->get_id()}" );
 		}

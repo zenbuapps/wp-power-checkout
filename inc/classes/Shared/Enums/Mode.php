@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums;
+namespace J7\PowerCheckout\Shared\Enums;
 
 /**
  * Shopline Payment Mode

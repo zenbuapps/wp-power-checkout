@@ -1,29 +1,46 @@
+export enum EInvoiceTypes {
+	INDIVIDUAL = 'individual',
+	COMPANY = 'company',
+	DONATE = 'donate',
+}
+
 export const invoiceTypes = [
 	{
-		value: 'individual',
+		value: EInvoiceTypes.INDIVIDUAL,
 		label: '個人',
 	},
 	{
-		value: 'company',
+		value: EInvoiceTypes.COMPANY,
 		label: '公司',
 	},
 	{
-		value: 'donate',
+		value: EInvoiceTypes.DONATE,
 		label: '捐贈',
 	},
 ] as const
 
+export enum EIndividuals {
+	CLOUD = 'cloud',
+	BARCODE = 'barcode',
+	MOICA = 'moica',
+	PAPER = 'paper',
+}
+
 export const individuals = [
 	{
-		value: 'cloud',
+		value: EIndividuals.CLOUD,
 		label: '雲端發票',
 	},
 	{
-		value: 'barcode',
+		value: EIndividuals.BARCODE,
 		label: '手機條碼',
 	},
 	{
-		value: 'moica',
+		value: EIndividuals.MOICA,
 		label: '自然人憑證',
+	},
+	{
+		value: EIndividuals.PAPER,
+		label: '紙本發票',
 	},
 ] as const

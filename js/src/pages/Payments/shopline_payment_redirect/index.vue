@@ -1,26 +1,24 @@
 <script lang="ts" setup>
 import { Back, InfoFilled, WarningFilled } from '@element-plus/icons-vue'
 import { computed, reactive, ref, toRaw, watch } from 'vue'
-import { useRoute } from 'vue-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import apiClient from '@/api'
 import type { FormRules } from 'element-plus'
 import { pick, merge } from 'lodash-es'
 import { TFormData, PAYMENT_METHODS } from '@/pages/Payments/Shared/types'
 import { EPaymentMethods } from '@/pages/Payments/Shared/enums'
-import Checkbox from '@/pages/Payments/Checkbox.vue'
+import Checkbox from '@/pages/Payments/shopline_payment_redirect/Checkbox.vue'
 
-const route = useRoute()
-const gatewayId = route.params.id
+const gatewayId = 'shopline_payment_redirect'
 
 const { isPending, data } = useQuery({
-	queryKey: ['gateway_settings', gatewayId],
+	queryKey: ['settings', gatewayId],
 	queryFn: async () =>
 		await apiClient.get<{
 			code: string
 			message: string
 			data: TFormData
-		}>(`gateways/${gatewayId}/settings`),
+		}>(`settings/${gatewayId}`),
 	select: (res) => res.data?.data,
 })
 
@@ -84,10 +82,10 @@ const queryClient = useQueryClient()
 // 定義 mutation
 const { mutate: save, isPending: isSavePending } = useMutation({
 	mutationFn: async (payload: TFormData) =>
-		await apiClient.post(`/gateways/${gatewayId}/settings`, payload),
+		await apiClient.post(`/settings/${gatewayId}`, payload),
 	onSuccess: () => {
 		// 成功後可刷新相關快取
-		queryClient.invalidateQueries({ queryKey: ['gateway_settings', gatewayId] })
+		queryClient.invalidateQueries({ queryKey: ['settings', gatewayId] })
 	},
 	onError: (err) => {
 		console.error('更新失敗', err)

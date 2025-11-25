@@ -13,6 +13,7 @@ export interface IEnv {
 	SNAKE: string
 	NONCE: string
 	APP1_SELECTOR: string
+	IS_LOCAL: boolean
 }
 
 declare global {
@@ -23,6 +24,10 @@ declare global {
 		power_checkout_order_data: IOrderData
 		power_checkout_invoice_metabox_app_data: {
 			render_id: string
+			order: {
+				id: ''
+			}
+			is_admin: boolean
 		}
 	}
 }

@@ -4,19 +4,23 @@ declare ( strict_types = 1 );
 
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services;
 
-use J7\PowerCheckout\Domains\Payment\Contracts\IGateway;
-use J7\PowerCheckout\Domains\Payment\Contracts\IGatewaySettings;
+use Automattic\WooCommerce\Blocks\Payments\PaymentMethodRegistry;
+use J7\PowerCheckout\Domains\Payment\Shared\Interfaces\IGateway;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\OrderStatus;
-use J7\PowerCheckout\Domains\Payment\Shared\Helpers\Params;
+use J7\PowerCheckout\Domains\Payment\Shared\Helpers\BlocksIntegration;
+use J7\PowerCheckout\Domains\Payment\Shared\Helpers\MetaKeys;
+use J7\PowerCheckout\Domains\Payment\Shared\Utils\GatewayUtils;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\RedirectSettingsDTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Payment\PaymentDTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Refund\RefundDTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Webhooks\Refund as WebhooksRefundDTO;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http\WebHook;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Managers\StatusManager;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Abstracts\PaymentGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http\ApiClient;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\ResponseStatus;
-use J7\WpUtils\Classes\DTO;
+use J7\PowerCheckout\Plugin;
+use J7\PowerCheckout\Shared\Utils\IntegrationUtils;
 use J7\WpUtils\Classes\WP;
 
 /**
@@ -93,14 +97,14 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 
 		if ( $min_amount < 5 ) {
 			$this->errors[] = sprintf(
-				__( 'Save failed. %s minimum amount out of range.', 'power_checkout' ),
+				\__( 'Save failed. %s minimum amount out of range.', 'power_checkout' ),
 				$this->method_title
 			);
 		}
 
 		if ( $max_amount > 50000 ) {
 			$this->errors[] = sprintf(
-				__( 'Save failed. %s maximum amount out of range.', 'power_checkout' ),
+				\__( 'Save failed. %s maximum amount out of range.', 'power_checkout' ),
 				$this->method_title
 			);
 		}
@@ -141,7 +145,7 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 			if (!$trade_order_id) {
 				return;
 			}
-			$order_params = new Params($order);
+			$order_params = new MetaKeys( $order);
 			// 檢查 payment_identity (tradeOrderId) 是否重複，重複代表發過，就不用再發 API
 			$payment_identity = $order_params->get_payment_identity();
 			if ($payment_identity === $trade_order_id) {
@@ -165,7 +169,7 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 			return;
 		}
 
-		$payment_detail_array = ( new Params( $order) )->get_payment_detail();
+		$payment_detail_array = ( new MetaKeys( $order) )->get_payment_detail();
 		if ( $payment_detail_array ) {
 			try {
 				echo PaymentDTO::create( $payment_detail_array)->to_human_html();
@@ -201,7 +205,7 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 
 		}
 
-		// $refund_detail_array = ( new Params($order) )->get_refund_detail();
+		// $refund_detail_array = ( new MetaKeys($order) )->get_refund_detail();
 		// if ($refund_detail_array) {
 		// echo '<div style="width: 100%;height: 24px;"></div>';
 		// try {
@@ -214,10 +218,24 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 
 	// region 取得設定
 
-	/** @return IGatewaySettings 取得 gateway 設定 */
-	public function get_settings(): DTO {
-		return RedirectSettingsDTO::instance();
+	/**
+	 * @param bool $with_default 是否有預設值，還是只拿 DB 值
+	 *
+	 * @return array 取得設定
+	 */
+	public static function get_settings( bool $with_default = true ): array {
+		if (!$with_default) {
+			$default_array = ( new RedirectSettingsDTO() )->to_array();
+			$unset_keys    = [ 'platformId', 'merchantId', 'apiKey', 'clientKey', 'signKey' ];
+			foreach ($unset_keys as $key) {
+				unset($default_array[ $key ]);
+			}
+
+			return \wp_parse_args( IntegrationUtils::get_option( self::ID), $default_array);
+		}
+		return RedirectSettingsDTO::instance()->to_array();
 	}
+
 
 	// endregion
 
@@ -304,7 +322,7 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 		$order->add_order_note( $html );
 
 		if ($from_webhook) {
-			( new Params($order) )->update_refund_detail($response_dto->to_array() );
+			( new MetaKeys( $order) )->update_refund_detail( $response_dto->to_array() );
 		}
 
 		if ($response_dto->refundMsg?->code) {
@@ -318,4 +336,38 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 	}
 
 	// endregion
+
+	/** 初始化 */
+	public static function init() {
+		WebHook::instance();
+		// 添加付款方式
+
+		// 整合區塊結帳
+		\add_action( 'woocommerce_blocks_loaded', [ __CLASS__, 'register_checkout_blocks' ] );
+	}
+
+
+	/** 註冊區塊結帳支援 */
+	public static function register_checkout_blocks(): void {
+		\add_action(
+			'woocommerce_blocks_payment_method_type_registration',
+			function ( PaymentMethodRegistry $payment_method_registry ): void {
+				if (!\class_exists('\Automattic\WooCommerce\Blocks\Payments\Integrations\AbstractPaymentMethodType')) {
+					return;
+				}
+
+				if (!\class_exists(GatewayUtils::class)) {
+					require_once Plugin::$dir . '/inc/classes/Domains/Payment/Shared/Utils/GatewayUtils.php';
+				}
+
+				$gateway = GatewayUtils::get_gateway( self::ID);
+
+				if (!$gateway) {
+					return;
+				}
+
+				$payment_method_registry->register(new BlocksIntegration($gateway));
+			}
+		);
+	}
 }

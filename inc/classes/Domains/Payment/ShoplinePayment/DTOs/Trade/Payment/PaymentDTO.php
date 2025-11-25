@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Payment;
 
-use J7\PowerCheckout\Domains\Payment\Shared\Helpers\Params;
+use J7\PowerCheckout\Domains\Payment\Shared\Helpers\MetaKeys;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Traits\ActionTypeTrait;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Traits\AdditionalDataTrait;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Traits\NextActionTrait;
@@ -71,7 +71,7 @@ final class PaymentDTO extends DTO {
 	 * @return self
 	 */
 	public static function from_order( \WC_Order $order ): self {
-		$param = ( new Params( $order) )->get_payment_detail();
+		$param = ( new MetaKeys( $order) )->get_payment_detail();
 		return self::create($param);
 	}
 

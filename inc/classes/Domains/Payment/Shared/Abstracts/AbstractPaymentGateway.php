@@ -7,7 +7,7 @@ namespace J7\PowerCheckout\Domains\Payment\Shared\Abstracts;
 
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\GatewaySupport;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
-use J7\PowerCheckout\Domains\Payment\Shared\Helpers\Params;
+use J7\PowerCheckout\Domains\Payment\Shared\Helpers\MetaKeys;
 use J7\WpUtils\Classes\DTO;
 use J7\WpUtils\Classes\WP;
 
@@ -65,10 +65,10 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 		$settings = $this->get_settings();
 
 		$this->init_settings();
-		$this->icon              = $settings->icon;
-		$this->title             = $settings->title;
-		$this->description       = $settings->description;
-		$this->order_button_text = $settings->order_button_text ?: \sprintf(
+		$this->icon              = $settings['icon'];
+		$this->title             = $settings['title'];
+		$this->description       = $settings['description'];
+		$this->order_button_text = $settings['order_button_text'] ?: \sprintf(
 			\__( '使用 %s 付款', 'power_checkout' ),
 			$this->title
 		);
@@ -107,8 +107,12 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 		// add_action ( 'wc_pre_orders_process_pre_order_completion_payment_' . $this->id, array( $this, 'process_pre_order_release_payment' ), 10 );
 	}
 
-	/** @return DTO 取得 gateway 設定 */
-	abstract public function get_settings(): DTO;
+	/**
+	 * @param bool $with_default 是否有預設值，還是只拿 DB 值
+	 *
+	 * @return array 取得設定
+	 */
+	abstract public static function get_settings( bool $with_default = true ): array;
 
 	/**
 	 * 驗證必須設定的屬性
@@ -249,12 +253,12 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 			return;
 		}
 
-		$payment_detail_array = ( new Params($order) )->get_payment_detail();
+		$payment_detail_array = ( new MetaKeys($order) )->get_payment_detail();
 		if ($payment_detail_array) {
 			echo WP::array_to_html( $payment_detail_array);
 		}
 
-		$refund_detail_array = ( new Params($order) )->get_refund_detail();
+		$refund_detail_array = ( new MetaKeys($order) )->get_refund_detail();
 		if ($refund_detail_array) {
 			echo WP::array_to_html( $refund_detail_array);
 		}
