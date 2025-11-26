@@ -1,6 +1,11 @@
 // router/index.js
 import { createRouter, createWebHashHistory } from 'vue-router'
-import { Settings, Payments, Logistics, Invoices, SLP } from '@/pages'
+import { Settings, Payments, Logistics, Invoices, SLP, Amego } from '@/pages'
+
+export const ROUTER_MAPPER = {
+	shopline_payment_redirect: '/payments/shopline_payment_redirect',
+	amego: '/invoices/amego',
+}
 
 const routes = [
 	{ path: '/', redirect: '/payments' }, // 預設導向 /payments
@@ -8,6 +13,7 @@ const routes = [
 	{ path: '/payments/shopline_payment_redirect', component: SLP },
 	{ path: '/logistics', component: Logistics },
 	{ path: '/invoices', component: Invoices },
+	{ path: '/invoices/amego', component: Amego },
 	{ path: '/settings', component: Settings },
 ]
 

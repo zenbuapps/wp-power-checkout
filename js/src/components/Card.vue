@@ -4,6 +4,7 @@ import { Setting } from '@element-plus/icons-vue'
 import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { TIntegration } from '@/types'
 import apiClient from '@/api'
+import { ROUTER_MAPPER } from '@/router'
 
 const props = withDefaults(defineProps<TIntegration>(), {
 	description: '',
@@ -33,6 +34,8 @@ const handleChange: () => Promise<boolean> = async () => {
 		return false // 失敗 → 阻止切換
 	}
 }
+
+const url = ROUTER_MAPPER?.[`${props.id as keyof typeof ROUTER_MAPPER}`] ?? ''
 </script>
 
 <template>
@@ -72,7 +75,7 @@ const handleChange: () => Promise<boolean> = async () => {
 					<span>{{ isEnabled ? 'Enabled' : 'Disabled' }}</span>
 				</div>
 				<div>
-					<RouterLink :to="`/payments/${id}`">
+					<RouterLink :to="url">
 						<Setting
 							v-if="isEnabled"
 							class="text-gray-400 size-5 cursor-pointer"

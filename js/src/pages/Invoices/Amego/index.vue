@@ -7,9 +7,9 @@ import type { FormRules } from 'element-plus'
 import { pick, merge } from 'lodash-es'
 import { TFormData, PAYMENT_METHODS } from '@/pages/Payments/Shared/types'
 import { EPaymentMethods } from '@/pages/Payments/Shared/enums'
-import Checkbox from '@/pages/Payments/shopline_payment_redirect/Checkbox.vue'
+import Checkbox from '@/pages/Payments/SLP/Checkbox.vue'
 
-const gatewayId = 'shopline_payment_redirect'
+const gatewayId = 'amego'
 
 const { isPending, data } = useQuery({
 	queryKey: ['settings', gatewayId],
@@ -142,6 +142,7 @@ const isLocal = window.power_checkout_data.env.IS_LOCAL
 </script>
 
 <template>
+	amegoamegoamegoamegoamego
 	<div
 		class="flex items-center gap-x-2 mb-4 cursor-pointer"
 		@click="$router.push('/payments')"
