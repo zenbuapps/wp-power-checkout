@@ -379,4 +379,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	 */
 	public function handle_payment_gateway_refund( int $order_id, int $refund_id ): void {
 	}
+
+	/** 初始化 */
+	public static function init() {}
 }

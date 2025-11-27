@@ -33,6 +33,11 @@ final class ServiceRegister {
 			if (!IntegrationUtils::is_enabled($gateway_id)) {
 				continue;
 			}
+
+			if (\method_exists($gateway_service, 'init')) {
+				\call_user_func([ $gateway_service, 'init' ]);
+			}
+
 			// 取得 WC_Payment_Gateways 單例
 			$gateways = \WC_Payment_Gateways::instance();
 			// 取得所有 gateway 實例 (陣列)
@@ -66,9 +71,9 @@ final class ServiceRegister {
 	}
 
 
-	/*
-	* 退款的 script
-	*/
+	/**
+	 * 退款的 script
+	 */
 	public static function refund_script( $hook ): void {
 		if (!OrderUtils::is_order_detail($hook)) {
 			return;
