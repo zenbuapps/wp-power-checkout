@@ -20,7 +20,7 @@ class MetaKeys {
 
 
 	/** @var string 紀錄此訂單是用哪個發票服務開出的 */
-	private const SERVICE_ID_KEY = '_pc_invoice_service_id';
+	private const PROVIDER_ID_KEY = '_pc_invoice_provider_id';
 
 	/** Construct */
 	public function __construct(
@@ -108,6 +108,25 @@ class MetaKeys {
 		$this->order->save_meta_data();
 	}
 
+	/**
+	 * 刪除開立發票相關的資料
+	 * 通常是作廢發票時才調用
+	 *
+	 * @param bool $include_cancelled_data 是否將作廢發票的相關資料也一起刪除
+	 *
+	 * @return void
+	 */
+	public function clear_data( bool $include_cancelled_data = false ): void {
+		$keys = [ self::ISSUE_INVOICE_PARAMS_KEY, self::ISSUED_INVOICE_DATA_KEY, self::PROVIDER_ID_KEY ];
+		if ($include_cancelled_data) {
+			$keys[] = self::CANCELLED_INVOICE_DATA_KEY;
+		}
+		foreach ($keys as $key) {
+			$this->order->delete_meta_data( $key );
+		}
+		$this->order->save_meta_data();
+	}
+
 
 	/**
 	 * 取得取消發票資料 array
@@ -136,8 +155,8 @@ class MetaKeys {
 	 *
 	 * @return string
 	 */
-	public function get_service_id(): string {
-		return $this->order->get_meta( self::SERVICE_ID_KEY ) ?: '';
+	public function get_provider_id(): string {
+		return $this->order->get_meta( self::PROVIDER_ID_KEY ) ?: '';
 	}
 
 	/**
@@ -146,8 +165,8 @@ class MetaKeys {
 	 * @param string $value 電子發票服務 ID
 	 * @return void
 	 */
-	public function update_service_id( string $value ): void {
-		$this->order->update_meta_data( self::SERVICE_ID_KEY, $value );
+	public function update_provider_id( string $value ): void {
+		$this->order->update_meta_data( self::PROVIDER_ID_KEY, $value );
 		$this->order->save_meta_data();
 	}
 }

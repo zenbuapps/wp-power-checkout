@@ -6,6 +6,7 @@ namespace J7\PowerCheckout\Domains\Invoice\Amego\Services;
 
 use J7\PowerCheckout\Domains\Invoice\Amego\DTOs\AmegoSettingsDTO;
 use J7\PowerCheckout\Domains\Invoice\Amego\Http\ApiClient;
+use J7\PowerCheckout\Domains\Invoice\Amego\Shared\Helpers\Requester;
 use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\IInvoiceService;
 use J7\PowerCheckout\Shared\Abstracts\BaseService;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -46,8 +47,9 @@ final class AmegoProvider extends BaseService implements IInvoiceService {
 	 * @return array
 	 */
 	public function issue( \WC_Order $order ): array {
-		$client = new ApiClient( $order);
-		$result = $client->issue();
+		$requester = new Requester( $order );
+		$client    = new ApiClient( $order, $requester);
+		$result    = $client->issue(self::ID);
 		return $result?->to_array() ?? [];
 	}
 
@@ -57,8 +59,9 @@ final class AmegoProvider extends BaseService implements IInvoiceService {
 	 * @return array
 	 */
 	public function cancel( \WC_Order $order ): array {
-		$client = new ApiClient( $order);
-		$result = $client->cancel();
+		$requester = new Requester( $order );
+		$client    = new ApiClient( $order, $requester);
+		$result    = $client->cancel();
 		return $result?->to_array() ?? [];
 	}
 

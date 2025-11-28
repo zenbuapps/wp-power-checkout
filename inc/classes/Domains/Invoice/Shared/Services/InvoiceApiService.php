@@ -9,10 +9,12 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Invoice\Shared\Services;
 
+use _PHPStan_6597ef616\Nette\Neon\Exception;
 use J7\PowerCheckout\Domains\Invoice\Shared\DTOs\InvoiceParams;
 use J7\PowerCheckout\Domains\Invoice\Shared\Helpers\MetaKeys;
 use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\IInvoiceService;
 use J7\PowerCheckout\Domains\Invoice\Shared\Utils\InvoiceUtils;
+use J7\PowerCheckout\Shared\Utils\OrderUtils;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use J7\WpUtils\Classes\ApiBase;
 
@@ -56,13 +58,10 @@ final class InvoiceApiService extends ApiBase {
 		$order_id = $request['id'] ?? '';
 		$args     = $request->get_params();
 
-		// TEST ----- ▼ 印出 WC Logger 記得移除 ----- //
-		\J7\WpUtils\Classes\WC::logger( 'post_issue_with_id_callback', 'info', $args );
-		// TEST ---------- END ---------- //
-		$args_dto          = new InvoiceParams($args);
-		[$service, $order] = $this->get_service( $order_id );
+		[$service, $order] = self::get_service( $order_id, $args );
 		( new MetaKeys($order) )->update_issue_params( $args );
-		return new \WP_REST_Response( $service->issue( $order  ), 200 );
+		$result = $service->issue( $order  );
+		return new \WP_REST_Response($result, 200 );
 	}
 
 	/**
@@ -73,9 +72,16 @@ final class InvoiceApiService extends ApiBase {
 	 * @return \WP_REST_Response 回應
 	 */
 	public function post_cancel_with_id_callback( \WP_REST_Request $request ): \WP_REST_Response {
-		$order_id          = $request['id'] ?? '';
-		[$service, $order] = $this->get_service( $order_id );
-		return new \WP_REST_Response( $service->cancel( $order ), 200 );
+		$order_id    = $request['id'] ?? '';
+		$order       = OrderUtils::get_order( $order_id);
+		$provider_id = ( new MetaKeys( $order) )->get_provider_id();
+		$provider    = ProviderUtils::get_provider( $provider_id);
+		if (!$provider instanceof IInvoiceService) {
+			throw new Exception("{$provider_id} 不是 Invoice Service");
+		}
+		/** @var IInvoiceService $provider */
+		$result = $provider->cancel( $order );
+		return new \WP_REST_Response( $result, 200 );
 	}
 
 
@@ -83,23 +89,23 @@ final class InvoiceApiService extends ApiBase {
 	 * 從請求體解析出服務 & 訂單
 	 *
 	 * @param string|int $order_id 訂單號
+	 * @param array      $args API 帶進來的參數
 	 *
 	 * @return array{0: IInvoiceService, 1: \WC_Order} 服務, 訂單
 	 * @throws \Exception 解析失敗
 	 */
-	private function get_service( string|int $order_id ): array {
-		$order = \wc_get_order($order_id);
-		if (!$order instanceof \WC_Order) {
-			throw new \Exception("order_id:{$order_id} not found");
+	private static function get_service( string|int $order_id, array $args = [] ): array {
+		$order    = OrderUtils::get_order( $order_id);
+		$args_dto = InvoiceParams::create($args);
+		$provider = ProviderUtils::get_provider( $args_dto->provider);
+
+		if (!$provider) {
+			throw new \Exception("找不到電子發票服務 id: {$args_dto->provider}，請檢查是否啟用");
+		}
+		if (!$provider instanceof IInvoiceService) {
+			throw new Exception("{$args_dto->provider} 不是 Invoice Service");
 		}
 
-		$invoice_id =( new MetaKeys( $order) )->get_service_id();
-		$service    = ProviderUtils::get_provider_instance( $invoice_id);
-
-		if (!$service) {
-			throw new \Exception("找不到電子發票服務 {$invoice_id}，請檢查是否啟用");
-		}
-
-		return [ $service, $order ];
+		return [ $provider, $order ];
 	}
 }

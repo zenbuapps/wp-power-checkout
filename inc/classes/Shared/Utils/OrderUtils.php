@@ -79,4 +79,20 @@ final class OrderUtils {
 		$tax_type = (int) $item->get_meta('_pc_tax_type');
 		return ETaxType::tryFrom( $tax_type) ?? ETaxType::TAXABLE;
 	}
+
+	/**
+	 * 取得訂單
+	 *
+	 * @param string|int $order_id 訂單號
+	 *
+	 * @return \WC_Order 訂單
+	 * @throws \Exception 解析失敗
+	 */
+	public static function get_order( string|int $order_id ): \WC_Order {
+		$order = \wc_get_order($order_id);
+		if (!$order instanceof \WC_Order) {
+			throw new \Exception("找不到訂單 order_id:{$order_id}");
+		}
+		return $order;
+	}
 }

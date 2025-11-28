@@ -9,14 +9,43 @@ use J7\PowerCheckout\Shared\Abstracts\BaseService;
 /** Provider Utils 整合 Utils，包含金流、物流、電子發票 */
 abstract class ProviderUtils {
 
-	/** @var array<string, BaseService> 存放已啟用服務的容器  */
+	/** @var array<string, BaseService> 存放【已啟用】服務的容器  */
 	public static array $container = [];
 
 
-	/** @return BaseService|\WC_Payment_Gateway|null 取得實例  */
-	public static function get_provider_instance( string $id ): BaseService|\WC_Payment_Gateway|null {
+	/** @return BaseService|\WC_Payment_Gateway|null 取得指定的【已啟用】 provider 實例  */
+	public static function get_provider( string $id ): BaseService|\WC_Payment_Gateway|null {
 		return self::$container[ $id ] ?? null;
 	}
+
+	/**
+	 * 取得指定的【已啟用】 provider 實例
+	 *
+	 * @param array<string> $ids provider ids
+	 * @return array<BaseService|\WC_Payment_Gateway> 取得實例
+	 */
+	public static function get_providers( array $ids ): array {
+		$providers = [];
+		foreach ($ids as $id) {
+			if (isset( self::$container[ $id ])) {
+				$providers[] = self::$container[ $id ];
+			}
+		}
+
+		return $providers;
+	}
+
+	/**
+	 * 是否包含任何【已啟用】 Provider
+	 *
+	 * @param array<string> $ids provider ids
+	 * @return bool 是否包含任何 Provider
+	 */
+	public static function has_providers( array $ids ): bool {
+		return (bool) self::get_providers($ids);
+	}
+
+
 
 	/**
 	 * @param string $provider_id Payment Gateway ID

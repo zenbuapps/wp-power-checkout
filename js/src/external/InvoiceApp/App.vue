@@ -10,7 +10,10 @@ const dialogVisible = ref(false)
 const { mutate: cancelInvoice, isPending: isCanceling } = useMutation({
 	mutationFn: async (orderId: string) =>
 		await apiClient.post(`/invoices/cancel/${orderId}`),
-	onSuccess: () => {},
+	onSuccess: () => {
+		// alert('電子發票作廢成功')
+		// window.location.reload()
+	},
 	onError: (err) => {
 		console.error('作廢電子發票失敗', err)
 	},
@@ -25,15 +28,18 @@ const handleCancel = () => {
 <template>
 	<div class="flex justify-between items-center">
 		<el-button
-			v-if="isAdmin"
+			v-if="isAdmin && appData?.is_issued"
 			type="danger"
 			@click="handleCancel"
 			:loading="isCanceling"
 			>作廢發票</el-button
 		>
-		<el-button type="primary" @click="dialogVisible = true">{{
-			MAPPER.ISSUE_INVOICE
-		}}</el-button>
+		<el-button
+			v-if="!appData?.is_issued"
+			type="primary"
+			@click="dialogVisible = true"
+			>{{ MAPPER.ISSUE_INVOICE }}</el-button
+		>
 	</div>
 
 	<el-dialog
@@ -44,7 +50,7 @@ const handleCancel = () => {
 		:z-index="999999"
 		class="p-8"
 	>
-		<Steps @close="dialogVisible = false" />
+		<Steps @close="dialogVisible = false" :dialogVisible="dialogVisible" />
 	</el-dialog>
 </template>
 

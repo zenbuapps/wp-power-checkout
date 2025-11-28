@@ -11,7 +11,7 @@ use J7\WpUtils\Classes\DTO;
 final class CancelInvoiceParamsDTO extends DTO {
 
 	/** @var array<int,\WC_Order> $orders 訂單 array  */
-	private array $orders = [];
+	protected array $orders = [];
 
 	/**
 	 * 取得公開的屬性 array
@@ -32,6 +32,10 @@ final class CancelInvoiceParamsDTO extends DTO {
 			$invoice_number_array[] = [
 				'CancelInvoiceNumber' => $invoice_number,
 			];
+		}
+		if (!$invoice_number_array) {
+			$order_ids = \implode(',', \array_map(fn( $order ) => "#{$order->get_id()} ", $this->orders));
+			throw new \Exception( "{$order_ids} 找不到發票號碼" );
 		}
 
 		return $invoice_number_array;

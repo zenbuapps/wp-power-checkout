@@ -28,6 +28,16 @@ declare global {
 				id: ''
 			}
 			is_admin: boolean
+			is_issued: boolean
+			invoice_providers: {
+				id: string
+				icon: string
+				title: string
+				description: string
+				method_title: string
+				method_description: string
+				mode: 'test' | 'prod'
+			}[]
 		}
 	}
 }

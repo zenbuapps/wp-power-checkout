@@ -1,18 +1,24 @@
 <script setup lang="ts">
-import { reactive, ref, toRaw } from 'vue'
+import { reactive, ref, toRaw, watch } from 'vue'
 import { TFormData } from '@/external/InvoiceApp/Shared/types'
 import {
-	EIndividuals,
-	EInvoiceTypes,
+	EIndividual,
+	EInvoiceType,
 	individuals,
 	invoiceTypes,
 } from '@/external/InvoiceApp/Shared/constants'
 import { useMutation } from '@tanstack/vue-query'
 import apiClient from '@/api'
 import { appData, MAPPER, isAdmin } from '@/external/InvoiceApp'
+import type { FormRules } from 'element-plus'
+import { InfoFilled } from '@element-plus/icons-vue'
 
 const emit = defineEmits<{
 	close: []
+}>()
+
+const props = defineProps<{
+	dialogVisible: boolean
 }>()
 
 const active = ref(0)
@@ -21,7 +27,7 @@ const active = ref(0)
 const formRef = ref()
 
 // 表單資料
-const form = reactive<TFormData>({
+const DEFAULT_FORM = {
 	provider: '', // 服務提供商
 	invoiceType: undefined, // 發票類型
 	individual: undefined, // 個人發票類型 雲端載具、手機條碼、自然人憑證
@@ -30,7 +36,9 @@ const form = reactive<TFormData>({
 	companyName: '',
 	companyId: '',
 	donateCode: '', // 捐贈碼
-})
+}
+
+const form = reactive<TFormData>(DEFAULT_FORM)
 
 const prev = () => {
 	if (active.value-- < 0) active.value = 0
@@ -42,40 +50,46 @@ const next = () => {
 const { mutate: issueInvoice, isPending } = useMutation({
 	mutationFn: async ({ orderId, data }: { orderId: string; data: TFormData }) =>
 		await apiClient.post(`/invoices/issue/${orderId}`, data),
+	onSuccess(data) {
+		// alert('電子發票開立成功')
+		// window.location.reload()
+	},
 	onError: (err) => {
 		console.error('發行電子發票失敗', err)
 	},
 })
 
+const providers = appData?.invoice_providers || []
+
 const handleIssue = async () => {
 	await formRef.value.validate((valid: boolean) => {
-		if (form.invoiceType === EInvoiceTypes.DONATE) {
+		if (form.invoiceType === EInvoiceType.DONATE) {
 			form.carrier = ''
 			form.moica = ''
 			form.companyName = ''
 			form.companyId = ''
 		}
 
-		if (form.invoiceType === EInvoiceTypes.COMPANY) {
+		if (form.invoiceType === EInvoiceType.COMPANY) {
 			form.carrier = ''
 			form.moica = ''
 			form.donateCode = ''
 		}
 
-		if (form.invoiceType === EInvoiceTypes.INDIVIDUAL) {
+		if (form.invoiceType === EInvoiceType.INDIVIDUAL) {
 			if (
-				form.individual === EIndividuals.CLOUD ||
-				form.individual === EIndividuals.PAPER
+				form.individual === EIndividual.CLOUD ||
+				form.individual === EIndividual.PAPER
 			) {
 				form.carrier = ''
 				form.moica = ''
 			}
 
-			if (form.individual === EIndividuals.BARCODE) {
+			if (form.individual === EIndividual.BARCODE) {
 				form.moica = ''
 			}
 
-			if (form.individual === EIndividuals.MOICA) {
+			if (form.individual === EIndividual.MOICA) {
 				form.carrier = ''
 			}
 
@@ -89,7 +103,6 @@ const handleIssue = async () => {
 		}
 
 		const formObj = toRaw(form)
-		console.log(formObj)
 
 		// Admin 介面就發 API 開發票
 		if (isAdmin) {
@@ -122,6 +135,47 @@ const handleIssue = async () => {
 		})
 	})
 }
+
+// 每次開啟 dialog 重置表單
+watch(
+	() => props.dialogVisible,
+	(visible) => {
+		if (!visible) return
+		formRef.value?.resetFields()
+		Object.assign(form, DEFAULT_FORM)
+		active.value = 0
+	},
+)
+
+const CARRIER_PATTERN = /^\/[0-9A-Z+\-.]{7}$/
+const MOICA_PATTERN = /^TP[0-9]{14}$/
+
+const rules = reactive<FormRules<TFormData>>({
+	carrier: [
+		{
+			validator: (_rule, value, callback) => {
+				if (!value) return callback()
+				if (!CARRIER_PATTERN.test(value)) {
+					return callback(new Error('載具格式不符合'))
+				}
+				callback()
+			},
+			trigger: 'blur',
+		},
+	],
+	moica: [
+		{
+			validator: (_rule, value, callback) => {
+				if (!value) return callback()
+				if (!MOICA_PATTERN.test(value)) {
+					return callback(new Error('自然人憑證格式不符合'))
+				}
+				callback()
+			},
+			trigger: 'blur',
+		},
+	],
+})
 </script>
 
 <template>
@@ -138,6 +192,7 @@ const handleIssue = async () => {
 		label-position="top"
 		label-width="auto"
 		class="mb-8"
+		:rules="rules"
 	>
 		<!-- 選擇發票服務提供商 -->
 		<el-form-item
@@ -150,12 +205,9 @@ const handleIssue = async () => {
 				v-model="form.provider"
 				class="grid grid-cols-3 gap-4 [&_label]:w-full w-full"
 			>
-				<el-radio value="1" border>光茂電子發票</el-radio>
-				<el-radio value="2" border>綠界電子發票</el-radio>
-				<el-radio value="3" border>藍新電子發票</el-radio>
-				<el-radio value="4" border>PAYNOW 電子發票</el-radio>
-				<el-radio value="5" border>其他電子發票 A</el-radio>
-				<el-radio value="6" border>其他電子發票 B</el-radio>
+				<el-radio v-for="provider in providers" :value="provider.id" border>{{
+					provider.title
+				}}</el-radio>
 			</el-radio-group>
 		</el-form-item>
 
@@ -184,7 +236,7 @@ const handleIssue = async () => {
 			<el-form-item
 				prop="individual"
 				:class="{
-					'tw-hidden': form.invoiceType !== EInvoiceTypes.INDIVIDUAL,
+					'tw-hidden': form.invoiceType !== EInvoiceType.INDIVIDUAL,
 				}"
 			>
 				<el-radio-group
@@ -201,7 +253,7 @@ const handleIssue = async () => {
 				prop="carrier"
 				label="載具"
 				:class="{
-					'tw-hidden': form.individual !== EIndividuals.BARCODE,
+					'tw-hidden': form.individual !== EIndividual.BARCODE,
 				}"
 			>
 				<el-input v-model="form.carrier" clearable />
@@ -210,7 +262,7 @@ const handleIssue = async () => {
 				prop="moica"
 				label="自然人憑證"
 				:class="{
-					'tw-hidden': form.individual !== EIndividuals.MOICA,
+					'tw-hidden': form.individual !== EIndividual.MOICA,
 				}"
 			>
 				<el-input v-model="form.moica" clearable />
@@ -219,7 +271,7 @@ const handleIssue = async () => {
 				prop="companyName"
 				label="公司名稱"
 				:class="{
-					'tw-hidden': form.invoiceType !== EInvoiceTypes.COMPANY,
+					'tw-hidden': form.invoiceType !== EInvoiceType.COMPANY,
 				}"
 			>
 				<el-input v-model="form.companyName" clearable />
@@ -228,18 +280,29 @@ const handleIssue = async () => {
 				prop="companyId"
 				label="統一編號"
 				:class="{
-					'tw-hidden': form.invoiceType !== EInvoiceTypes.COMPANY,
+					'tw-hidden': form.invoiceType !== EInvoiceType.COMPANY,
 				}"
 			>
 				<el-input v-model="form.companyId" clearable />
 			</el-form-item>
 			<el-form-item
 				prop="donateCode"
-				label="捐贈碼"
 				:class="{
-					'tw-hidden': form.invoiceType !== EInvoiceTypes.DONATE,
+					'tw-hidden': form.invoiceType !== EInvoiceType.DONATE,
 				}"
 			>
+				<template #label>
+					<span class="flex gap-x-2 items-center">
+						<span
+							>捐贈碼 (<a
+								href="https://www.einvoice.nat.gov.tw/portal/btc/btc603w/search"
+								target="_blank"
+								>查詢</a
+							>)
+						</span>
+					</span>
+				</template>
+
 				<el-input v-model="form.donateCode" clearable />
 			</el-form-item>
 		</div>

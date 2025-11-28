@@ -82,7 +82,7 @@ final class StrHelper {
 	}
 
 	/**
-	 * 過濾掉字串中的所有特殊字符（非中文、英文、數字）
+	 * 過濾掉字串中的所有特殊字符（非中文、英文）
 	 *
 	 * @return self 處理後的字串，只保留中文、英文和數字
 	 */
@@ -118,5 +118,27 @@ final class StrHelper {
 	public function validate(): void {
 		$this->validate_strlen();
 		$this->validate_special_char();
+	}
+
+	/** 取得唯一字串 */
+	public static function get_unique_string( $separator = '' ): string {
+		$milliseconds = (int) ( new \DateTimeImmutable() )->format( 'Uv' ); // 13位
+		return $separator . \wp_unique_id() . $separator . $milliseconds;
+	}
+
+	/** 驗證載具 */
+	public static function validate_carrier( string $value ): void {
+		$pattern = '/^\/[0-9A-Z\+\-\.]{7}$/';
+		if (!preg_match($pattern, $value)) {
+			throw new \Exception("{$value} 載具格式不符");
+		}
+	}
+
+	/** 驗證自然人憑證 */
+	public static function validate_moica( string $value ): void {
+		$pattern = '/^TP[0-9]{14}$/';
+		if (!preg_match($pattern, $value)) {
+			throw new \Exception("{$value} 自然人憑證格式不符");
+		}
 	}
 }

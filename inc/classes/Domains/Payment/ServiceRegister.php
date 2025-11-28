@@ -11,7 +11,7 @@ use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use J7\PowerCheckout\Shared\Utils\OrderUtils;
 
-/** ServiceRegister 註冊付款方式 */
+/** ProviderRegister 註冊付款方式 */
 final class ServiceRegister {
 
 	/** @var array<string, string> $gateway_services [id, class]  */

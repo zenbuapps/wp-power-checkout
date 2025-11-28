@@ -25,7 +25,7 @@ final class Bootstrap {
 		Domains\Settings\Services\SettingApiService::register_hooks();
 		Domains\Settings\Services\SettingTabService::register_hooks();
 		Domains\Settings\Services\DefaultSetting::register_hooks();
-		Domains\Invoice\ServiceRegister::register_hooks();
+		Domains\Invoice\ProviderRegister::register_hooks();
 
 		\add_action( 'before_woocommerce_init', [ __CLASS__, 'declare_compatibility' ] );
 		\add_action('admin_head', [ __CLASS__, 'custom_css' ]);

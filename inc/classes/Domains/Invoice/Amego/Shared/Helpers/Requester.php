@@ -95,10 +95,10 @@ final class Requester {
 				"❌ {$api->label()} {$api->value} 失敗 #{$this->order->get_id()}： {$e->getMessage()}",
 				'error',
 				[],
-				0,
+				5,
 				$this->order
 			);
-			return null;
+			throw new \Exception( "❌ {$api->label()} {$api->value} 失敗 #{$this->order->get_id()}： {$e->getMessage()}" );
 		}
 	}
 }

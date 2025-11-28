@@ -19,13 +19,13 @@ use J7\PowerCheckout\Shared\Utils\OrderUtils;
 use J7\WpUtils\Classes\WP;
 
 /** Loader 載入電子發票方式 */
-final class ServiceRegister {
+final class ProviderRegister {
 
 	// 發票 APP 渲染用的 ID
 	private const RENDER_ID = 'power_checkout_invoice_metabox_app';
 
-	/** @var array<string, string> $invoice_services [id, class]  */
-	private static array $invoice_services = [
+	/** @var array<string, string> $invoice_providers [id, class]  */
+	private static array $invoice_providers = [
 		AmegoProvider::ID => AmegoProvider::class,
 	];
 
@@ -40,7 +40,7 @@ final class ServiceRegister {
 		\add_action( 'plugins_loaded', [ CheckoutFields::class, 'register_hooks' ], 1000);
 
 		$any_enabled = false;
-		foreach ( self::$invoice_services as $id => $class ) {
+		foreach ( self::$invoice_providers as $id => $class ) {
 			// 如果電子發票啟用，才實例化放入容器
 			if (!ProviderUtils::is_enabled( $id)) {
 				continue;
@@ -60,28 +60,6 @@ final class ServiceRegister {
 				]
 				) )->register();
 		}
-
-		// TEST ----- ▼ 測試特定 hook 記得刪除 ----- //
-		\add_action(
-			'init',
-			function () {
-
-				$order = \wc_get_order(275);
-
-				// echo '<pre>';
-				// var_dump(
-				// [
-				// 'isset' => isset($_GET['issue']),
-				// ]
-				// );
-				// echo '</pre>';
-				if (isset($_GET['issue'])) {
-					$client = new ApiClient( $order);
-					$client->issue();
-				}
-			}
-			);
-		// TEST ---------- END ---------- //
 	}
 
 
@@ -119,6 +97,12 @@ final class ServiceRegister {
 	 * @param \WP_Post|\WC_Order $post_or_order 訂單物件 (HPOS) 或文章物件 (傳統)
 	 */
 	public static function render_invoice_meta_box( \WP_Post|\WC_Order $post_or_order ): void {
+
+		if (!ProviderUtils::has_providers( \array_keys( self::$invoice_providers))) {
+			echo '找不到已啟用的電子發票服務';
+			return;
+		}
+
 		// 取得訂單物件
 		$order = $post_or_order instanceof \WC_Order ? $post_or_order : \wc_get_order( $post_or_order->ID );
 
@@ -157,11 +141,15 @@ final class ServiceRegister {
 		// }
 		SettingTabService::enqueue_vue_app();
 
+		$invoice_providers          = ProviderUtils::get_providers( \array_keys( self::$invoice_providers));
+		$invoice_providers_settings = \array_map( static fn( $p ) => $p::get_settings(), $invoice_providers);
+
 		// 暴露給前端的資料
 		$data = [
 			'render_ids'        => self::get_render_ids(),
 			'is_admin'          => \is_admin(),
-			'invoice_providers' => [],
+			'invoice_providers' => $invoice_providers_settings,
+			'is_issued'         => false,
 		];
 
 		$order_id = OrderUtils::get_order_id( $hook );
@@ -171,6 +159,9 @@ final class ServiceRegister {
 				$data['order'] = [
 					'id' => (string) $order->get_id(),
 				];
+
+				$issued_data       = ( new MetaKeys( $order) )->get_issued_data();
+				$data['is_issued'] = (bool) $issued_data;
 			}
 		}
 
@@ -186,7 +177,7 @@ final class ServiceRegister {
 
 	/** @return BaseSettingsDTO[] 取得 provider 設定 dtos */
 	public static function get_registered_provider_dtos(): array {
-		return \array_map( static fn( $class_name ) => BaseSettingsDTO::create( $class_name), self::$invoice_services );
+		return \array_map( static fn( $class_name ) => BaseSettingsDTO::create( $class_name), self::$invoice_providers );
 	}
 
 	/** @return array<string> 取得渲染的 ids */

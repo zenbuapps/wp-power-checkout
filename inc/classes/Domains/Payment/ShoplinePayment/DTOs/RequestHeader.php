@@ -50,10 +50,9 @@ final class RequestHeader extends DTO {
 	 * @return self 取得實例
 	 */
 	public static function create( \WC_Order $order ): self {
-		$settings     = RedirectSettingsDTO::instance();
-		$milliseconds = (int) ( new \DateTimeImmutable() )->format( 'Uv' ); // 13位
-		$request_id   = $order->get_id() . '-' . \wp_unique_id() . '-' . $milliseconds;
-		$args         = [
+		$settings   = RedirectSettingsDTO::instance();
+		$request_id = $order->get_id() . StrHelper::get_unique_string();
+		$args       = [
 			'merchantId' => $settings->merchantId,
 			'apiKey'     => $settings->apiKey,
 			'requestId'  => ( new StrHelper( $request_id, 'requestId', 32) )->substr()->value,

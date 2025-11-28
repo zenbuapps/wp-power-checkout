@@ -13,12 +13,13 @@ use J7\PowerCheckout\Domains\Invoice\Amego\Shared\Enums\EPrinterLang;
 use J7\PowerCheckout\Domains\Invoice\Amego\Shared\Enums\EPrinterType;
 use J7\PowerCheckout\Domains\Invoice\Amego\Shared\Enums\ETaxType;
 use J7\PowerCheckout\Domains\Invoice\Amego\Shared\Enums\EZeroTaxRateReason;
+use J7\PowerCheckout\Domains\Invoice\Shared\DTOs\InvoiceParams;
+use J7\PowerCheckout\Domains\Invoice\Shared\Enums\EIndividual;
+use J7\PowerCheckout\Domains\Invoice\Shared\Enums\EInvoiceType;
 use J7\PowerCheckout\Domains\Invoice\Shared\Helpers\MetaKeys;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Components\Order\Order;
 use J7\PowerCheckout\Shared\Utils\OrderUtils;
 use J7\PowerCheckout\Shared\Utils\StrHelper;
 use J7\WpUtils\Classes\DTO;
-
 
 final class IssueInvoiceParamsDTO extends DTO {
 
@@ -126,6 +127,55 @@ final class IssueInvoiceParamsDTO extends DTO {
 		'TotalAmount',
 	];
 
+	/** 取得額外的參數 */
+	private static function get_additional_args( \WC_Order $order ): array {
+		$params       = new MetaKeys( $order );
+		$issue_params = $params->get_issue_params();
+		if (!$issue_params) {
+			return [];
+		}
+		$args = InvoiceParams::create($issue_params);
+
+		if (EInvoiceType::DONATE === $args->invoiceType) {
+			return [
+				'NPOBAN' => $args->donateCode,
+			];
+		}
+
+		if (EInvoiceType::COMPANY === $args->invoiceType) {
+			return [
+				'BuyerIdentifier' => $args->companyId,
+				'BrandName'       => $args->companyName,
+			];
+		}
+
+		if (EInvoiceType::INDIVIDUAL === $args->invoiceType) {
+			if (EIndividual::CLOUD === $args->individual) {
+				return [
+					'CarrierType' => ECarrierType::AMEGO,
+				];
+			}
+
+			if (EIndividual::BARCODE === $args->individual) {
+				return [
+					'CarrierType' => ECarrierType::MOBILE,
+					'CarrierId1'  => $args->carrier,
+					'CarrierId2'  => $args->carrier,
+				];
+			}
+
+			if (EIndividual::MOICA === $args->individual) {
+				return [
+					'CarrierType' => ECarrierType::MOICA,
+					'CarrierId1'  => $args->moica,
+					'CarrierId2'  => $args->moica,
+				];
+			}
+		}
+
+		return [];
+	}
+
 	/** 初始化後 */
 	protected function after_init(): void {
 		// 有打統編才需計算5%稅額，沒打統編發票一律帶0。
@@ -133,12 +183,22 @@ final class IssueInvoiceParamsDTO extends DTO {
 		if ( $this->BuyerIdentifier !== '0000000000' ) {
 			$this->TaxAmount = $this->SalesAmount * (float) $this->TaxRate;
 		}
+
+		if (isset($this->CarrierType)) {
+			if (ECarrierType::AMEGO === $this->CarrierType) {
+				// 光貿會員載具 amego，載具顯碼及載具隱碼需為 a+手機號碼 或 電子信箱
+				$this->CarrierId1 = $this->BuyerEmailAddress;
+				// 隱碼帶入電子信箱
+				$this->CarrierId2 = $this->BuyerEmailAddress;
+			}
+		}
 	}
 
 	/**
 	 * 驗證參數
 	 *
 	 * @throws \Exception 驗證失敗
+	 * @see https://invoice.amego.tw/info_detail?mid=74
 	 */
 	protected function validate(): void {
 		parent::validate();
@@ -150,12 +210,19 @@ final class IssueInvoiceParamsDTO extends DTO {
 		if ( isset( $this->MainRemark ) ) {
 			( new StrHelper( $this->MainRemark, 'MainRemark', 200 ) )->validate();
 		}
+
+		if (isset($this->CarrierType)) {
+			if (ECarrierType::MOBILE === $this->CarrierType) {
+				StrHelper::validate_carrier( $this->CarrierId1);
+			}
+			if (ECarrierType::MOICA === $this->CarrierType) {
+				StrHelper::validate_moica( $this->CarrierId1);
+			}
+		}
 	}
 
 	/** 從訂單創建實例 */
 	public static function create( \WC_Order $order ): self {
-		$params = new MetaKeys( $order );
-
 		$SalesAmount        = 0.0;
 		$FreeTaxSalesAmount = 0.0;
 		$ZeroTaxSalesAmount = 0.0;
@@ -191,9 +258,9 @@ final class IssueInvoiceParamsDTO extends DTO {
 			$product_items[] = $product_item_dto;
 		}
 
-		$settings   = AmegoSettingsDTO::instance();
-		$order_args = [
-			'OrderId'              => $order->get_id(),
+		$settings        = AmegoSettingsDTO::instance();
+		$order_args      = [
+			'OrderId'              => $order->get_id() . StrHelper::get_unique_string(),
 			'BuyerAddress'         => OrderUtils::get_full_address($order),
 			'BuyerTelephoneNumber' => $order->get_billing_phone(),
 			'BuyerEmailAddress'    => $order->get_billing_email(),
@@ -208,8 +275,8 @@ final class IssueInvoiceParamsDTO extends DTO {
 			'DetailVat'            => EDetailVat::INCLUDING_TAX, // 含稅
 			'DetailAmountRound'    => EDetailAmountRound::ROUND_TO_INT, // 四捨五入
 		];
-		// TODO $params->get_issue_params() 還需要過一個 mapper, DTO
-		$args = \wp_parse_args( $params->get_issue_params(), $order_args );
+		$additional_args = self::get_additional_args($order);
+		$args            = \wp_parse_args( $additional_args, $order_args );
 
 		return new self( $args );
 	}

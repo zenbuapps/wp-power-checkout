@@ -27,7 +27,11 @@ enum EApi: string {
 	public function prepare_request_param( \WC_Order $order ): DTO {
 		return match ($this) {
 			self::ISSUE => IssueInvoiceParamsDTO::create( $order),
-			self::CANCEL => new CancelInvoiceParamsDTO( [ $order ])
+			self::CANCEL => new CancelInvoiceParamsDTO(
+			[
+				'orders' => [ $order ],
+			]
+				)
 		};
 	}
 }

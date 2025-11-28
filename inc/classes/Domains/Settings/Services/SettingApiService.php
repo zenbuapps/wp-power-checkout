@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Settings\Services;
 
-use J7\PowerCheckout\Domains\Invoice\ServiceRegister;
+use J7\PowerCheckout\Domains\Invoice\ProviderRegister;
 use J7\PowerCheckout\Domains\Payment\Shared\Utils\GatewayUtils;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use J7\WpUtils\Classes\ApiBase;
@@ -68,7 +68,7 @@ final class SettingApiService extends ApiBase {
 				'message' => '取得設定成功',
 				'data'    => [
 					'gateways'  => $gateways,
-					'invoices'  => ServiceRegister::get_registered_provider_dtos(),
+					'invoices'  => ProviderRegister::get_registered_provider_dtos(),
 					'logistics' => [],
 				],
 			],
@@ -109,7 +109,7 @@ final class SettingApiService extends ApiBase {
 	 */
 	public static function get_providers_with_id_callback( \WP_REST_Request $request ): \WP_REST_Response {
 		$provider_id = (string) $request['provider_id'];
-		$provider    = ProviderUtils::get_provider_instance( $provider_id);
+		$provider    = ProviderUtils::get_provider( $provider_id);
 		if (!$provider) {
 			throw new \Exception("Can't find Provider with provider_id: {$provider_id}");
 		}
