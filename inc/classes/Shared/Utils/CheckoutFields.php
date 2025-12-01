@@ -65,6 +65,7 @@ final class CheckoutFields {
 		}
 	}
 
+	/** 儲存資料到訂單 */
 	public static function save_checkout_field_to_order( int $order_id ): void {
 		$order = \wc_get_order( $order_id );
 		if ( ! $order instanceof \WC_Order ) {
@@ -77,11 +78,6 @@ final class CheckoutFields {
 				continue;
 			}
 			$value = $_POST[ $field->id ]; // phpcs:ignore
-
-			// TEST ----- ▼ 印出 WC Logger 記得移除 ----- //
-			\J7\WpUtils\Classes\WC::logger( 'value', 'info', $value );
-			// TEST ---------- END ---------- //
-
 			$order->update_meta_data( $field->id, $value );
 		}
 

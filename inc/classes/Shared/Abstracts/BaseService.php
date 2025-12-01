@@ -29,6 +29,7 @@ abstract class BaseService {
 
 	/**
 	 * @param bool $with_default 是否有預設值，還是只拿 DB 值
+	 * false = 只拿 db, true = 會給預設值
 	 *
 	 * @return array 取得設定
 	 */

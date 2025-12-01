@@ -83,7 +83,7 @@ final class Requester {
 			AmegoProvider::logger(
 				"✅ {$api->label()} {$api->value} 成功 #{$this->order->get_id()}",
 				'info',
-				$response_body,
+				$api === EApi::CANCEL ? [] :$response_body,
 				0,
 				$this->order
 			);

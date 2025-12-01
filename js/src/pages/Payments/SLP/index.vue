@@ -5,11 +5,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import apiClient from '@/api'
 import type { FormRules } from 'element-plus'
 import { pick, merge } from 'lodash-es'
-import { TFormData, PAYMENT_METHODS } from '@/pages/Payments/Shared/types'
-import { EPaymentMethods } from '@/pages/Payments/Shared/enums'
-import Checkbox from '@/pages/Payments/SLP/Checkbox.vue'
+import { TFormData, PAYMENT_METHODS } from '@/pages/Payments/SLP/Shared/types'
+import { EPaymentMethods } from '@/pages/Payments/SLP/Shared/enums'
+import Checkbox from '@/components/Checkbox/index.vue'
+import { env } from '@/index'
 
 const gatewayId = 'shopline_payment_redirect'
+const apiUrl = env.API_URL
+const isLocal = env.IS_LOCAL
 
 const { isPending, data } = useQuery({
 	queryKey: ['settings', gatewayId],
@@ -137,8 +140,6 @@ const chaileaseBNPLInstallment = [
 	'30',
 	'36',
 ]
-const apiUrl = window.power_checkout_data.env.API_URL
-const isLocal = window.power_checkout_data.env.IS_LOCAL
 </script>
 
 <template>

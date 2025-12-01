@@ -96,6 +96,11 @@ class SettingTabService {
 	 * @return void
 	 */
 	public static function enqueue_scripts( $hook ): void { // phpcs:ignore
+		// 只在指定的 WC Settings tab 載入
+        if ($hook === 'woocommerce_page_wc-settings' && !self::is_current_tab()) { // phpcs:ignore
+			return;
+		}
+
 		\wp_register_script(
 			self::$handle,
 			Plugin::$url . '/js/dist/index.js',
@@ -110,6 +115,15 @@ class SettingTabService {
 		$obj_name  = Plugin::$snake . '_data'; // power_checkout_data
 		$post_id   = \get_the_ID();
 		$permalink = $post_id ? \get_permalink( $post_id ) : '';
+
+		$order_statuses_kv = \wc_get_order_statuses();
+		$order_statuses    = [];
+		foreach ($order_statuses_kv as $value => $label) {
+			$order_statuses[] = [
+				'value' => $value,
+				'label' => $label,
+			];
+		}
 
 		\wp_localize_script(
 			self::$handle,
@@ -127,6 +141,7 @@ class SettingTabService {
 					'NONCE'           => \wp_create_nonce( 'wp_rest' ),
 					'APP1_SELECTOR'   => Base::APP1_SELECTOR,
 					'IS_LOCAL'        => Plugin::$env === 'local',
+					'ORDER_STATUSES'  => $order_statuses,
 				],
 			]
 		);

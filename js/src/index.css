@@ -5,7 +5,8 @@
 
 #power-checkout-wc-setting-app,
 #power_checkout_invoice_meta_box,
-#power_checkout_refund_dialog {
+#power_checkout_refund_dialog,
+#_pc_issue_invoice_params_container {
 
     /* wp-admin 後台 input 會有預設的 Style */
 
@@ -36,4 +37,9 @@
     .el-divider__text {
         background-color: #f0f0f1;
     }
+}
+
+/* 隱藏發票資料 */
+#_pc_issue_invoice_params {
+    display: none !important;
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { TPaymentMethod } from '@/pages/Payments/Shared/types'
-const props = defineProps<TPaymentMethod>()
+import type { CheckboxProps } from './types'
+const props = defineProps<CheckboxProps>()
 </script>
 
 <template>

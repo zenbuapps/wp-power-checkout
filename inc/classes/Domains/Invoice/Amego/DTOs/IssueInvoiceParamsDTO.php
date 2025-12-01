@@ -68,13 +68,13 @@ final class IssueInvoiceParamsDTO extends DTO {
 	public array $ProductItem;
 
 	/** @var float 應稅銷售額合計 */
-	public float $SalesAmount;
+	public float $SalesAmount = 0.0;
 
 	/** @var float 免稅銷售額合計 */
-	public float $FreeTaxSalesAmount;
+	public float $FreeTaxSalesAmount = 0.0;
 
 	/** @var float 零稅率銷售額合計 */
-	public float $ZeroTaxSalesAmount;
+	public float $ZeroTaxSalesAmount = 0.0;
 
 	/** @var ETaxType 課稅別　1：應稅　2：零稅率　3：免稅　4：應稅(特種稅率)　9：混合應稅與免稅或零稅率(限訊息C0401使用) */
 	public ETaxType $TaxType;
@@ -145,7 +145,7 @@ final class IssueInvoiceParamsDTO extends DTO {
 		if (EInvoiceType::COMPANY === $args->invoiceType) {
 			return [
 				'BuyerIdentifier' => $args->companyId,
-				'BrandName'       => $args->companyName,
+				'BuyerName'       => $args->companyName,
 			];
 		}
 
@@ -179,9 +179,12 @@ final class IssueInvoiceParamsDTO extends DTO {
 	/** 初始化後 */
 	protected function after_init(): void {
 		// 有打統編才需計算5%稅額，沒打統編發票一律帶0。
-		$this->TaxAmount = 0;
-		if ( $this->BuyerIdentifier !== '0000000000' ) {
-			$this->TaxAmount = $this->SalesAmount * (float) $this->TaxRate;
+		$has_company_id = $this->BuyerIdentifier !== '0000000000';
+		if ( $has_company_id ) {
+			$this->SalesAmount = \round($this->TotalAmount / ( 1 + (float) $this->TaxRate ));
+			$this->TaxAmount   = \round($this->TotalAmount - $this->SalesAmount);
+		} else {
+			$this->SalesAmount = \round($this->TotalAmount);
 		}
 
 		if (isset($this->CarrierType)) {
@@ -228,13 +231,23 @@ final class IssueInvoiceParamsDTO extends DTO {
 		$ZeroTaxSalesAmount = 0.0;
 
 		$product_items = [];
-		/** @var \WC_Order_Item_Product $item */
+		/** @var \WC_Order_Item_Product|\WC_Order_Item_Fee|\WC_Order_Item_Shipping|\WC_Order_Item_Coupon $item */
 		foreach ( $order->get_items([ 'line_item', 'fee', 'shipping', 'coupon' ]) as $item ) {
+			$is_coupon = $item instanceof \WC_Order_Item_Coupon;
+
 			// 取得數量
 			$Quantity = $item->get_quantity();
 
 			// 取得合計 (結算完折扣、未稅)
-			$total = \round( (float) $item->get_total());
+			$total = match ($item::class) {
+				\WC_Order_Item_Coupon::class =>  \round( (float) $item->get_discount()) * -1, // 折扣金額是減價
+				\WC_Order_Item_Product::class =>  \round( (float) $item->get_subtotal()), // 折扣金額是減價
+				default => \round( (float) $item->get_total()),
+			};
+
+			if (!$total || !$Quantity) {
+				continue;
+			}
 
 			// 單價 = 合計 ÷ 數量
 			$UnitPrice = $Quantity > 0 ? ( $total / $Quantity ) : 0;
@@ -246,10 +259,14 @@ final class IssueInvoiceParamsDTO extends DTO {
 			$FreeTaxSalesAmount += ( ETaxType::EXEMPT === $TaxType ) ? $total : 0;
 
 			$item_data        = [
-				'Description' => ( new StrHelper($item->get_name() ) )->filter()->value,
+				'Description' => \sprintf(
+					'%1$s%2$s',
+					$is_coupon ? '折價券' : '',
+					( new StrHelper($item->get_name() ) )->filter()->value,
+				),
 				'Quantity'    => $Quantity,
 				'UnitPrice'   => \round($UnitPrice, 7),
-				'Amount'      => \round($total, 7),
+				'Amount'      => \round($total),
 				'Remark'      => '',
 				'TaxType'     => $TaxType,
 			];
@@ -260,20 +277,18 @@ final class IssueInvoiceParamsDTO extends DTO {
 
 		$settings        = AmegoSettingsDTO::instance();
 		$order_args      = [
-			'OrderId'              => $order->get_id() . StrHelper::get_unique_string(),
-			'BuyerAddress'         => OrderUtils::get_full_address($order),
-			'BuyerTelephoneNumber' => $order->get_billing_phone(),
-			'BuyerEmailAddress'    => $order->get_billing_email(),
-			'RandomNumber'         => $order->get_id(),
-			'ProductItem'          => $product_items,
-			'SalesAmount'          => $SalesAmount,
-			'FreeTaxSalesAmount'   => $FreeTaxSalesAmount,
-			'ZeroTaxSalesAmount'   => $ZeroTaxSalesAmount,
-			'TaxType'              => self::get_order_tax_type( $SalesAmount, $FreeTaxSalesAmount, $ZeroTaxSalesAmount ),
-			'TaxRate'              => (string) $settings->tax_rate,
-			'TotalAmount'          => $order->get_total(),
-			'DetailVat'            => EDetailVat::INCLUDING_TAX, // 含稅
-			'DetailAmountRound'    => EDetailAmountRound::ROUND_TO_INT, // 四捨五入
+			'OrderId'                           => $order->get_id() . StrHelper::get_unique_string(),
+			'BuyerAddress'                      => OrderUtils::get_full_address($order),
+			'BuyerTelephoneNumber'              => $order->get_billing_phone(),
+			'BuyerEmailAddress'                 => $order->get_billing_email(),
+			'ProductItem'                       => $product_items,
+			'FreeTaxSalesAmount'                => $FreeTaxSalesAmount,
+			'ZeroTaxSalesAmount'                => $ZeroTaxSalesAmount,
+			'TaxType'                           => self::get_order_tax_type( $SalesAmount, $FreeTaxSalesAmount, $ZeroTaxSalesAmount ),
+			'TaxRate'                           => (string) $settings->tax_rate,
+			'TotalAmount'                       => $order->get_total(),
+			// 'DetailVat'            => EDetailVat::INCLUDING_TAX, // 含稅
+							'DetailAmountRound' => EDetailAmountRound::ROUND_TO_INT, // 四捨五入
 		];
 		$additional_args = self::get_additional_args($order);
 		$args            = \wp_parse_args( $additional_args, $order_args );

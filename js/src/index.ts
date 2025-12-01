@@ -9,6 +9,7 @@ import 'element-plus/dist/index.css'
 import './index.css'
 
 const form = document.getElementById('mainform')
+export const env = window.power_checkout_data.env
 
 if (form) {
 	// 刪除預設的元素
@@ -41,6 +42,7 @@ if (form) {
 		},
 	})
 	app.use(VueQueryPlugin, { queryClient })
+
 	app.mount(`#${CONTAINER_ID}`)
 }
 

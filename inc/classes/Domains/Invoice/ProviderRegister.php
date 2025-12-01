@@ -7,6 +7,7 @@ namespace J7\PowerCheckout\Domains\Invoice;
 use J7\PowerCheckout\Domains\Invoice\Amego\Http\ApiClient;
 use J7\PowerCheckout\Domains\Invoice\Amego\Services\AmegoProvider;
 use J7\PowerCheckout\Domains\Invoice\Shared\Helpers\MetaKeys;
+use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\IInvoiceService;
 use J7\PowerCheckout\Domains\Invoice\Shared\Services\InvoiceApiService;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment;
 use J7\PowerCheckout\Domains\Settings\Services\SettingTabService;
@@ -16,7 +17,6 @@ use J7\PowerCheckout\Shared\DTOs\CheckoutFieldDTO;
 use J7\PowerCheckout\Shared\Utils\CheckoutFields;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use J7\PowerCheckout\Shared\Utils\OrderUtils;
-use J7\WpUtils\Classes\WP;
 
 /** Loader 載入電子發票方式 */
 final class ProviderRegister {
@@ -40,13 +40,13 @@ final class ProviderRegister {
 		\add_action( 'plugins_loaded', [ CheckoutFields::class, 'register_hooks' ], 1000);
 
 		$any_enabled = false;
-		foreach ( self::$invoice_providers as $id => $class ) {
+		foreach ( self::$invoice_providers as $id => $class_name ) {
 			// 如果電子發票啟用，才實例化放入容器
 			if (!ProviderUtils::is_enabled( $id)) {
 				continue;
 			}
-			ProviderUtils::$container[ $id ] = \call_user_func( [ $class, 'instance' ]);
-			$any_enabled                     = true;
+			self::register_provider_hooks( $id, $class_name);
+			$any_enabled = true;
 		}
 
 		// 有啟用的服務才註冊 API
@@ -59,6 +59,41 @@ final class ProviderRegister {
 					'label' => '發票資料',
 				]
 				) )->register();
+		}
+	}
+
+	/**
+	 * 註冊服務的鉤子
+	 *
+	 * @param string $id 服務 id
+	 * @param string $class_name 服務類別
+	 * @return void
+	 */
+	private static function register_provider_hooks( string $id, string $class_name ): void {
+		if (!\class_exists($class_name)) {
+			return;
+		}
+		ProviderUtils::$container[ $id ] = \call_user_func( [ $class_name, 'instance' ]);
+
+		/** @var IInvoiceService $provider */
+		$provider          = ProviderUtils::$container[ $id ];
+		$provider_settings = $provider->get_settings();
+
+		// 註冊自動開立發票、自動取消方票的 hooks
+		if (isset($provider_settings['auto_issue_order_statuses']) && \is_array($provider_settings['auto_issue_order_statuses'])) {
+			$auto_issue_order_statuses = $provider_settings['auto_issue_order_statuses'];
+			foreach ($auto_issue_order_statuses as $status_with_prefix) {
+				$status = OrderUtils::strip_prefix( $status_with_prefix);
+				\add_action( "woocommerce_order_status_{$status}", [ $provider, 'issue' ] );
+			}
+		}
+
+		if (isset($provider_settings['auto_cancel_order_statuses']) && \is_array($provider_settings['auto_cancel_order_statuses'])) {
+			$auto_cancel_order_statuses = $provider_settings['auto_cancel_order_statuses'];
+			foreach ($auto_cancel_order_statuses as $status_with_prefix) {
+				$status = OrderUtils::strip_prefix( $status_with_prefix);
+				\add_action( "woocommerce_order_status_{$status}", [ $provider, 'cancel' ] );
+			}
 		}
 	}
 
@@ -111,15 +146,6 @@ final class ProviderRegister {
 			return;
 		}
 
-		$issued_data = ( new MetaKeys( $order) )->get_issued_data();
-		if ($issued_data) {
-			echo WP::array_to_html(
-				[
-					'發票號碼' => $issued_data['invoice_number'] ?? '',
-				]
-				);
-		}
-
 		\printf(
 			'<div id="%1$s" data-order-id="%2$s" style="margin-top:1rem;"></div>',
 		self::RENDER_ID,
@@ -143,25 +169,36 @@ final class ProviderRegister {
 
 		$invoice_providers          = ProviderUtils::get_providers( \array_keys( self::$invoice_providers));
 		$invoice_providers_settings = \array_map( static fn( $p ) => $p::get_settings(), $invoice_providers);
-
+		$is_admin                   = \is_admin();
 		// 暴露給前端的資料
 		$data = [
 			'render_ids'        => self::get_render_ids(),
-			'is_admin'          => \is_admin(),
+			'is_admin'          => $is_admin,
 			'invoice_providers' => $invoice_providers_settings,
 			'is_issued'         => false,
+			'invoice_number'    => '',
+			'order'             => [],
 		];
 
-		$order_id = OrderUtils::get_order_id( $hook );
-		if ($order_id) {
-			$order = \wc_get_order( $order_id );
+		// 如果在後台，那就取得訂單
+		if ($is_admin) {
+			$order_id = OrderUtils::get_order_id( $hook );
+			$order    = \wc_get_order( $order_id );
 			if ( $order instanceof \WC_Order ) {
-				$data['order'] = [
+				$data['order']     = [
 					'id' => (string) $order->get_id(),
 				];
-
-				$issued_data       = ( new MetaKeys( $order) )->get_issued_data();
+				$meta_keys         = new MetaKeys( $order);
+				$issued_data       = $meta_keys->get_issued_data();
 				$data['is_issued'] = (bool) $issued_data;
+
+				// 如果已經發行過發票就取得發票號碼
+				if ($issued_data) {
+					$provider = ProviderUtils::get_provider( $meta_keys->get_provider_id() );
+					if ($provider instanceof IInvoiceService) {
+						$data['invoice_number'] = $provider->get_invoice_number($order);
+					}
+				}
 			}
 		}
 
@@ -188,7 +225,7 @@ final class ProviderRegister {
 		return [
 			self::RENDER_ID, // 後台 metabox
 			$field_id, // 傳統結帳
-			"order-{$kebab}-{$field_id}", // 區塊結帳
+		// "order-{$kebab}-{$field_id}", //TODO 區塊結帳
 		];
 	}
 }

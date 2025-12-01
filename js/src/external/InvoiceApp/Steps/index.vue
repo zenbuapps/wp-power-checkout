@@ -253,7 +253,9 @@ const rules = reactive<FormRules<TFormData>>({
 				prop="carrier"
 				label="載具"
 				:class="{
-					'tw-hidden': form.individual !== EIndividual.BARCODE,
+					'tw-hidden':
+						form.invoiceType !== EInvoiceType.INDIVIDUAL ||
+						form.individual !== EIndividual.BARCODE,
 				}"
 			>
 				<el-input v-model="form.carrier" clearable />
@@ -262,7 +264,9 @@ const rules = reactive<FormRules<TFormData>>({
 				prop="moica"
 				label="自然人憑證"
 				:class="{
-					'tw-hidden': form.individual !== EIndividual.MOICA,
+					'tw-hidden':
+						form.invoiceType !== EInvoiceType.INDIVIDUAL ||
+						form.individual !== EIndividual.MOICA,
 				}"
 			>
 				<el-input v-model="form.moica" clearable />
@@ -344,5 +348,6 @@ const rules = reactive<FormRules<TFormData>>({
 	left: unset !important;
 	top: unset !important;
 	max-width: unset !important;
+	margin: 0 30px 0 0;
 }
 </style>

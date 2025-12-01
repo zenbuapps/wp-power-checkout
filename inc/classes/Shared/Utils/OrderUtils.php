@@ -95,4 +95,18 @@ final class OrderUtils {
 		}
 		return $order;
 	}
+
+	/**
+	 * 去除 order status 前面的 wc- prefix
+	 *
+	 * @param string $order_status 訂單狀態
+	 *
+	 * @return string
+	 */
+	public static function strip_prefix( string $order_status ): string {
+		if (!\str_starts_with( $order_status, 'wc-')) {
+			return $order_status;
+		}
+		return \substr($order_status, 3);
+	}
 }

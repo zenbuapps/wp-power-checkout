@@ -4,6 +4,7 @@ import { useMutation } from '@tanstack/vue-query'
 import apiClient from '@/api'
 import { appData, isAdmin, MAPPER } from './index'
 import Steps from './Steps/index.vue'
+import { Tickets } from '@element-plus/icons-vue'
 
 const dialogVisible = ref(false)
 
@@ -26,6 +27,13 @@ const handleCancel = () => {
 </script>
 
 <template>
+	<div
+		class="flex gap-2 items-center text-md font-bold text-gray-700 mb-4"
+		v-if="isAdmin && appData?.is_issued"
+	>
+		<el-icon><Tickets /></el-icon>
+		<span>發票號碼：{{ appData?.invoice_number }}</span>
+	</div>
 	<div class="flex justify-between items-center">
 		<el-button
 			v-if="isAdmin && appData?.is_issued"

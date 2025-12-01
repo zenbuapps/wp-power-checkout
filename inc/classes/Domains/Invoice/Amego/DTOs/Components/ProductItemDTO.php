@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Invoice\Amego\DTOs\Components;
 
 use J7\PowerCheckout\Domains\Invoice\Amego\Shared\Enums\ETaxType;
+use J7\PowerCheckout\Shared\Enums\Mode;
 use J7\PowerCheckout\Shared\Utils\StrHelper;
 use J7\WpUtils\Classes\DTO;
 
 final class ProductItemDTO extends DTO {
+
 	/** @var string 品名，不可超過256字 */
 	public string $Description;
 

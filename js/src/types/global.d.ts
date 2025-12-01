@@ -1,4 +1,5 @@
 import { IOrderData } from '@/external/RefundDialog/types'
+import { CheckboxProps } from '@/components/Checkbox/types'
 
 export {}
 
@@ -14,6 +15,7 @@ export interface IEnv {
 	NONCE: string
 	APP1_SELECTOR: string
 	IS_LOCAL: boolean
+	ORDER_STATUSES: CheckboxProps[]
 }
 
 declare global {
@@ -29,6 +31,7 @@ declare global {
 			}
 			is_admin: boolean
 			is_issued: boolean
+			invoice_number: string
 			invoice_providers: {
 				id: string
 				icon: string

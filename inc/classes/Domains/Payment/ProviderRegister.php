@@ -12,7 +12,7 @@ use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use J7\PowerCheckout\Shared\Utils\OrderUtils;
 
 /** ProviderRegister 註冊付款方式 */
-final class ServiceRegister {
+final class ProviderRegister {
 
 	/** @var array<string, string> $gateway_services [id, class]  */
 	private static array $gateway_services = [

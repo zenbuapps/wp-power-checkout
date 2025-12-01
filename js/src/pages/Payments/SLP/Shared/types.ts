@@ -1,4 +1,4 @@
-import { EPaymentMethods } from '@/pages/Payments/Shared/enums'
+import { EPaymentMethods } from '@/pages/Payments/SLP/Shared/enums'
 
 export const PAYMENT_METHODS = [
 	{
@@ -38,13 +38,6 @@ export const PAYMENT_METHODS = [
 		tooltip: undefined,
 	},
 ] as const
-
-export type TPaymentMethod = {
-	value: EPaymentMethods
-	label: string
-	disabled: boolean
-	tooltip?: string
-}
 
 export type TFormData = {
 	// --- 一般設定 --- //

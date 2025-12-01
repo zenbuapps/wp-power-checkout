@@ -30,23 +30,28 @@ final class AmegoSettingsDTO extends BaseSettingsDTO {
 	/** @var string $method_description 描述 */
 	public string $method_description = '光貿電子發票加值中心-電子發票系統，不綁約、無限制開立張數、月費199元開到飽。免費協助營業人快速申請用電子發票，並提供一般商家、各種電子商務系統、蝦皮、松果、雅虎、Pchome、露天、旋轉賣家輕鬆快速開立電子發票。';
 
-	// endregion
+	// endregion 基礎通用欄位
 
 	/** @var string 統編 */
 	public string $invoice = '';
 
-	/** @var string API KEY */
+	/** @var string APP KEY */
 	public string $app_key = '';
 
 	/** @var float 稅率 0.05 = 5% 的意思 */
 	public float $tax_rate = 0.05;
 
 
+	/** @var self|null $instance 單例 */
+	private static ?self $instance = null;
 
-	/** @return self 取得實例 */
+	/** @return self 取得單例實例 */
 	public static function instance(): self {
-		$args = ProviderUtils::get_option( AmegoProvider::ID);
-		return new self($args);
+		if (!self::$instance) {
+			$args           = ProviderUtils::get_option( AmegoProvider::ID);
+			self::$instance = new self($args);
+		}
+		return self::$instance;
 	}
 
 	/**

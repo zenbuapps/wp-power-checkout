@@ -1,15 +1,16 @@
 <script lang="ts" setup>
-import { Back, InfoFilled, WarningFilled } from '@element-plus/icons-vue'
+import { Back, InfoFilled } from '@element-plus/icons-vue'
 import { computed, reactive, ref, toRaw, watch } from 'vue'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import apiClient from '@/api'
 import type { FormRules } from 'element-plus'
 import { pick, merge } from 'lodash-es'
-import { TFormData, PAYMENT_METHODS } from '@/pages/Payments/Shared/types'
-import { EPaymentMethods } from '@/pages/Payments/Shared/enums'
-import Checkbox from '@/pages/Payments/SLP/Checkbox.vue'
+import { TFormData } from '@/pages/Invoices/Amego/Shared/types'
+import Checkbox from '@/components/Checkbox/index.vue'
+import { env } from '@/index'
 
 const gatewayId = 'amego'
+const isLocal = env?.IS_LOCAL ?? false
 
 const { isPending, data } = useQuery({
 	queryKey: ['settings', gatewayId],
@@ -30,25 +31,12 @@ const form = reactive<TFormData>({
 	// --- 一般設定 --- //
 	title: '',
 	description: '',
-	order_button_text: '',
-	min_amount: 0,
-	max_amount: 0,
-	expire_min: 360,
 	// --- API --- //
 	mode: 'prod',
-	merchantId: '',
-	apiKey: '',
-	clientKey: '',
-	signKey: '',
-	allowPaymentMethodList: [],
-	paymentMethodOptions: {
-		CreditCard: {
-			installmentCounts: [],
-		},
-		ChaileaseBNPL: {
-			installmentCounts: [],
-		},
-	},
+	app_key: '',
+	invoice: '', // 統一編號
+	auto_issue_order_statuses: [],
+	auto_cancel_order_statuses: ['wc-refunded'],
 })
 
 watch(
@@ -57,6 +45,10 @@ watch(
 		if (newData) {
 			// 深層合併，只合併 form 存在的屬性
 			const filteredData = pick(newData, Object.keys(form))
+			console.log({
+				newData,
+				filteredData,
+			})
 			if (!isLocal) {
 				filteredData.mode = 'prod'
 			}
@@ -93,64 +85,24 @@ const { mutate: save, isPending: isSavePending } = useMutation({
 })
 
 const rules = reactive<FormRules<TFormData>>({
-	merchantId: [
+	app_key: [
 		{ required: true, message: '此欄位為必填' },
 	],
-	apiKey: [
+	invoice: [
 		{ required: true, message: '此欄位為必填' },
-	],
-	clientKey: [
-		{ required: true, message: '此欄位為必填' },
-	],
-	signKey: [
-		{ required: true, message: '此欄位為必填' },
-	],
-	allowPaymentMethodList: [
-		{
-			validator: (_, value, callback) => {
-				if (Array.isArray(value) && value.length === 0) {
-					callback(new Error('請至少選擇一種付款方式'))
-					return
-				}
-				callback()
-			},
-		},
 	],
 })
-
-const creditCardInstallment = [
-	'0',
-	'3',
-	'6',
-	'9',
-	'12',
-	'18',
-	'24',
-]
-const chaileaseBNPLInstallment = [
-	'0',
-	'3',
-	'6',
-	'12',
-	'18',
-	'24',
-	'30',
-	'36',
-]
-const apiUrl = window.power_checkout_data.env.API_URL
-const isLocal = window.power_checkout_data.env.IS_LOCAL
 </script>
 
 <template>
-	amegoamegoamegoamegoamego
 	<div
 		class="flex items-center gap-x-2 mb-4 cursor-pointer"
-		@click="$router.push('/payments')"
+		@click="$router.push('/invoices')"
 	>
 		<el-icon>
 			<Back />
 		</el-icon>
-		回《金流》
+		回《電子發票》
 	</div>
 
 	<el-form
@@ -175,83 +127,48 @@ const isLocal = window.power_checkout_data.env.IS_LOCAL
 			<el-input v-model="form.description" clearable />
 		</el-form-item>
 
-		<el-form-item prop="order_button_text" label="結帳按鈕文字">
-			<el-input v-model="form.order_button_text" clearable />
-		</el-form-item>
-		<el-form-item prop="min_amount">
+		<el-form-item prop="auto_issue_order_statuses">
 			<template #label>
 				<span class="flex gap-x-2 items-center">
-					<span>最小金額限制</span>
+					<span>自動開立發票的訂單狀態</span>
 					<el-tooltip
-						content="低於此金額，無法使用此付款方式，輸入 0 則不限制"
+						content="都不勾選，就不自動開立，但可以在後台手動開立"
 						placement="top"
 					>
 						<el-icon><InfoFilled /></el-icon>
 					</el-tooltip>
 				</span>
 			</template>
-			<el-input-number
-				v-model="form.min_amount"
-				step="1000"
-				:min="0"
-				:max="10000000"
-				align="right"
-				class="w-full"
-			>
-				<template #suffix>
-					<span>NT$</span>
-				</template>
-			</el-input-number>
+
+			<el-checkbox-group v-model="form.auto_issue_order_statuses">
+				<Checkbox
+					v-for="orderStatus in env?.ORDER_STATUSES"
+					:key="orderStatus.value"
+					v-bind="orderStatus"
+				/>
+			</el-checkbox-group>
 		</el-form-item>
-		<el-form-item prop="max_amount">
+
+		<el-form-item prop="auto_cancel_order_statuses">
 			<template #label>
 				<span class="flex gap-x-2 items-center">
-					<span>最大金額限制</span>
+					<span>自動作廢發票的訂單狀態</span>
 					<el-tooltip
-						content="超過此金額，無法使用此付款方式，輸入 0 則不限制"
+						content="都不勾選，就不自動作廢，但可以在後台手動作廢"
 						placement="top"
 					>
 						<el-icon><InfoFilled /></el-icon>
 					</el-tooltip>
 				</span>
 			</template>
-			<el-input-number
-				v-model="form.max_amount"
-				step="1000"
-				:min="0"
-				:max="10000000"
-				align="right"
-				class="w-full"
-			>
-				<template #suffix>
-					<span>NT$</span>
-				</template>
-			</el-input-number>
-		</el-form-item>
-		<el-form-item prop="expire_time">
-			<template #label>
-				<span class="flex gap-x-2 items-center">
-					<span>付款期限</span>
-					<el-tooltip
-						content="預設 6 小時，輸入 0 會套用預設值"
-						placement="top"
-					>
-						<el-icon><InfoFilled /></el-icon>
-					</el-tooltip>
-				</span>
-			</template>
-			<el-input-number
-				v-model="form.expire_min"
-				step="60"
-				:min="60"
-				:max="10000000"
-				align="right"
-				class="w-full"
-			>
-				<template #suffix>
-					<span>分鐘</span>
-				</template>
-			</el-input-number>
+
+			<el-checkbox-group v-model="form.auto_cancel_order_statuses">
+				<Checkbox
+					v-for="orderStatus in env?.ORDER_STATUSES"
+					:key="orderStatus.value"
+					v-bind="orderStatus"
+				/>
+			</el-checkbox-group>
 		</el-form-item>
 
 		<el-divider>API 設定</el-divider>
@@ -279,131 +196,12 @@ const isLocal = window.power_checkout_data.env.IS_LOCAL
 			/>
 		</el-form-item>
 
-		<!--		<el-form-item prop="platformId">-->
-		<!--			<template #label>-->
-		<!--				<span class="flex gap-x-2 items-center">-->
-		<!--					<span>Platform Id</span>-->
-		<!--					<el-tooltip-->
-		<!--						content="SLP 平台 ID，平台特店必填，平台特店底下會有子特店"-->
-		<!--						placement="top"-->
-		<!--					>-->
-		<!--						<el-icon><InfoFilled /></el-icon>-->
-		<!--					</el-tooltip>-->
-		<!--				</span>-->
-		<!--			</template>-->
-		<!--			<el-input v-model="form.platformId" :disabled="isTestMode" clearable />-->
-		<!--		</el-form-item>-->
-
-		<el-form-item :required="!isTestMode" prop="merchantId">
-			<template #label>
-				<span class="flex gap-x-2 items-center">
-					<span>Merchant Id</span>
-					<el-tooltip
-						content="直連特店串接：SLP 分配的特店 ID；平台特店串接：SLP 分配的子特店 ID"
-						placement="top"
-					>
-						<el-icon><InfoFilled /></el-icon>
-					</el-tooltip>
-				</span>
-			</template>
-			<el-input v-model="form.merchantId" :disabled="isTestMode" clearable />
+		<el-form-item :required="!isTestMode" prop="invoice" label="統一編號">
+			<el-input v-model="form.invoice" :disabled="isTestMode" clearable />
 		</el-form-item>
 
-		<el-form-item :required="!isTestMode" prop="apiKey" label="Api Key">
-			<el-input v-model="form.apiKey" :disabled="isTestMode" clearable />
-		</el-form-item>
-
-		<el-form-item :required="!isTestMode" prop="clientKey" label="Client Key">
-			<el-input v-model="form.clientKey" :disabled="isTestMode" clearable />
-		</el-form-item>
-
-		<el-form-item
-			:required="!isTestMode"
-			prop="signKey"
-			label="Sign Key"
-			class="[&_p]:text-sm [&_p]:text-gray-500 [&_p]:mb-2 [&_p]:mt-0"
-		>
-			<el-input class="mb-4" v-model="form.signKey" clearable />
-			<p>提供以下資訊給 Shopline 窗口後取得 Sign Key</p>
-			<p>
-				Webhook URL: <code>{{ apiUrl }}/power-checkout/slp/webhook</code>
-			</p>
-			<p>
-				Webhook Event: <code>trade.refund.succeeded</code>,
-				<code>trade.refund.failed</code>
-			</p>
-		</el-form-item>
-
-		<el-alert
-			v-if="form.allowPaymentMethodList.includes(EPaymentMethods.LINE_PAY)"
-			title="Shopline Payment 可能尚未支援 Line Pay，請先確認是否可使用，否則可能導致用戶無法結帳"
-			type="error"
-			class="mb-4"
-			:closable="false"
-			show-icon
-		>
-			<template #icon>
-				<WarningFilled />
-			</template>
-		</el-alert>
-		<el-alert
-			v-if="form.allowPaymentMethodList.includes(EPaymentMethods.JKO_PAY)"
-			title="請先確認您已經在 Shopline Payment 後台申請並啟用街口支付，否則可能導致用戶無法結帳"
-			type="error"
-			class="mb-4"
-			:closable="false"
-			show-icon
-		>
-			<template #icon>
-				<WarningFilled />
-			</template>
-		</el-alert>
-		<el-form-item prop="allowPaymentMethodList" label="允許的付款方式">
-			<el-checkbox-group v-model="form.allowPaymentMethodList">
-				<Checkbox
-					v-for="paymentMethod in PAYMENT_METHODS"
-					:key="paymentMethod.value"
-					v-bind="paymentMethod"
-				/>
-			</el-checkbox-group>
-		</el-form-item>
-
-		<el-form-item
-			v-if="form.allowPaymentMethodList.includes(EPaymentMethods.CREDIT_CARD)"
-			prop="paymentMethodOptions.CreditCard.installmentCounts"
-			label="信用卡分期期數"
-		>
-			<el-checkbox-group
-				v-model="form.paymentMethodOptions.CreditCard.installmentCounts"
-			>
-				<el-checkbox
-					v-for="period in creditCardInstallment"
-					:key="period"
-					:label="period"
-				>
-					{{ period }}
-				</el-checkbox>
-			</el-checkbox-group>
-		</el-form-item>
-
-		<el-form-item
-			v-if="
-				form.allowPaymentMethodList.includes(EPaymentMethods.CHAILEASE_BNPL)
-			"
-			prop="paymentMethodOptions.ChaileaseBNPL.installmentCounts"
-			label="中租分期期數"
-		>
-			<el-checkbox-group
-				v-model="form.paymentMethodOptions.ChaileaseBNPL.installmentCounts"
-			>
-				<el-checkbox
-					v-for="period in chaileaseBNPLInstallment"
-					:key="period"
-					:label="period"
-				>
-					{{ period }}
-				</el-checkbox>
-			</el-checkbox-group>
+		<el-form-item :required="!isTestMode" prop="app_key" label="App Key">
+			<el-input v-model="form.app_key" :disabled="isTestMode" clearable />
 		</el-form-item>
 
 		<el-form-item class="[&_.el-form-item\_\_content]:justify-center">

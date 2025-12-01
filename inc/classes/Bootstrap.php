@@ -21,7 +21,7 @@ final class Bootstrap {
 			return;
 		}
 
-		Domains\Payment\ServiceRegister::register_hooks();
+		Domains\Payment\ProviderRegister::register_hooks();
 		Domains\Settings\Services\SettingApiService::register_hooks();
 		Domains\Settings\Services\SettingTabService::register_hooks();
 		Domains\Settings\Services\DefaultSetting::register_hooks();

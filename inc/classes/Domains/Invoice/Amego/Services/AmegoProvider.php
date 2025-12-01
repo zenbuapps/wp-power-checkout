@@ -7,8 +7,10 @@ namespace J7\PowerCheckout\Domains\Invoice\Amego\Services;
 use J7\PowerCheckout\Domains\Invoice\Amego\DTOs\AmegoSettingsDTO;
 use J7\PowerCheckout\Domains\Invoice\Amego\Http\ApiClient;
 use J7\PowerCheckout\Domains\Invoice\Amego\Shared\Helpers\Requester;
+use J7\PowerCheckout\Domains\Invoice\Shared\Helpers\MetaKeys;
 use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\IInvoiceService;
 use J7\PowerCheckout\Shared\Abstracts\BaseService;
+use J7\PowerCheckout\Shared\Utils\OrderUtils;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use J7\WpUtils\Classes\WP;
 
@@ -42,11 +44,21 @@ final class AmegoProvider extends BaseService implements IInvoiceService {
 	}
 
 	/**
-	 * @param \WC_Order $order 訂單
+	 * @param \WC_Order|int $order_or_id 訂單
 	 *
 	 * @return array
 	 */
-	public function issue( \WC_Order $order ): array {
+	public function issue( \WC_Order|int $order_or_id ): array {
+		$order = ( $order_or_id instanceof \WC_Order ) ? $order_or_id : OrderUtils::get_order( $order_or_id);
+
+		// region 如果已經發行過，就不重複發行
+		$meta_keys   = new MetaKeys( $order);
+		$issued_data = $meta_keys->get_issued_data();
+		if ($issued_data && \is_array($issued_data)) {
+			return $issued_data;
+		}
+		// endregion 如果已經發行過，就不重複發行
+
 		$requester = new Requester( $order );
 		$client    = new ApiClient( $order, $requester);
 		$result    = $client->issue(self::ID);
@@ -54,11 +66,20 @@ final class AmegoProvider extends BaseService implements IInvoiceService {
 	}
 
 	/**
-	 * @param \WC_Order $order 訂單
+	 * @param \WC_Order|int $order_or_id 訂單
 	 *
 	 * @return array
 	 */
-	public function cancel( \WC_Order $order ): array {
+	public function cancel( \WC_Order|int $order_or_id ): array {
+		$order = ( $order_or_id instanceof \WC_Order ) ? $order_or_id : OrderUtils::get_order( $order_or_id);
+		// region 如果已經取消過，就不重複發行
+		$meta_keys      = new MetaKeys( $order);
+		$cancelled_data = $meta_keys->get_cancelled_data();
+		if ($cancelled_data) {
+			return $cancelled_data;
+		}
+		// endregion 如果已經取消過，就不重複發行
+
 		$requester = new Requester( $order );
 		$client    = new ApiClient( $order, $requester);
 		$result    = $client->cancel();
@@ -67,6 +88,7 @@ final class AmegoProvider extends BaseService implements IInvoiceService {
 
 	/**
 	 * @param bool $with_default 是否有預設值，還是只拿 DB 值
+	 * false = 只拿 db, true = 會給預設值
 	 *
 	 * @return array 取得設定
 	 */
@@ -75,5 +97,18 @@ final class AmegoProvider extends BaseService implements IInvoiceService {
 			return ProviderUtils::get_option( self::ID);
 		}
 		return AmegoSettingsDTO::instance()->to_array();
+	}
+
+	/**
+	 * 取得發票號碼
+	 *
+	 * @param \WC_Order $order 訂單
+	 *
+	 * @return string
+	 */
+	public function get_invoice_number( \WC_Order $order ): string {
+		$meta_keys   = new MetaKeys( $order);
+		$issued_data = $meta_keys->get_issued_data();
+		return $issued_data['invoice_number'] ?? '';
 	}
 }
