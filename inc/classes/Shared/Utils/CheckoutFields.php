@@ -22,7 +22,7 @@ final class CheckoutFields {
 	/** 註冊 hooks */
 	public static function register_hooks(): void {
 		\add_filter( 'woocommerce_checkout_fields', [ __CLASS__, 'render_invoice_field' ]);
-		\add_action( 'woocommerce_init', [ __CLASS__, 'render_invoice_field_block' ]);
+		// TODO 區塊結帳 \add_action( 'woocommerce_init', [ __CLASS__, 'render_invoice_field_block' ]);
 		\add_action( 'woocommerce_checkout_update_order_meta', [ __CLASS__, 'save_checkout_field_to_order' ] );
 	}
 
