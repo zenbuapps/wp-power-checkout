@@ -150,5 +150,5 @@ final class SettingApiService extends ApiBase {
 		);
 	}
 
-	// endregion
+	// endregion settings 相關
 }
