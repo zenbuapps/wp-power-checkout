@@ -54,10 +54,11 @@ final class Plugin {
 
 		$this->init(
 			[
-				'app_name'    => 'Power Checkout',
-				'github_repo' => 'https://github.com/j7-dev/wp-power-checkout',
-				'callback'    => [ Bootstrap::class, 'instance' ],
-				'lc'          => 'ZmFsc2',
+				'app_name'         => 'Power Checkout',
+				'github_repo'      => 'https://github.com/j7-dev/wp-power-checkout',
+				'callback'         => [ Bootstrap::class, 'instance' ],
+				'submenu_callback' => [ __CLASS__, 'redirect_to_wc_setting' ],
+				'lc'               => 'ZmFsc2',
 			]
 		);
 	}
@@ -72,6 +73,12 @@ final class Plugin {
 	 */
 	public static function logger( string $message, string $level, array $args = [], $trace_limit = 0 ): void {
 		\J7\WpUtils\Classes\WC::logger( $message, $level, $args, self::$kebab, $trace_limit );
+	}
+
+	/** @return void 如果點 submenu 跳轉到 Woocommerce 的 setting 頁面 */
+	public static function redirect_to_wc_setting(): void {
+		\wp_safe_redirect(\admin_url( 'admin.php?page=wc-settings&tab=power_checkout_wc_settings#/payments' ) );
+		exit;
 	}
 }
 
