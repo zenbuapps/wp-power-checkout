@@ -27,11 +27,8 @@ final class ProviderRegister {
 		\add_action( 'woocommerce_refund_created', [ __CLASS__, 'default_refund_reason' ], 10, 2 );
 		\add_action('woocommerce_order_refunded', [ __CLASS__, 'add_order_note__manual_refund' ], 10, 2);
 		\add_action( 'admin_enqueue_scripts', [ __CLASS__, 'refund_script' ], 20 );
-		\add_action('wc_payment_gateways_initialized', [ __CLASS__, 'gateway_register_di' ], 20);
-	}
+		// \add_action('wc_payment_gateways_initialized', [ __CLASS__, 'gateway_register_di' ], 20);
 
-	/** 將 Gateway 實例放到 ProviderUtils::$container 內 */
-	public static function gateway_register_di(): void {
 		foreach (self::$gateway_services as $gateway_id => $gateway_service) {
 			if (!ProviderUtils::is_enabled( $gateway_id)) {
 				continue;
@@ -40,10 +37,14 @@ final class ProviderRegister {
 			if (\method_exists($gateway_service, 'init')) {
 				\call_user_func([ $gateway_service, 'init' ]);
 			}
+		}
+	}
 
+	/** 將 Gateway 實例放到 ProviderUtils::$container 內 */
+	public static function gateway_register_di(): void {
+		$gateways = \WC_Payment_Gateways::instance();
+		foreach (self::$gateway_services as $gateway_id => $gateway_service) {
 			// 取得 WC_Payment_Gateways 單例
-			$gateways = \WC_Payment_Gateways::instance();
-			// 取得所有 gateway 實例 (陣列)
 			$all_gateways                            = $gateways?->payment_gateways();
 			ProviderUtils::$container[ $gateway_id ] = $all_gateways[ $gateway_id ];
 		}
