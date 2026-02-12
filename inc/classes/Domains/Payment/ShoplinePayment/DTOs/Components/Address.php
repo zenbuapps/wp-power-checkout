@@ -48,7 +48,7 @@ class Address extends DTO {
     public static function create( \WC_Order $order ): self {
         $street = $order->get_billing_address_1() . ' ' . $order->get_billing_address_2();
         $country_code = $order->get_billing_country();
-        $country_code = Country::tryFrom( $country_code ) ?? Country::TW->value;
+        $country_code = Country::tryFrom( $country_code )?->value ?? Country::TW->value;
         $args = [
             'countryCode' => $country_code,
             'city'        => ( new StrHelper( $order->get_billing_state(), 'billing_state', 128 ) )->substr()->value,
