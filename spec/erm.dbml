@@ -1,0 +1,179 @@
+// Power Checkout — Entity Relationship Model
+// Version: 1.0.28 | Date: 2026-03-11
+// 本外掛不建立自訂資料表，使用 WooCommerce 訂單 (HPOS / wp_posts) 和 wp_options 儲存資料
+
+// ==================== Enums ====================
+
+Enum payment_method {
+  CreditCard [note: '信用卡（一次付清/分期）']
+  VirtualAccount [note: 'ATM 銀行轉帳']
+  JKOPay [note: '街口支付']
+  ApplePay [note: 'Apple Pay']
+  LinePay [note: 'LINE Pay']
+  ChaileaseBNPL [note: '中租 zingla 零卡分期']
+}
+
+Enum slp_response_status {
+  CREATED [note: '任務已創建']
+  CUSTOMER_ACTION [note: '顧客處理中']
+  PROCESSING [note: '內部處理中']
+  PENDING [note: '處理中']
+  SUCCEEDED [note: '成功']
+  EXPIRED [note: '已過期']
+  FAILED [note: '失敗']
+  CANCELLED [note: '已取消']
+}
+
+Enum order_status {
+  pending [note: '等待付款中']
+  processing [note: '處理中（已付款）']
+  on_hold [note: '保留']
+  completed [note: '已完成']
+  cancelled [note: '已取消']
+  refunded [note: '已退款']
+  failed [note: '失敗']
+  checkout_draft [note: '草稿']
+}
+
+Enum provider_mode {
+  test [note: '測試/沙箱模式']
+  prod [note: '正式模式']
+}
+
+Enum invoice_type {
+  individual [note: '個人']
+  company [note: '公司']
+  donate [note: '捐贈']
+}
+
+Enum individual_type {
+  cloud [note: '雲端發票']
+  barcode [note: '手機條碼']
+  moica [note: '自然人憑證']
+  paper [note: '紙本發票']
+}
+
+Enum tax_type {
+  1 [note: '應稅']
+  2 [note: '零稅率']
+  3 [note: '免稅']
+}
+
+// ==================== wp_options 資料表 ====================
+
+Table wp_options_slp_settings {
+  option_name varchar [pk, note: 'woocommerce_shopline_payment_redirect_settings']
+  enabled varchar [note: 'yes / no']
+  title varchar [note: '前台顯示標題']
+  description text [note: '前台顯示描述']
+  icon varchar [note: '圖示 URL']
+  order_button_text varchar [note: '付款按鈕文字']
+  mode provider_mode [note: 'test / prod']
+  platformId varchar [note: 'SLP 平台 ID']
+  merchantId varchar [note: 'SLP 特店 ID']
+  apiKey varchar [note: 'API 介面金鑰']
+  clientKey varchar [note: '客戶端金鑰']
+  signKey varchar [note: 'Webhook 簽名密鑰']
+  apiUrl varchar [note: 'SLP API 端點']
+  allowPaymentMethodList json [note: '允許的付款方式 array']
+  paymentMethodOptions json [note: '付款方式選項（分期期數等）']
+  expire_min int [note: '付款期限（分鐘），預設 360']
+  min_amount int [note: '最小金額']
+  max_amount int [note: '最大金額']
+
+  Note: '''
+    Shopline Payment 跳轉支付設定
+    儲存在 wp_options，option_name = woocommerce_shopline_payment_redirect_settings
+    值為 serialized array
+  '''
+}
+
+Table wp_options_amego_settings {
+  option_name varchar [pk, note: 'woocommerce_amego_settings']
+  enabled varchar [note: 'yes / no']
+  title varchar [note: '前台顯示標題']
+  description text [note: '前台顯示描述']
+  icon varchar [note: '圖示 URL']
+  method_title varchar [note: '標題']
+  mode provider_mode [note: 'test / prod']
+  invoice varchar [note: '商家統一編號']
+  app_key varchar [note: '光貿 API 金鑰']
+  tax_rate float [note: '稅率，預設 0.05']
+  auto_issue_order_statuses json [note: '自動開立發票的訂單狀態列表']
+  auto_cancel_order_statuses json [note: '自動作廢發票的訂單狀態列表，預設 wc-refunded']
+
+  Note: '''
+    光貿電子發票設定
+    儲存在 wp_options，option_name = woocommerce_amego_settings
+    值為 serialized array
+  '''
+}
+
+Table wp_options_global_settings {
+  option_name varchar [pk, note: 'power_checkout_settings']
+  value json [note: '全域設定（目前保留未使用）']
+
+  Note: '''
+    Power Checkout 全域設定
+    儲存在 wp_options，option_name = power_checkout_settings
+  '''
+}
+
+// ==================== WC_Order Meta ====================
+
+Table wc_order_meta_payment {
+  order_id bigint [ref: > wc_orders.id, note: '訂單 ID']
+  _pc_identity varchar [note: '第三方金流識別碼（SLP sessionId）']
+  _pc_payment_identity varchar [note: '付款識別碼（SLP tradeOrderId），防重複處理']
+  _pc_payment_detail json [note: '付款詳情 array']
+  _pc_refund_detail json [note: '退款詳情 array']
+  tmp_refund_reason varchar [note: '暫存退款原因（等待 Webhook 回傳後使用）']
+
+  Note: '''
+    金流相關的 Order Meta
+    透過 WC_Order::update_meta_data / get_meta 存取
+  '''
+}
+
+Table wc_order_meta_invoice {
+  order_id bigint [ref: > wc_orders.id, note: '訂單 ID']
+  _pc_issue_invoice_params json [note: '結帳頁填寫的發票資訊（JSON string 或 array）']
+  _pc_issued_invoice_data json [note: '發票開立回傳資料 array']
+  _pc_cancelled_invoice_data json [note: '發票作廢回傳資料 array']
+  _pc_invoice_provider_id varchar [note: '使用的發票 Provider ID']
+
+  Note: '''
+    電子發票相關的 Order Meta
+    透過 WC_Order::update_meta_data / get_meta 存取
+  '''
+}
+
+Table wc_order_item_meta {
+  order_item_id bigint [note: '訂單項目 ID']
+  _pc_tax_type int [note: '商品稅別（1=應稅, 2=零稅率, 3=免稅）']
+
+  Note: '''
+    訂單商品項目的稅別
+    透過 WC_Order_Item::get_meta / update_meta 存取
+  '''
+}
+
+// ==================== WooCommerce 核心資料表（參考用）====================
+
+Table wc_orders {
+  id bigint [pk, note: '訂單 ID（HPOS 或 wp_posts.ID）']
+  status order_status [note: '訂單狀態']
+  payment_method varchar [note: '付款方式 ID']
+  payment_method_title varchar [note: '付款方式標題']
+  total decimal [note: '訂單總額']
+
+  Note: '''
+    WooCommerce 訂單（HPOS 模式使用 wc_orders 表，傳統模式使用 wp_posts）
+    Power Checkout 僅讀寫 meta，不修改表結構
+  '''
+}
+
+// ==================== References ====================
+
+Ref: wc_order_meta_payment.order_id > wc_orders.id
+Ref: wc_order_meta_invoice.order_id > wc_orders.id
