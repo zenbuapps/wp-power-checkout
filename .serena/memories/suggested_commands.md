@@ -1,8 +1,8 @@
 # Suggested Commands
 
 ## Development
-- `pnpm dev` - Start dev server (from monorepo root)
-- `pnpm build` - Build all apps
+- `pnpm dev` - Start dev server
+- `pnpm build` - Build for production
 - `pnpm lint` - Lint all code
 - `pnpm check-types` - TypeScript type checking
 

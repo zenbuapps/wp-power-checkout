@@ -12,7 +12,7 @@ export default defineConfig({
             origin: '*',
         },
         fs: {
-            allow: ['./', '../../packages'],
+            allow: ['./'],
         },
     },
     css: {

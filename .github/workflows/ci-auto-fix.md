@@ -1,5 +1,5 @@
 ---
-description: 當 CI workflow 失敗時，自動修正 WordPress 外掛的 PHP/TypeScript lint 及格式問題，並推回 PR branch
+description: 當 CI workflow 失敗時，自動修正 PHP/TypeScript lint 及格式問題，並推回 PR branch
 on:
   workflow_run:
     workflows: ["CI"]
@@ -17,7 +17,33 @@ permissions:
   issues: read
   pull-requests: read
 
-network: defaults
+network:
+  allowed:
+    - defaults
+    - node
+
+steps:
+  - uses: shivammathur/setup-php@v2
+    with:
+      php-version: "8.2"
+      tools: composer
+      ini-values: memory_limit=4096M
+  - uses: pnpm/action-setup@v4
+    with:
+      version: latest
+  - uses: actions/setup-node@v4
+    with:
+      node-version: "20"
+  - name: Setup dependencies
+    run: |
+      if [ ! -d "../powerhouse" ]; then
+        git clone --depth 1 https://github.com/j7-dev/wp-powerhouse.git ../powerhouse
+        cd ../powerhouse && composer install --no-interaction --prefer-dist
+        cd $GITHUB_WORKSPACE
+      fi
+      composer install --no-interaction --prefer-dist
+      echo "$(pwd)/vendor/bin" >> $GITHUB_PATH
+      pnpm install --no-frozen-lockfile
 
 engine:
   id: copilot
@@ -28,7 +54,7 @@ safe-outputs:
     target: "*"
     if-no-changes: warn
     commit-title-suffix: "[auto-fix]"
-    github-token-for-extra-empty-commit: ${{ secrets.GH_AW_CI_TRIGGER_TOKEN }}  # TODO: 請在你的 repo 設定此 secret
+    github-token-for-extra-empty-commit: ${{ secrets.GH_AW_CI_TRIGGER_TOKEN }}
   add-comment:
     hide-older-comments: true
     allowed-reasons: [outdated]
@@ -50,9 +76,9 @@ imports:
   # - ../skills/power-checkout/SKILL.md
 ---
 
-# CI 自動修正 Agent
+# CI Auto-Fix Agent
 
-你是 CI 自動修正 Agent，專門分析 WordPress 外掛專案的 CI 失敗並自動修正可以自動修正的問題。
+你是 CI Auto-Fix Agent，專門分析 Power Course 專案的 CI 失敗並自動修正可以自動修正的問題。
 
 ## 當前上下文
 
@@ -77,20 +103,20 @@ imports:
 
 根據失敗的 job 名稱與 log 內容，判斷錯誤類型：
 
-- **`PHP Lint` job 失敗**（`pnpm run lint:php`，或依專案調整）
+- **`PHP Lint` job 失敗**（`pnpm run lint:php`）
   - `phpcbf` 可自動修正的 coding style 問題
   - `phpcs` 無法自動修正的規範違反
   - `phpstan` 靜態分析型別錯誤
 
-- **`TypeScript Lint` job 失敗**（`pnpm run lint:ts`，若有前端）
+- **`TypeScript Lint` job 失敗**（`pnpm run lint:ts`）
   - ESLint 可自動修正的問題（`--fix` 已在指令中）
   - ESLint 無法自動修正的問題（型別錯誤等）
 
-- **`Format Check` job 失敗**（`pnpm run format` + `git diff --exit-code`，若有前端）
+- **`Format Check` job 失敗**（`pnpm run format` + `git diff --exit-code`）
   - Prettier-ESLint 格式問題
 
 - **`E2E Tests` job 失敗**
-  - 測試失敗（通常無法自動修正）
+  - Playwright 測試失敗（通常無法自動修正）
 
 ### Phase 3：嘗試自動修正
 
@@ -102,36 +128,27 @@ imports:
 #### PHP Lint 修正步驟
 
 1. Checkout PR branch（branch name 從 Phase 1 的 `get_workflow_run` API 取得）：`git checkout <PR_BRANCH_NAME>`
-2. 安裝 PHP 依賴：
+2. 安裝 PHP 8.2 依賴：
    ```bash
    composer install --no-interaction --prefer-dist
    export PATH="$(pwd)/vendor/bin:$PATH"
    ```
-3. 執行 phpcbf 自動修正：
-   ```bash
-   # TODO: 請替換為你的專案 PHP 原始碼目錄與設定檔
-   vendor/bin/phpcbf {src_dir} --standard={phpcs_config}
-   # 範例：vendor/bin/phpcbf src/ --standard=phpcs.xml
-   ```
-4. 再次執行 phpcs 確認剩餘問題：
-   ```bash
-   vendor/bin/phpcs {src_dir} --standard={phpcs_config}
-   ```
+3. 執行 phpcbf 自動修正：`vendor/bin/phpcbf inc/ --standard=phpcs.xml`
+4. 再次執行 phpcs 確認剩餘問題：`vendor/bin/phpcs inc/ --standard=phpcs.xml`
 5. 若有 phpstan 錯誤，讀取失敗的檔案並分析型別問題後嘗試修正
-6. 修正後確認 `pnpm run lint:php`（或依專案調整的指令）能通過
+6. 修正後確認 `pnpm run lint:php` 能通過
 
-#### TypeScript Lint 修正步驟（若有前端）
+#### TypeScript Lint 修正步驟
 
-1. 安裝 Node.js 依賴：
+1. 安裝 Node.js 依賴（pnpm 已預裝）：
    ```bash
-   corepack enable pnpm
    pnpm install --no-frozen-lockfile
    ```
 2. 執行 `pnpm run lint:ts`（已包含 `--fix`）
 3. 若仍有 diff，讀取錯誤訊息並手動修正無法自動修正的 ESLint 問題
 4. 修正後確認 `pnpm run lint:ts` && `git diff --exit-code` 都能通過
 
-#### Format Check 修正步驟（若有前端）
+#### Format Check 修正步驟
 
 1. 執行 `pnpm run format`
 2. 格式問題由 Prettier-ESLint 自動修正，不需手動介入
@@ -195,16 +212,16 @@ CI 將自動重新執行以驗證修正結果。
 
 {問題列表與分析}
 
-**提示**：在本地執行以下指令重現問題（依專案調整）：
+**提示**：在本地執行以下指令重現問題：
 - `pnpm run lint:php` — PHP linting
-- `pnpm run lint:ts` — TypeScript ESLint（若有前端）
-- `pnpm run format` — 格式化（若有前端）
+- `pnpm run lint:ts` — TypeScript ESLint
+- `pnpm run format` — Prettier-ESLint 格式化
 ```
 
 ## 注意事項
 
-- **不要修改**自動生成目錄（例如 `vendor/`、`node_modules/`、前端 dist 目錄等）
+- **不要修改** `vendor/`、`node_modules/`、`js/dist/` 等自動生成目錄
 - **不要修改** `.lock` 檔案（`composer.lock`、`pnpm-lock.yaml`）
 - PHP strict_types 缺失時應新增 `declare(strict_types=1);`，不要刪除
 - TypeScript `any` 類型只警告不強制修正，除非 ESLint 規則設為 error
-- E2E 測試失敗需要分析測試 artifacts，若有上傳的測試報告，使用 `download_workflow_run_artifact` 取得詳情
+- E2E 測試失敗需要分析測試 artifacts，若有上傳的 playwright-report，使用 `download_workflow_run_artifact` 取得詳情
