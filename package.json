@@ -1,7 +1,7 @@
 {
 	"name": "power-checkout",
 	"private": false,
-	"version": "1.0.29",
+	"version": "1.0.30",
 	"type": "module",
 	"scripts": {
 		"bootstrap": "pnpm install && composer install --no-interaction",
