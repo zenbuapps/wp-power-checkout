@@ -1,3 +1,11 @@
+---
+globs:
+  - "inc/classes/Domains/**/*.php"
+  - "js/src/pages/**/*.vue"
+  - "js/src/router/**/*.ts"
+  - "inc/assets/blocks/**/*.tsx"
+---
+
 # Adding New Providers Guide
 
 ## Adding a New Payment Provider

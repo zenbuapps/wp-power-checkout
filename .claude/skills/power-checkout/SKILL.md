@@ -1,7 +1,13 @@
 ---
 name: power-checkout
-description: |
-  Deep knowledge of the Power Checkout WooCommerce plugin -- payment gateway integration (Shopline Payment), e-invoice (Amego), and checkout field customization. Use this skill whenever working on Power Checkout plugin code, understanding its DDD architecture, adding new payment/invoice providers, modifying REST APIs, or debugging the Vue 3 / React WC Blocks dual frontend system.
+description: >-
+  Deep knowledge of the Power Checkout WooCommerce plugin -- payment gateway
+  integration (Shopline Payment), e-invoice (Amego), and checkout field
+  customization. Use this skill whenever working on Power Checkout plugin code,
+  understanding its DDD architecture, provider system, dual frontend (Vue 3 +
+  React WC Blocks), REST API, webhook handling, refund logic, or invoice
+  lifecycle. Also use when the user mentions SLP, Shopline Payment, Amego,
+  checkout fields, or asks about payment/invoice provider registration.
 ---
 
 # Power Checkout Plugin Knowledge
