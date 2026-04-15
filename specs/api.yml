@@ -1,0 +1,210 @@
+openapi: 3.0.3
+info:
+  title: Power Checkout REST API
+  version: 1.0.30
+  description: WooCommerce checkout integration -- payment, invoice, settings
+
+servers:
+  - url: /wp-json
+    description: WordPress REST API base
+
+paths:
+  /power-checkout/v1/settings:
+    get:
+      operationId: getSettings
+      summary: Get all provider settings (gateways, invoices, logistics)
+      tags: [Settings]
+      security: [{ wpNonce: [] }]
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /power-checkout/v1/settings/{provider_id}:
+    get:
+      operationId: getProviderSettings
+      summary: Get single provider settings
+      tags: [Settings]
+      security: [{ wpNonce: [] }]
+      parameters:
+        - name: provider_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "[a-zA-Z_-]+"
+      responses:
+        "200":
+          description: Provider settings
+    post:
+      operationId: updateProviderSettings
+      summary: Update provider settings
+      tags: [Settings]
+      security: [{ wpNonce: [] }]
+      parameters:
+        - name: provider_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: Updated settings
+
+  /power-checkout/v1/settings/{provider_id}/toggle:
+    post:
+      operationId: toggleProvider
+      summary: Toggle provider enabled/disabled
+      tags: [Settings]
+      security: [{ wpNonce: [] }]
+      parameters:
+        - name: provider_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Toggle result
+
+  /power-checkout/v1/refund:
+    post:
+      operationId: gatewayRefund
+      summary: Refund via payment gateway
+      tags: [Payment]
+      security: [{ wpNonce: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order_id]
+              properties:
+                order_id:
+                  type: integer
+      responses:
+        "200":
+          description: Refund result
+
+  /power-checkout/v1/refund/manual:
+    post:
+      operationId: manualRefund
+      summary: Manual refund (no gateway API call)
+      tags: [Payment]
+      security: [{ wpNonce: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order_id]
+              properties:
+                order_id:
+                  type: integer
+      responses:
+        "200":
+          description: Manual refund result
+
+  /power-checkout/v1/invoices/issue/{order_id}:
+    post:
+      operationId: issueInvoice
+      summary: Issue e-invoice for order
+      tags: [Invoice]
+      security: [{ wpNonce: [] }]
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Invoice issue result
+
+  /power-checkout/v1/invoices/cancel/{order_id}:
+    post:
+      operationId: cancelInvoice
+      summary: Cancel (void) e-invoice for order
+      tags: [Invoice]
+      security: [{ wpNonce: [] }]
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Invoice cancel result
+
+  /power-checkout/slp/webhook:
+    post:
+      operationId: slpWebhook
+      summary: Shopline Payment webhook receiver
+      tags: [Webhook]
+      security: [{ hmacSha256: [] }]
+      parameters:
+        - name: timestamp
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: sign
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: apiVersion
+          in: header
+          schema:
+            type: string
+            default: V1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookBody"
+      responses:
+        "200":
+          description: Always 200 (no retry)
+
+components:
+  securitySchemes:
+    wpNonce:
+      type: apiKey
+      in: header
+      name: X-WP-Nonce
+      description: WordPress REST API nonce
+    hmacSha256:
+      type: apiKey
+      in: header
+      name: sign
+      description: HMAC-SHA256 of "{timestamp}.{body}" using signKey
+
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        data:
+          description: Response payload (varies by endpoint)
+
+    WebhookBody:
+      type: object
+      properties:
+        eventType:
+          type: string
+        data:
+          type: object

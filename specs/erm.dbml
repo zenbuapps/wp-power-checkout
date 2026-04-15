@@ -1,0 +1,49 @@
+// Power Checkout Entity Relationship Model
+// This plugin uses WooCommerce's order meta system, not custom tables.
+
+// WC Order is the central entity
+Table wc_order {
+  id int [pk]
+  status varchar [note: "pending, processing, cancelled, refunded"]
+  payment_method varchar [note: "e.g. shopline_payment_redirect"]
+  total decimal
+  currency varchar
+}
+
+// Payment meta (wp_wc_orders_meta or wp_postmeta)
+Table pc_payment_meta {
+  order_id int [ref: > wc_order.id]
+  _pc_identity varchar [note: "SLP sessionId"]
+  _pc_payment_identity varchar [note: "SLP tradeOrderId, idempotency guard"]
+  _pc_payment_detail json [note: "Payment response data"]
+  _pc_refund_detail json [note: "Refund response data"]
+}
+
+// Invoice meta (wp_wc_orders_meta or wp_postmeta)
+Table pc_invoice_meta {
+  order_id int [ref: > wc_order.id]
+  _pc_issue_invoice_params json [note: "Checkout-submitted invoice info"]
+  _pc_issued_invoice_data json [note: "Invoice issuance response"]
+  _pc_cancelled_invoice_data json [note: "Invoice void response"]
+  _pc_invoice_provider_id varchar [note: "e.g. amego"]
+}
+
+// Product meta
+Table pc_product_meta {
+  product_id int
+  _pc_tax_type varchar [note: "ETaxType enum for invoicing"]
+}
+
+// Provider settings (wp_options)
+Table wc_options_provider_settings {
+  option_name varchar [pk, note: "woocommerce_{provider_id}_settings"]
+  enabled varchar [note: "yes/no"]
+  title varchar
+  description varchar
+}
+
+// Plugin settings (wp_options)
+Table wc_options_plugin_settings {
+  option_name varchar [pk, note: "power_checkout_settings"]
+  value json
+}

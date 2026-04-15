@@ -1,0 +1,15 @@
+{
+	"mcpServers": {
+		"slpayment-mcp": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"@shoplinepayments/slpayment-developer-mcp@1.0.1"
+			],
+			"env": {
+				"SLPAYMENT_MCP_HTTP_URL": "https://ai.shoplinepayments.com/mcp",
+				"SLPAYMENT_MCP_HTTP_TIMEOUT_MS": "30000"
+			}
+		}
+	}
+}
