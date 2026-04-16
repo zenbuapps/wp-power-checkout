@@ -190,6 +190,7 @@ Nonce auth requires `X-WP-Nonce` header (`wp_create_nonce('wp_rest')`).
 |---|---|---|
 | Credit Card | Yes | Yes |
 | Apple Pay | No | Yes |
+| LINE Pay | Yes | Yes |
 | ZingalaCard (zero-card installment) | No | Yes |
 | ATM Virtual Account | No | No |
 
