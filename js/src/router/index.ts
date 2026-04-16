@@ -1,5 +1,5 @@
 // router/index.js
-import { createRouter, createWebHashHistory } from 'vue-router'
+import { createRouter, createMemoryHistory } from 'vue-router'
 
 export const ROUTER_MAPPER = {
 	shopline_payment_redirect: '/payments/shopline_payment_redirect',
@@ -23,7 +23,7 @@ const routes = [
 ]
 
 const router = createRouter({
-	history: createWebHashHistory(), // 使用 Hash 模式
+	history: createMemoryHistory(),
 	routes,
 })
 
