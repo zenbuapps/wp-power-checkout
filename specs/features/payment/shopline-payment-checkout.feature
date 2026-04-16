@@ -31,3 +31,19 @@
     假設 金流設定最大金額為 50000 元
     而且 購物車商品總額為 60000 元
     那麼 Shopline Payment 付款方式不可用
+
+  規則: LINE Pay 結帳
+
+    場景: LINE Pay 已啟用時顯示於 SLP 託管頁面
+      假設 金流設定中 allowPaymentMethodList 包含 "LinePay"
+      當 顧客在結帳頁選擇 Shopline Payment 並點擊下單
+      那麼 系統呼叫 SLP API POST /trade/sessions/create
+      而且 請求 allowPaymentMethodList 包含 "LinePay"
+      而且 請求不包含 LINE Pay 的 paymentMethodOptions
+      而且 SLP 託管頁面顯示 LINE Pay 付款選項
+
+    場景: LINE Pay 未啟用時不顯示
+      假設 金流設定中 allowPaymentMethodList 不包含 "LinePay"
+      當 顧客在結帳頁選擇 Shopline Payment 並點擊下單
+      那麼 請求 allowPaymentMethodList 不包含 "LinePay"
+      而且 SLP 託管頁面不顯示 LINE Pay 付款選項

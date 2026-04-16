@@ -27,3 +27,24 @@
   場景: SLP 最大金額驗證
     當 管理員將最大金額設為 60000
     那麼 儲存失敗顯示 "maximum amount out of range"
+
+  規則: LINE Pay 付款方式設定
+
+    場景: 啟用 LINE Pay 付款方式
+      當 管理員在 SLP 設定頁面勾選 LINE Pay
+      而且 儲存設定
+      那麼 allowPaymentMethodList 包含 "LinePay"
+
+    場景: LINE Pay 勾選後顯示警告提示
+      當 管理員勾選 LINE Pay
+      那麼 顯示 warning 類型警告 "請先確認已在 SLP 後台啟用 LINE Pay"
+
+    場景: LINE Pay 預設未啟用（向下相容）
+      假設 商店從未設定過 allowPaymentMethodList
+      那麼 預設的 allowPaymentMethodList 包含 "LinePay"
+      但是 既有商店升級後不會自動將 "LinePay" 加入已儲存的 allowPaymentMethodList
+
+    場景: LINE Pay 不需要 paymentMethodOptions
+      當 管理員啟用 LINE Pay
+      那麼 paymentMethodOptions 不包含 LinePay 的設定項
+      而且 不顯示 LINE Pay 的分期期數選項

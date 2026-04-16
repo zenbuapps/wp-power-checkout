@@ -25,6 +25,20 @@
       那麼 資料庫交易 ROLLBACK
       而且 退款紀錄被刪除
 
+  規則: LINE Pay 退款
+
+    場景: LINE Pay 全額退款
+      假設 訂單付款方式為 LINE Pay
+      當 管理員選擇 "使用 Shopline Payment 自動退款" 且退款金額等於訂單總額
+      那麼 系統呼叫 SLP API POST /trade/refund/create
+      而且 退款成功
+
+    場景: LINE Pay 部分退款
+      假設 訂單付款方式為 LINE Pay
+      當 管理員選擇 "使用 Shopline Payment 自動退款" 且退款金額小於訂單總額
+      那麼 系統呼叫 SLP API POST /trade/refund/create
+      而且 退款成功
+
   規則: 手動退款
 
     場景: 手動退款
