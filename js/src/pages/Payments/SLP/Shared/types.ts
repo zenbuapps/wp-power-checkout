@@ -28,8 +28,8 @@ export const PAYMENT_METHODS = [
 	{
 		value: EPaymentMethods.LINE_PAY,
 		label: 'Line Pay',
-		disabled: true,
-		tooltip: 'Shopline Payment 目前尚未開放使用 Line Pay',
+		disabled: false,
+		tooltip: undefined,
 	},
 	{
 		value: EPaymentMethods.CHAILEASE_BNPL,

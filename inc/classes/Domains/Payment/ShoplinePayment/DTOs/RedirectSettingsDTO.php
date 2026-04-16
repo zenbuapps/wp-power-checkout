@@ -66,8 +66,8 @@ final class RedirectSettingsDTO extends DTO implements IGatewaySettings {
 		'VirtualAccount',
 		// 'JKOPay',
 					'ApplePay',
-		// 'LinePay',
-					'ChaileaseBNPL',
+		'LinePay',
+		'ChaileaseBNPL',
 	];
 
 	/** @var array<string, array<string, list<string>>> $paymentMethodOptions */
@@ -123,7 +123,7 @@ final class RedirectSettingsDTO extends DTO implements IGatewaySettings {
 		}
 
 		if ( !empty( $this->signKey ) ) {
-			$converted = \mb_convert_encoding($this->signKey, 'UTF-8', 'auto');
+			$converted     = \mb_convert_encoding($this->signKey, 'UTF-8', 'auto');
 			$this->signKey = \is_string($converted) ? $converted : $this->signKey;
 		}
 	}

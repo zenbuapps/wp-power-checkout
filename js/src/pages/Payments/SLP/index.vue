@@ -352,8 +352,8 @@ const webhookEvents = [
 
         <el-alert
                 v-if="form.allowPaymentMethodList.includes(EPaymentMethods.LINE_PAY)"
-                title="Shopline Payment 可能尚未支援 Line Pay，請先確認是否可使用，否則可能導致用戶無法結帳"
-                type="error"
+                title="請先確認已在 SLP 後台啟用 LINE Pay，否則可能導致用戶無法結帳"
+                type="warning"
                 class="mb-4"
                 :closable="false"
                 show-icon

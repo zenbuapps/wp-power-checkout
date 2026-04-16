@@ -11,7 +11,7 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Components\PaymentMeth
 /**
  * PaymentMethodOptions
  * 請求會帶
- * 設定不同付款方式的資訊。Applepay 和 LINE Pay 暫不支援設定
+ * 設定不同付款方式的資訊。ApplePay 和 LINE Pay 不需要設定
  * */
 final class PaymentMethodOptions extends DTO {
 
