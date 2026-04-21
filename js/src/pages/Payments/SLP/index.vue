@@ -95,6 +95,29 @@ const { mutate: save, isPending: isSavePending } = useMutation({
     },
 })
 
+/**
+ * 共用 validator：當該付款方式在 allowPaymentMethodList 中啟用時，
+ * 對應的 installmentCounts 陣列必須至少勾選一個期數，否則擋下儲存。
+ *
+ * Issue #12：商家取消勾選中租分期的所有期數（包含 0 期）後儲存，
+ * 送給 SLP 的 payload 會缺少 installmentCounts key，SLP 會 fallback
+ * 顯示全部期數，造成「明明取消勾選卻仍顯示」的 bug。
+ * A 案（UX 防呆）：強制至少勾一個期數，避免 silent failure。
+ */
+const createInstallmentCountsValidator = (methodKey: EPaymentMethods) =>
+    (_: unknown, value: string[] | undefined, callback: (err?: Error) => void) => {
+        // 如果商家沒啟用該付款方式，則跳過驗證
+        if (!form.allowPaymentMethodList.includes(methodKey)) {
+            callback()
+            return
+        }
+        if (!Array.isArray(value) || value.length === 0) {
+            callback(new Error('請至少選擇一個分期期數'))
+            return
+        }
+        callback()
+    }
+
 const rules = reactive<FormRules<TFormData>>({
     merchantId: [
         { required: true, message: '此欄位為必填' },
@@ -117,6 +140,18 @@ const rules = reactive<FormRules<TFormData>>({
                 }
                 callback()
             },
+        },
+    ],
+    'paymentMethodOptions.CreditCard.installmentCounts': [
+        {
+            validator: createInstallmentCountsValidator(EPaymentMethods.CREDIT_CARD),
+            trigger: ['change', 'blur'],
+        },
+    ],
+    'paymentMethodOptions.ChaileaseBNPL.installmentCounts': [
+        {
+            validator: createInstallmentCountsValidator(EPaymentMethods.CHAILEASE_BNPL),
+            trigger: ['change', 'blur'],
         },
     ],
 })
