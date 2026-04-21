@@ -8,7 +8,7 @@
  * - min_amount / max_amount 邊界設定
  * - 結帳頁付款方式渲染不出現 JS 錯誤
  *
- * 依據：spec/entity/erm.dbml（allowPaymentMethodList）
+ * 依據：specs/erm.dbml（allowPaymentMethodList）
  */
 import { test, expect } from '@playwright/test'
 import { wpGet, wpPost, type ApiOptions } from '../helpers/api-client.js'

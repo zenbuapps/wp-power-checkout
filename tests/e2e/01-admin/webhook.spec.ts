@@ -1,7 +1,7 @@
 /**
  * P0 — POST /power-checkout/slp/webhook — Shopline Payment Webhook 接收
  *
- * 依據：spec/features/Payment/處理Webhook通知.feature
+ * 依據：specs/features/payment/shopline-payment-webhook.feature
  *
  * 重要說明：
  * - Webhook 端點不需要 WordPress 認證（無 X-WP-Nonce）

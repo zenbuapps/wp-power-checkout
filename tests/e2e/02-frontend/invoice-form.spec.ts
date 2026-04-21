@@ -8,7 +8,7 @@
  * - 欄位驗證：缺少必要欄位、格式錯誤
  * - 前端：結帳頁發票區域不出現 PHP 錯誤、JS 例外
  *
- * 依據：spec/features/Invoice/
+ * 依據：specs/features/invoice/
  * NOTE：外部 Amego API 在測試環境不可用，多數測試接受 status < 600 即可。
  */
 import { test, expect } from '@playwright/test'

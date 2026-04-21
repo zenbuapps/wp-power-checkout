@@ -10,7 +10,7 @@
  * - 付款回導頁面（order-received, checkout, view-order）不出現 PHP 錯誤
  * - Header 邊界值（timestamp=0, 未來時間, 空 sign, 缺 apiVersion）
  *
- * 依據：spec/features/Payment/處理Webhook通知.feature
+ * 依據：specs/features/payment/shopline-payment-webhook.feature
  * NOTE：此處使用簡單 sign（非 HMAC 計算），因本地環境可能跳過驗簽。
  *       完整 HMAC 測試請參見 01-admin/webhook.spec.ts。
  */

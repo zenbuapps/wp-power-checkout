@@ -1,0 +1,28 @@
+[ACTIVITY] 結帳付款流程
+[ACTOR] 顧客 -> {specs/actors/顧客.md}
+[ACTOR] WooCommerce -> {specs/actors/WooCommerce.md}
+[ACTOR] ShoplinePayment -> {specs/actors/ShoplinePayment.md}
+
+[STEP:1] @顧客 {specs/features/payment/shopline-payment-checkout.feature}
+[DECISION:1a] Session 狀態
+  [BRANCH:1a:正常] @顧客 {specs/ui/SLP付款頁面.md}
+  [BRANCH:1a:已過期] @WooCommerce {specs/features/payment/shopline-payment-checkout.feature}
+[MERGE:1a]
+
+[STEP:2] @ShoplinePayment {specs/features/payment/shopline-payment-webhook.feature}
+[DECISION:2a] Webhook 事件類型
+  [BRANCH:2a:付款交易] @WooCommerce {specs/features/payment/shopline-payment-webhook.feature}
+    [DECISION:2a1] 付款狀態
+      [BRANCH:2a1:SUCCEEDED] @WooCommerce {specs/features/payment/shopline-payment-webhook.feature}
+      [BRANCH:2a1:EXPIRED] @WooCommerce {specs/features/payment/shopline-payment-webhook.feature}
+      [BRANCH:2a1:其他] @WooCommerce {specs/features/payment/shopline-payment-webhook.feature}
+    [MERGE:2a1]
+  [BRANCH:2a:退款交易] @WooCommerce {specs/features/payment/shopline-payment-webhook.feature}
+    [DECISION:2a2] 退款狀態
+      [BRANCH:2a2:成功] @WooCommerce {specs/features/payment/shopline-payment-webhook.feature}
+      [BRANCH:2a2:失敗] @WooCommerce {specs/features/payment/shopline-payment-webhook.feature}
+    [MERGE:2a2]
+[MERGE:2a]
+
+[STEP:3] @WooCommerce {specs/features/invoice/invoice-issue.feature}
+[END]

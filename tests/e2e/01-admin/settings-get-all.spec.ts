@@ -1,7 +1,7 @@
 /**
  * P0 — GET /power-checkout/v1/settings — 取得所有設定
  *
- * 依據：spec/features/Settings/取得所有設定.feature
+ * 依據：specs/features/settings/provider-settings.feature
  *
  * 測試情境：
  * - 未登入訪客 → 401/403

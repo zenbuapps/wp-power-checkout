@@ -1,7 +1,7 @@
 /**
  * P0 — POST /power-checkout/v1/invoices/issue/{order_id} — 開立電子發票
  *
- * 依據：spec/features/Invoice/開立電子發票.feature
+ * 依據：specs/features/invoice/invoice-issue.feature
  *
  * 測試情境：
  * - 未登入 → 401/403

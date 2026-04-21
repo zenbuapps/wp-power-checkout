@@ -1,181 +1,41 @@
 openapi: 3.0.3
 info:
   title: Power Checkout REST API
-  version: 1.0.30
-  description: WooCommerce checkout integration -- payment, invoice, settings
+  description: |
+    WooCommerce 結帳整合外掛 REST API，提供金流設定管理、退款操作、電子發票開立/作廢，以及 Shopline Payment Webhook 接收。
+
+    ## 錯誤碼對應規則
+    - **400** = 前置（參數）Rules 驗證失敗
+    - **401** = 未登入或 Nonce 無效
+    - **403** = 前置（狀態）Rules 不符
+    - **404** = 資源找不到
+    - **500** = 伺服器內部錯誤（Exception）
+
+    ## 認證
+    所有管理端 API 需要 WordPress 登入 Cookie 加上 `X-WP-Nonce` Header（`wp_create_nonce('wp_rest')`）。
+    Webhook 端點使用 HMAC-SHA256 簽章驗證，不需要 WordPress 認證。
+
+    ## 錯誤處理
+    所有端點的錯誤以 Exception 形式拋出，WordPress REST API 框架統一捕獲後回傳 HTTP 500 + 錯誤訊息。
+  version: "1.0.28"
 
 servers:
-  - url: /wp-json
-    description: WordPress REST API base
+  - url: /wp-json/power-checkout/v1
+    description: 主要 API 命名空間（Settings / Payment）
+  - url: /wp-json/power-checkout/v1/invoices
+    description: 電子發票 API 命名空間
+  - url: /wp-json/power-checkout/slp
+    description: Shopline Payment Webhook 命名空間
 
-paths:
-  /power-checkout/v1/settings:
-    get:
-      operationId: getSettings
-      summary: Get all provider settings (gateways, invoices, logistics)
-      tags: [Settings]
-      security: [{ wpNonce: [] }]
-      responses:
-        "200":
-          description: Success
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiResponse"
-
-  /power-checkout/v1/settings/{provider_id}:
-    get:
-      operationId: getProviderSettings
-      summary: Get single provider settings
-      tags: [Settings]
-      security: [{ wpNonce: [] }]
-      parameters:
-        - name: provider_id
-          in: path
-          required: true
-          schema:
-            type: string
-            pattern: "[a-zA-Z_-]+"
-      responses:
-        "200":
-          description: Provider settings
-    post:
-      operationId: updateProviderSettings
-      summary: Update provider settings
-      tags: [Settings]
-      security: [{ wpNonce: [] }]
-      parameters:
-        - name: provider_id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: true
-      responses:
-        "200":
-          description: Updated settings
-
-  /power-checkout/v1/settings/{provider_id}/toggle:
-    post:
-      operationId: toggleProvider
-      summary: Toggle provider enabled/disabled
-      tags: [Settings]
-      security: [{ wpNonce: [] }]
-      parameters:
-        - name: provider_id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Toggle result
-
-  /power-checkout/v1/refund:
-    post:
-      operationId: gatewayRefund
-      summary: Refund via payment gateway
-      tags: [Payment]
-      security: [{ wpNonce: [] }]
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [order_id]
-              properties:
-                order_id:
-                  type: integer
-      responses:
-        "200":
-          description: Refund result
-
-  /power-checkout/v1/refund/manual:
-    post:
-      operationId: manualRefund
-      summary: Manual refund (no gateway API call)
-      tags: [Payment]
-      security: [{ wpNonce: [] }]
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [order_id]
-              properties:
-                order_id:
-                  type: integer
-      responses:
-        "200":
-          description: Manual refund result
-
-  /power-checkout/v1/invoices/issue/{order_id}:
-    post:
-      operationId: issueInvoice
-      summary: Issue e-invoice for order
-      tags: [Invoice]
-      security: [{ wpNonce: [] }]
-      parameters:
-        - name: order_id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Invoice issue result
-
-  /power-checkout/v1/invoices/cancel/{order_id}:
-    post:
-      operationId: cancelInvoice
-      summary: Cancel (void) e-invoice for order
-      tags: [Invoice]
-      security: [{ wpNonce: [] }]
-      parameters:
-        - name: order_id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Invoice cancel result
-
-  /power-checkout/slp/webhook:
-    post:
-      operationId: slpWebhook
-      summary: Shopline Payment webhook receiver
-      tags: [Webhook]
-      security: [{ hmacSha256: [] }]
-      parameters:
-        - name: timestamp
-          in: header
-          required: true
-          schema:
-            type: string
-        - name: sign
-          in: header
-          required: true
-          schema:
-            type: string
-        - name: apiVersion
-          in: header
-          schema:
-            type: string
-            default: V1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/WebhookBody"
-      responses:
-        "200":
-          description: Always 200 (no retry)
+tags:
+  - name: Settings
+    description: 金流/發票服務設定管理
+  - name: Payment
+    description: 退款相關操作
+  - name: Invoice
+    description: 電子發票開立與作廢
+  - name: Webhook
+    description: Shopline Payment Webhook 接收
 
 components:
   securitySchemes:
@@ -183,7 +43,7 @@ components:
       type: apiKey
       in: header
       name: X-WP-Nonce
-      description: WordPress REST API nonce
+      description: WordPress REST Nonce（`wp_create_nonce('wp_rest')`）
     hmacSha256:
       type: apiKey
       in: header
@@ -191,20 +51,638 @@ components:
       description: HMAC-SHA256 of "{timestamp}.{body}" using signKey
 
   schemas:
+    # ===== 共用 =====
     ApiResponse:
       type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: 回應代碼
+        message:
+          type: string
+          description: 回應訊息
+        data:
+          description: 回應資料（結構依端點而異）
+
+    Error:
+      type: object
+      required: [message]
       properties:
         code:
           type: string
         message:
           type: string
+          example: "找不到訂單"
         data:
-          description: Response payload (varies by endpoint)
+          type: object
+          nullable: true
 
-    WebhookBody:
+    # ===== Settings =====
+    ProviderSummary:
       type: object
+      description: Provider 摘要資訊（用於列表顯示，不含敏感金鑰）
+      properties:
+        id:
+          type: string
+          example: "shopline_payment_redirect"
+        title:
+          type: string
+          example: "Shopline Payment 線上付款"
+        enabled:
+          type: string
+          enum: ["yes", "no"]
+        icon:
+          type: string
+          format: uri
+        method_title:
+          type: string
+        method_description:
+          type: string
+
+    ShoplinePaymentSettings:
+      type: object
+      description: Shopline Payment 完整設定
+      properties:
+        enabled:
+          type: string
+          enum: ["yes", "no"]
+        title:
+          type: string
+        description:
+          type: string
+        icon:
+          type: string
+          format: uri
+        order_button_text:
+          type: string
+        mode:
+          type: string
+          enum: [test, prod]
+        platformId:
+          type: string
+          description: SLP 平台 ID
+        merchantId:
+          type: string
+        apiKey:
+          type: string
+        clientKey:
+          type: string
+        signKey:
+          type: string
+        apiUrl:
+          type: string
+          format: uri
+        allowPaymentMethodList:
+          type: array
+          items:
+            type: string
+            enum: [CreditCard, VirtualAccount, JKOPay, ApplePay, LinePay, ChaileaseBNPL]
+        paymentMethodOptions:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              installmentCounts:
+                type: array
+                items:
+                  type: string
+        expire_min:
+          type: integer
+          description: 付款截止時間（分鐘）
+        min_amount:
+          type: integer
+          description: 最小交易金額
+          minimum: 5
+        max_amount:
+          type: integer
+          description: 最大交易金額
+          maximum: 50000
+
+    AmegoSettings:
+      type: object
+      description: 光貿電子發票完整設定
+      properties:
+        enabled:
+          type: string
+          enum: ["yes", "no"]
+        title:
+          type: string
+        description:
+          type: string
+        icon:
+          type: string
+          format: uri
+        method_title:
+          type: string
+        mode:
+          type: string
+          enum: [test, prod]
+        invoice:
+          type: string
+          description: 商家統一編號
+        app_key:
+          type: string
+          description: 光貿 API 金鑰
+        tax_rate:
+          type: number
+          format: float
+          example: 0.05
+        auto_issue_order_statuses:
+          type: array
+          items:
+            type: string
+          description: 自動開立發票的訂單狀態（如 ["wc-processing"]）
+        auto_cancel_order_statuses:
+          type: array
+          items:
+            type: string
+          description: 自動作廢發票的訂單狀態（如 ["wc-refunded"]）
+
+    # ===== Invoice =====
+    InvoiceIssueRequest:
+      type: object
+      required: [provider]
+      properties:
+        provider:
+          type: string
+          description: 電子發票 Provider ID
+          example: "amego"
+        invoiceType:
+          type: string
+          enum: [individual, company, donate]
+          description: 發票類型
+        individual:
+          type: string
+          enum: [cloud, barcode, moica, paper]
+          description: 個人發票載具類型
+        carrier:
+          type: string
+          description: 手機條碼載具號碼
+        moica:
+          type: string
+          description: 自然人憑證號碼
+        companyName:
+          type: string
+          description: 公司名稱（invoiceType=company 時必填）
+        companyId:
+          type: string
+          description: 公司統一編號（invoiceType=company 時必填）
+        donateCode:
+          type: string
+          description: 捐贈碼（invoiceType=donate 時必填）
+
+    # ===== Webhook =====
+    WebhookPayload:
+      type: object
+      description: Shopline Payment Webhook 通知內容
       properties:
         eventType:
           type: string
+          description: 事件類型（如 session.succeeded, trade.succeeded, refund.succeeded）
+          example: "trade.succeeded"
         data:
           type: object
+          description: 事件資料（結構依事件類型而異），包含 tradeOrderId、status 等欄位
+
+security:
+  - wpNonce: []
+
+paths:
+  # ==================== Settings ====================
+
+  /settings:
+    get:
+      tags: [Settings]
+      summary: 取得所有設定
+      description: |
+        回傳 gateways、invoices、logistics 三個分類的 Provider 摘要清單。
+        Gateway 摘要不包含敏感金鑰（apiKey、clientKey、signKey）。
+      operationId: getAllSettings
+      security:
+        - wpNonce: []
+      responses:
+        "200":
+          description: 取得設定成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      code:
+                        example: "get_settings_success"
+                      message:
+                        example: "取得設定成功"
+                      data:
+                        type: object
+                        required: [gateways, invoices, logistics]
+                        properties:
+                          gateways:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/ProviderSummary"
+                          invoices:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/ProviderSummary"
+                          logistics:
+                            type: array
+                            items:
+                              type: object
+        "401":
+          description: 未登入或 Nonce 無效
+
+  /settings/{provider_id}:
+    parameters:
+      - name: provider_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: "^[a-zA-Z_-]+$"
+        description: Provider 識別碼
+        examples:
+          slp:
+            value: "shopline_payment_redirect"
+          amego:
+            value: "amego"
+
+    get:
+      tags: [Settings]
+      summary: 取得單一服務設定
+      description: 回傳指定 Provider 的完整設定（含敏感金鑰）。
+      operationId: getProviderSettings
+      security:
+        - wpNonce: []
+      responses:
+        "200":
+          description: 取得設定成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      code:
+                        example: "success"
+                      data:
+                        type: object
+                        description: |
+                          Provider 設定（結構依 provider 而異）：
+                          - shopline_payment_redirect: ShoplinePaymentSettings
+                          - amego: AmegoSettings
+        "401":
+          description: 未登入或 Nonce 無效
+        "500":
+          description: "找不到 Provider（Can't find Provider with provider_id: {id}）"
+
+    post:
+      tags: [Settings]
+      summary: 更新服務設定
+      description: |
+        更新指定 Provider 的設定值。所有參數值會經過 sanitize_text_field_deep 消毒。
+        設定寫入 wp_options 表（key: woocommerce_{provider_id}_settings）。
+      operationId: updateProviderSettings
+      security:
+        - wpNonce: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: 設定欄位 key-value pairs（依 provider 而異，未傳的欄位不會被覆蓋）
+      responses:
+        "200":
+          description: 儲存成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      code:
+                        example: "success"
+                      message:
+                        example: "儲存成功"
+                      data:
+                        type: object
+                        description: 更新後的完整設定
+        "401":
+          description: 未登入或 Nonce 無效
+
+  /settings/{provider_id}/toggle:
+    post:
+      tags: [Settings]
+      summary: 開關服務
+      description: 將 Provider 的 enabled 值在 yes/no 之間切換。
+      operationId: toggleProvider
+      security:
+        - wpNonce: []
+      parameters:
+        - name: provider_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-zA-Z_-]+$"
+      responses:
+        "200":
+          description: 切換成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      code:
+                        example: "success"
+                      message:
+                        type: string
+                        description: "{provider_id} 啟用成功" 或 "{provider_id} 禁用成功"
+                      data:
+                        type: string
+                        description: provider_id
+                        example: "amego"
+        "401":
+          description: 未登入或 Nonce 無效
+
+  # ==================== Payment ====================
+
+  /refund:
+    post:
+      tags: [Payment]
+      summary: Gateway 退款
+      description: |
+        透過訂單的 Payment Gateway 進行退款。退款金額為訂單剩餘可退金額（全額或部分）。
+        限制：
+        - ATM 虛擬帳號不支援退款
+        - 中租零卡僅支援全額退款
+        - Apple Pay 僅支援全額退款
+        - Credit Card / LINE Pay 支援全額與部分退款
+        - Gateway 必須是 AbstractPaymentGateway 實例
+      operationId: refund
+      security:
+        - wpNonce: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order_id]
+              properties:
+                order_id:
+                  type: integer
+                  description: 訂單 ID
+                  example: 100
+      responses:
+        "200":
+          description: 退款成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      code:
+                        example: "success"
+                      message:
+                        type: string
+                        example: "訂單 #100 透過 Shopline Payment 線上付款 退款成功"
+                      data:
+                        nullable: true
+        "500":
+          description: |
+            退款失敗，錯誤訊息依情境：
+            - "訂單編號必須是數字"（order_id 非數字）
+            - "找不到訂單 #9999"（訂單不存在）
+            - "訂單 #100 已經沒有餘額可退"（餘額為 0）
+            - "Gateway 不是 AbstractPaymentGateway 的實例"（非 Power Checkout Gateway）
+            - "{付款方式} 不支援退款"（ATM 虛擬帳號）
+            - "{付款方式} 僅支援全額退款，不支援部分退款"（中租零卡、Apple Pay）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /refund/manual:
+    post:
+      tags: [Payment]
+      summary: 手動退款
+      description: |
+        僅將訂單狀態改為 refunded，不透過 Gateway API 退款。
+        觸發 woocommerce_order_refunded hook 後會自動新增手動退款 order note。
+      operationId: manualRefund
+      security:
+        - wpNonce: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order_id]
+              properties:
+                order_id:
+                  type: integer
+                  description: 訂單 ID
+                  example: 100
+      responses:
+        "200":
+          description: 手動退款成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      code:
+                        example: "success"
+                      message:
+                        type: string
+                        example: "訂單 #100 手動退款成功"
+                      data:
+                        nullable: true
+        "500":
+          description: |
+            退款失敗，錯誤訊息依情境：
+            - "order_id must be numeric"（order_id 非數字）
+            - "#9999 order not found"（訂單不存在）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ==================== Invoice ====================
+  # 注意：以下端點的 base URL 為 /wp-json/power-checkout/v1/invoices
+
+  /issue/{order_id}:
+    post:
+      tags: [Invoice]
+      summary: 開立電子發票
+      description: |
+        為指定訂單開立電子發票。若已開立過則直接回傳已有資料，不重複呼叫 API。
+        開立前會先將發票參數儲存至 order meta（_pc_issue_invoice_params）。
+        支援三種發票類型：個人（雲端/條碼/自然人/紙本）、公司、捐贈。
+      operationId: issueInvoice
+      security:
+        - wpNonce: []
+      servers:
+        - url: /wp-json/power-checkout/v1/invoices
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: WooCommerce 訂單 ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceIssueRequest"
+      responses:
+        "200":
+          description: |
+            開立成功（或已開立過，回傳已有資料）。
+            成功時訂單新增以下 meta：
+            - _pc_issued_invoice_data: 發票開立回傳資料
+            - _pc_invoice_provider_id: 使用的 provider（如 "amego"）
+            - _pc_issue_invoice_params: 結帳頁填寫的發票參數
+          content:
+            application/json:
+              schema:
+                type: object
+                description: 發票開立回傳資料（結構依 provider 而異）
+        "500":
+          description: |
+            開立失敗，錯誤訊息依情境：
+            - "找不到電子發票服務 id: {provider}，請檢查是否啟用"（provider 不存在）
+            - "{provider} 不是 Invoice Service"（provider 非 IInvoiceService）
+            - "找不到訂單 order_id:{id}"（訂單不存在）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /cancel/{order_id}:
+    post:
+      tags: [Invoice]
+      summary: 作廢電子發票
+      description: |
+        作廢指定訂單的電子發票。若已作廢過則直接回傳已有資料，不重複呼叫 API。
+        成功作廢時清除開立相關 meta（_pc_issue_invoice_params、_pc_issued_invoice_data、_pc_invoice_provider_id），
+        並儲存作廢資料至 _pc_cancelled_invoice_data。
+      operationId: cancelInvoice
+      security:
+        - wpNonce: []
+      servers:
+        - url: /wp-json/power-checkout/v1/invoices
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: WooCommerce 訂單 ID
+      responses:
+        "200":
+          description: 作廢成功（或已作廢過，回傳已有資料）
+          content:
+            application/json:
+              schema:
+                type: object
+                description: 發票作廢回傳資料（結構依 provider 而異）
+        "500":
+          description: |
+            作廢失敗，錯誤訊息依情境：
+            - "找不到訂單 order_id:{id}"（訂單不存在）
+            - "{provider_id} 不是 Invoice Service"（provider 無效）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ==================== Webhook ====================
+  # 注意：此端點的 base URL 為 /wp-json/power-checkout/slp
+
+  /webhook:
+    post:
+      tags: [Webhook]
+      summary: 處理 Webhook 通知
+      description: |
+        接收 Shopline Payment 的 Webhook 通知。不需要 WordPress 認證，使用 HMAC-SHA256 簽章驗證。
+
+        簽章計算方式：hash_hmac("sha256", "{timestamp}.{body}", signKey)
+
+        驗證規則：
+        1. timestamp 必須在 5 分鐘容許範圍內（本地環境跳過）
+        2. HMAC-SHA256 簽章必須正確（本地環境跳過）
+        3. apiVersion 非 V1 時記錄 warning 但不阻擋
+
+        處理邏輯：
+        - 付款交易 SUCCEEDED: 訂單狀態改為 processing
+        - 付款交易 EXPIRED: 訂單狀態改為 cancelled
+        - 付款交易其他狀態: 訂單狀態保持 pending
+        - 退款交易 SUCCEEDED: 記錄退款詳情，清除暫存退款原因
+        - 退款交易 FAILED: 刪除最近一筆退款記錄
+
+        原則：收到通知始終回傳 200，避免 SLP 重試。
+      operationId: handleWebhook
+      security:
+        - hmacSha256: []
+      servers:
+        - url: /wp-json/power-checkout/slp
+      parameters:
+        - name: timestamp
+          in: header
+          required: true
+          schema:
+            type: string
+          description: 毫秒級時間戳
+        - name: sign
+          in: header
+          required: true
+          schema:
+            type: string
+          description: HMAC-SHA256 簽章
+        - name: apiVersion
+          in: header
+          required: true
+          schema:
+            type: string
+            enum: [V1]
+          description: API 版本（預期為 V1）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookPayload"
+      responses:
+        "200":
+          description: 處理成功（始終回傳 200 避免 SLP 重試）
+        "500":
+          description: |
+            處理失敗，回傳 mapping_order_failed。錯誤訊息依情境：
+            - "Invalid timestamp, current: {ts}, received: {ts}, diff: {diff}"（時間戳超出範圍）
+            - "Invalid sign, calculated: {hash}, actual: {sign}"（簽章不正確）
+            - "找不到訂單，tradeOrderId: {id}"（找不到對應訂單）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Error"
+                  - type: object
+                    properties:
+                      code:
+                        example: "mapping_order_failed"

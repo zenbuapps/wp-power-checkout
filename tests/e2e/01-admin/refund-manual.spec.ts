@@ -1,7 +1,7 @@
 /**
  * P0 — POST /power-checkout/v1/refund/manual — 手動退款
  *
- * 依據：spec/features/Payment/手動退款.feature
+ * 依據：specs/features/payment/refund-manual.feature
  *
  * 測試情境：
  * - 未登入 → 401/403

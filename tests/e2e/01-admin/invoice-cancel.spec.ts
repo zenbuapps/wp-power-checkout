@@ -1,7 +1,7 @@
 /**
  * P0 — POST /power-checkout/v1/invoices/cancel/{order_id} — 作廢電子發票
  *
- * 依據：spec/features/Invoice/作廢電子發票.feature
+ * 依據：specs/features/invoice/invoice-cancel.feature
  *
  * 測試情境：
  * - 未登入 → 401/403

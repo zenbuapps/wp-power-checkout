@@ -1,0 +1,15 @@
+[ACTIVITY] 管理操作流程
+[ACTOR] 管理員 -> {specs/actors/管理員.md}
+[ACTOR] WooCommerce -> {specs/actors/WooCommerce.md}
+
+[STEP:1] @管理員 {specs/features/settings/provider-settings.feature}
+
+[STEP:2] @管理員 {specs/features/payment/refund-gateway.feature}
+[DECISION:2a] 退款方式
+  [BRANCH:2a:透過Gateway] @管理員 {specs/features/payment/refund-gateway.feature}
+  [BRANCH:2a:手動退款] @管理員 {specs/features/payment/refund-manual.feature}
+[MERGE:2a]
+
+[STEP:3] @管理員 {specs/features/invoice/invoice-issue.feature}
+[STEP:4] @管理員 {specs/features/invoice/invoice-cancel.feature}
+[END]

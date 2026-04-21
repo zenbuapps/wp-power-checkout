@@ -45,7 +45,7 @@ export const PROVIDERS = {
   AMEGO: 'amego',
 } as const
 
-// ─── Invoice Types（依 spec/features/Invoice）────────────────
+// ─── Invoice Types（依 specs/features/invoice）──────────────
 export const INVOICE_TYPE = {
   INDIVIDUAL: 'individual',
   COMPANY: 'company',
@@ -59,7 +59,7 @@ export const INDIVIDUAL_TYPE = {
   PAPER: 'paper',
 } as const
 
-// ─── Payment Methods（依 spec/entity/erm.dbml）───────────────
+// ─── Payment Methods（依 specs/erm.dbml）────────────────────
 export const PAYMENT_METHODS = {
   CREDIT_CARD: 'CreditCard',
   VIRTUAL_ACCOUNT: 'VirtualAccount',   // ATM，不支援退款
@@ -69,7 +69,7 @@ export const PAYMENT_METHODS = {
   CHAILEASE: 'ChaileaseBNPL',          // 中租零卡，僅全額退款
 } as const
 
-// ─── SLP Response Statuses（依 spec/entity/erm.dbml）─────────
+// ─── SLP Response Statuses（依 specs/erm.dbml）──────────────
 export const SLP_STATUS = {
   CREATED: 'CREATED',
   CUSTOMER_ACTION: 'CUSTOMER_ACTION',

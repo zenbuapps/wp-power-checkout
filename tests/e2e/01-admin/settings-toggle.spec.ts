@@ -1,7 +1,7 @@
 /**
  * P0 — POST /power-checkout/v1/settings/{provider_id}/toggle — 開關服務
  *
- * 依據：spec/features/Settings/開關服務.feature
+ * 依據：specs/features/settings/provider-settings.feature
  *
  * 測試情境：
  * - 未登入 → 401/403

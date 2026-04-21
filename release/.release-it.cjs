@@ -37,6 +37,7 @@ module.exports = {
 		commitArgs: ['-n'],
 		push: release,
 		requireCleanWorkingDir: release,
+		requireUpstream: release,
 	},
 	hooks: {
         'before:init': [

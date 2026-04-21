@@ -1,7 +1,7 @@
 /**
  * P0 — POST /power-checkout/v1/settings/{provider_id} — 更新服務設定
  *
- * 依據：spec/features/Settings/更新服務設定.feature
+ * 依據：specs/features/settings/provider-settings.feature
  *
  * 測試情境：
  * - 未登入 → 401/403

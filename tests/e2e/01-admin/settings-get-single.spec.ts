@@ -1,7 +1,7 @@
 /**
  * P0 — GET /power-checkout/v1/settings/{provider_id} — 取得單一服務設定
  *
- * 依據：spec/features/Settings/取得單一服務設定.feature
+ * 依據：specs/features/settings/provider-settings.feature
  *
  * 測試情境：
  * - 未登入 → 401/403
@@ -62,7 +62,7 @@ test.describe('GET /settings/{provider_id} — 取得單一服務設定', () => 
 
     const data = ((res.data as Record<string, unknown>).data ?? res.data) as Record<string, unknown>
 
-    // spec/features/Settings/取得單一服務設定.feature 的 ShoplinePaymentSettings 欄位
+    // specs/features/settings/provider-settings.feature 的 ShoplinePaymentSettings 欄位
     const requiredFields = [
       'enabled', 'title', 'description', 'icon', 'mode',
       'merchantId', 'apiKey', 'clientKey', 'signKey', 'apiUrl',
@@ -107,7 +107,7 @@ test.describe('GET /settings/{provider_id} — 取得單一服務設定', () => 
 
     const data = ((res.data as Record<string, unknown>).data ?? res.data) as Record<string, unknown>
 
-    // spec/features/Settings/取得單一服務設定.feature 的 AmegoSettings 欄位
+    // specs/features/settings/provider-settings.feature 的 AmegoSettings 欄位
     const requiredFields = [
       'enabled', 'title', 'description', 'icon', 'mode',
       'invoice', 'app_key', 'tax_rate',

@@ -1,7 +1,7 @@
 /**
  * Webhook HMAC 簽章工具
  *
- * 依據 spec/api/api.yml Webhook 章節：
+ * 依據 specs/api.yml Webhook 章節：
  *   簽章計算：hash_hmac("sha256", "{timestamp}.{body}", signKey)
  *
  * 在 Node.js 中以 crypto 模組實作相同邏輯，

@@ -8,7 +8,7 @@
  * - 訂單確認頁（order-received）不出現 PHP 錯誤
  * - 無效訂單 ID 的頁面不 crash
  *
- * 依據：spec/entity/erm.dbml（Order meta keys）
+ * 依據：specs/erm.dbml（Order meta keys）
  */
 import { test, expect } from '@playwright/test'
 import { wpGet, type ApiOptions } from '../helpers/api-client.js'
