@@ -1,6 +1,8 @@
 {
 	"core": "WordPress/WordPress#6.8",
 	"phpVersion": "8.2",
+	"port": 8891,
+	"testsPort": 8893,
 	"plugins": [
 		"https://downloads.wordpress.org/plugin/woocommerce.zip",
 		"https://github.com/zenbuapps/wp-powerhouse/releases/latest/download/powerhouse.zip",

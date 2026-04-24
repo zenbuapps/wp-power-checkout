@@ -67,12 +67,27 @@
 	},
 	"scripts": {
 		"lint": "phpcs",
-		"test": "set API_MODE=mock && vendor\\bin\\phpunit --colors=always --testdox --verbose",
-		"test:mock": "set API_MODE=mock && vendor\\bin\\phpunit --colors=always --testdox --verbose",
-		"test:sandbox": "set API_MODE=sandbox && vendor\\bin\\phpunit --colors=always --testdox --verbose",
-		"test:prod": "set API_MODE=prod && vendor\\bin\\phpunit --colors=always --testdox --verbose",
-		"test:debug": "set DEBUG=true && vendor\\bin\\phpunit --colors=always --testdox --verbose",
-		"test:coverage": "vendor\\bin\\phpunit --coverage",
-		"test:warning": "vendor\\bin\\phpunit --display-warnings"
+		"test": [
+			"@putenv API_MODE=mock",
+			"vendor/bin/phpunit --colors=always --testdox --verbose"
+		],
+		"test:mock": [
+			"@putenv API_MODE=mock",
+			"vendor/bin/phpunit --colors=always --testdox --verbose"
+		],
+		"test:sandbox": [
+			"@putenv API_MODE=sandbox",
+			"vendor/bin/phpunit --colors=always --testdox --verbose"
+		],
+		"test:prod": [
+			"@putenv API_MODE=prod",
+			"vendor/bin/phpunit --colors=always --testdox --verbose"
+		],
+		"test:debug": [
+			"@putenv DEBUG=true",
+			"vendor/bin/phpunit --colors=always --testdox --verbose"
+		],
+		"test:coverage": "vendor/bin/phpunit --coverage",
+		"test:warning": "vendor/bin/phpunit --display-warnings"
 	}
 }
