@@ -108,7 +108,7 @@
 - [ ] **Admin slug 驗證**：WC Settings tab `power_checkout_wc_settings` 是從 `plugin.php::redirect_to_wc_setting()` 與 `inc/classes/Domains/Settings/Services/SettingTabService.php` 確認的。若重構 tab 名稱需同步改 pipe.yml 的 AI 驗收 prompt。
 - [x] **`lc-bypass.ts` 機制確認**：helper 直接修改 `plugin.php` 注入 `'lc' => false`（regex 容忍多空格），與 `.e2e-progress.json` 解耦；CI K 段執行該 helper 並 grep 驗證注入結果。
 - [ ] **`build:blocks` 產出路徑 `inc/assets/dist/blocks/`**：若 CI 執行完發現付款方式沒註冊到 WC Blocks checkout，請檢查此目錄是否產出檔案。
-- [ ] **Marketplace 遷移**：目前 plugin_marketplaces 指向 `j7-dev/wp-workflows`；若遷移到 `p9-cloud/wp-workflows` 等新組織，需同步改 `pipe.yml`、`issue.yml`、`actions/claude-retry/action.yml` 與所有 workflows 中的 URL。
+- [x] **Marketplace 遷移**：已從 `j7-dev/wp-workflows` 遷移到 `zenbuapps/zenbu-powers`，所有 workflow 檔案已同步更新。
 
 ---
 
