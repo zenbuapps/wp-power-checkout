@@ -100,13 +100,11 @@ jobs:
             exit 0
           fi
 
-          # 尋找最新的 claude/issue-{N}-* 分支
-          git fetch origin 'refs/heads/claude/*:refs/remotes/origin/claude/*' 2>/dev/null || true
-          EXISTING_BRANCH=$(git branch -r --list "origin/claude/issue-${ISSUE_NUM}-*" \
-            --sort=-committerdate | head -1 | tr -d ' ')
+          # 尋找已存在的 issue/{N} 分支
+          EXISTING_BRANCH=$(git branch -r --list "origin/issue/${ISSUE_NUM}" | tr -d ' ')
 
           if [ -n "$EXISTING_BRANCH" ]; then
-            LOCAL_BRANCH=$(echo "$EXISTING_BRANCH" | sed 's|origin/||')
+            LOCAL_BRANCH="issue/${ISSUE_NUM}"
             echo "✅ 找到已存在的分支: $LOCAL_BRANCH"
             git checkout -b "$LOCAL_BRANCH" "$EXISTING_BRANCH"
             echo "branch_switched=true" >> $GITHUB_OUTPUT
@@ -114,7 +112,7 @@ jobs:
           else
             echo "ℹ️ 無已存在的 issue 分支，建立新分支"
 
-            NEW_BRANCH="claude/issue-${ISSUE_NUM}-$(date +%Y%m%d-%H%M%S)"
+            NEW_BRANCH="issue/${ISSUE_NUM}"
             echo "🌿 建立新分支: $NEW_BRANCH"
             git checkout -b "$NEW_BRANCH"
             echo "branch_switched=true" >> $GITHUB_OUTPUT
