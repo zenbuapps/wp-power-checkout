@@ -161,7 +161,7 @@ jobs:
             PIPELINE_MODE="true"
           elif echo "$AFTER_CLAUDE" | grep -qiE '(^|[^[:alnum:]])PR([^[:alnum:]]|$)'; then
             PR_MODE="true"
-          elif echo "$AFTER_CLAUDE" | grep -qiE '開工|確認|沒問題|開始|\b(OK|go|start)\b'; then
+          elif echo "$AFTER_CLAUDE" | grep -qiE '開工|確認|沒問題|開始|(^|[^[:alnum:]])(OK|go|start)([^[:alnum:]]|$)'; then
             PIPELINE_MODE="true"
           fi
 
