@@ -139,7 +139,7 @@ final class RedirectSettingsDTOTrimTest extends TestCase {
 			]
 		);
 
-		// When：呼叫 DTO::instance()
+		// When：透過 DTO 讀取設定
 		RedirectSettingsDTO::instance();
 
 		// Then：原始 wp_options 仍為帶空白的值（沒有被覆寫）
