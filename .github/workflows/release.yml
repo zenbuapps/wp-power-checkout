@@ -1,0 +1,131 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+# 同一 tag 觸發的多次 workflow 不互相取消（避免半途中斷導致 Release 狀態不一致）
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and Publish Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 解析版本號
+        id: version
+        run: |
+          # 從 tag 取版本號（去掉 v 前綴）
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "slug=power-checkout" >> $GITHUB_OUTPUT
+          echo "zip_name=power-checkout-${VERSION}.zip" >> $GITHUB_OUTPUT
+
+      - name: 設定 pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: 設定 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: 安裝 PHP + Composer
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          tools: composer
+
+      - name: 安裝 Node 依賴
+        run: pnpm install --frozen-lockfile
+
+      - name: 安裝 Composer 依賴（production，無 dev 套件）
+        run: composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
+
+      - name: 建置前端（Vue 主 app）
+        run: pnpm run build
+
+      - name: 建置前端（WC Blocks）
+        run: pnpm run build:blocks
+
+      - name: 打包 Plugin zip
+        id: package
+        env:
+          SLUG: ${{ steps.version.outputs.slug }}
+          ZIP_NAME: ${{ steps.version.outputs.zip_name }}
+        run: |
+          # 建立暫存目錄，將 plugin 檔案複製進去以 slug 命名的資料夾
+          STAGING="$RUNNER_TEMP/staging"
+          mkdir -p "$STAGING/$SLUG"
+
+          # 使用 rsync 排除開發/測試/CI 相關檔案
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='.claude' \
+            --exclude='.serena' \
+            --exclude='.vscode' \
+            --exclude='.idea' \
+            --exclude='node_modules' \
+            --exclude='tests' \
+            --exclude='inc/tests' \
+            --exclude='release' \
+            --exclude='specs' \
+            --exclude='instructions' \
+            --exclude='*.log' \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='.npmrc' \
+            --exclude='.mcp.json' \
+            --exclude='.wp-env.json' \
+            --exclude='.e2e-progress.json' \
+            --exclude='.phpunit.result.cache' \
+            --exclude='.gitignore' \
+            --exclude='.gitattributes' \
+            --exclude='.editorconfig' \
+            --exclude='.eslintrc*' \
+            --exclude='.eslintignore' \
+            --exclude='.prettierrc*' \
+            --exclude='.prettierignore' \
+            --exclude='phpcs.xml*' \
+            --exclude='phpstan.neon*' \
+            --exclude='phpunit.xml*' \
+            --exclude='package.json' \
+            --exclude='package-lock.json' \
+            --exclude='pnpm-lock.yaml' \
+            --exclude='pnpm-workspace.yaml' \
+            --exclude='tsconfig*.json' \
+            --exclude='vite.config.*' \
+            --exclude='postcss.config.*' \
+            --exclude='tailwind.config.*' \
+            --exclude='*.map' \
+            ./ "$STAGING/$SLUG/"
+
+          # 建立 zip
+          cd "$STAGING"
+          zip -r "$GITHUB_WORKSPACE/$ZIP_NAME" "$SLUG" > /dev/null
+          echo "zip_path=$GITHUB_WORKSPACE/$ZIP_NAME" >> $GITHUB_OUTPUT
+          ls -lh "$GITHUB_WORKSPACE/$ZIP_NAME"
+
+      - name: 建立 GitHub Release 並上傳 zip
+        # 釘 commit SHA（對應 v2.6.2）— 第三方 action 應釘 SHA 以防 tag 被改指向惡意 commit
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          generate_release_notes: true
+          files: ${{ steps.package.outputs.zip_path }}

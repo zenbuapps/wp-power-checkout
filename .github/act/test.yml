@@ -1,13 +1,14 @@
 # 本地 act 測試用 — 驗證多 job 結構（job 依賴鏈 + artifact 傳遞 + build）
+# 存放於 .github/act/ 而非 .github/workflows/，避免被 GitHub 線上誤觸發。
+#
 # Windows 用法（需先建立 artifact 目錄）:
 #   mkdir -p "$env:TEMP/act-artifacts"
-#   act workflow_dispatch -W .github/workflows/act-test.yml \
+#   act workflow_dispatch -W .github/act/test.yml \
 #     --container-architecture linux/amd64 \
 #     -P ubuntu-latest=catthehacker/ubuntu:act-latest \
 #     --container-options "--privileged" \
 #     --artifact-server-path "C:/Users/$env:USERNAME/AppData/Local/Temp/act-artifacts"
 #
-# ⚠️ 此檔案不應 commit，僅供本地測試
 # NOTE: act on Windows 的 artifact server v4 有 bug，artifact 下載會失敗但不影響結構驗證
 #
 # 測試範圍（刻意 mock 掉 wp-env 和 Claude Code，只驗結構）：
@@ -18,6 +19,11 @@ name: Act Test (Multi-Job Structure Validation)
 
 on:
   workflow_dispatch:
+    inputs:
+      confirm:
+        description: '僅供 act 本地使用，線上請勿執行。輸入 LOCAL-ONLY 確認'
+        required: true
+        default: ''
 
 jobs:
   integration-tests:
@@ -29,7 +35,7 @@ jobs:
       phpunit_ok: ${{ steps.mock_phpunit.outcome }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: 設定 Node.js
         uses: actions/setup-node@v4
@@ -38,6 +44,8 @@ jobs:
 
       - name: 設定 pnpm
         uses: pnpm/action-setup@v4
+        with:
+          version: 10
 
       - name: 安裝 Node 依賴
         run: pnpm install
@@ -89,7 +97,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: 設定 Node.js
         uses: actions/setup-node@v4
@@ -98,6 +106,8 @@ jobs:
 
       - name: 設定 pnpm
         uses: pnpm/action-setup@v4
+        with:
+          version: 10
 
       - name: 安裝 Node 依賴
         run: pnpm install

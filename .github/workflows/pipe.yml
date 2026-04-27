@@ -9,7 +9,7 @@ on:
     types: [submitted]
 
 concurrency:
-  group: claude-pipe-${{ github.event.issue.number || github.event.pull_request.number }}-${{ github.event.sender.type }}
+  group: claude-pipe-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 # 全域變數：統一管理 Claude 模型版本，避免散落在各 step 寫死
@@ -81,10 +81,8 @@ jobs:
           ISSUE_URL: ${{ github.event.comment.issue_url }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          # 取得 issue number
-          if [ "$EVENT_NAME" = "issues" ]; then
-            ISSUE_NUM="$ISSUE_NUMBER"
-          elif [ "$EVENT_NAME" = "issue_comment" ]; then
+          # workflow 只訂閱 issue_comment / pull_request_review_comment / pull_request_review
+          if [ "$EVENT_NAME" = "issue_comment" ]; then
             ISSUE_NUM=$(echo "$ISSUE_URL" | grep -oE '[0-9]+$' || echo "")
             if [ -z "$ISSUE_NUM" ]; then
               ISSUE_NUM="$ISSUE_NUMBER"
@@ -136,12 +134,11 @@ jobs:
         id: parse_agent
         env:
           COMMENT_BODY: ${{ github.event.comment.body }}
-          ISSUE_BODY: ${{ github.event.issue.body }}
           REVIEW_BODY: ${{ github.event.review.body }}
         run: |
-          if [ "${{ github.event_name }}" = "issues" ]; then
-            COMMENT="$ISSUE_BODY"
-          elif [ "${{ github.event_name }}" = "pull_request_review" ]; then
+          # workflow 只訂閱 issue_comment / pull_request_review_comment / pull_request_review
+          # 前兩者都以 github.event.comment.body 取得內文，review 走 review.body
+          if [ "${{ github.event_name }}" = "pull_request_review" ]; then
             COMMENT="$REVIEW_BODY"
           else
             COMMENT="$COMMENT_BODY"
@@ -162,10 +159,9 @@ jobs:
           if echo "$AFTER_CLAUDE" | grep -qiE '全自動'; then
             FULL_AUTO_MODE="true"
             PIPELINE_MODE="true"
-          elif echo "$AFTER_CLAUDE" | grep -qE '(^|[^[:alnum:]])PR([^[:alnum:]]|$)'; then
+          elif echo "$AFTER_CLAUDE" | grep -qiE '(^|[^[:alnum:]])PR([^[:alnum:]]|$)'; then
             PR_MODE="true"
-          elif echo "$AFTER_CLAUDE" | grep -qE '開工|確認|沒問題|開始' \
-               || echo "$AFTER_CLAUDE" | grep -qiE '(^|[^[:alnum:]])(OK|go|start)([^[:alnum:]]|$)'; then
+          elif echo "$AFTER_CLAUDE" | grep -qiE '開工|確認|沒問題|開始|\b(OK|go|start)\b'; then
             PIPELINE_MODE="true"
           fi
 
@@ -545,9 +541,11 @@ jobs:
 
       - name: 設定 pnpm
         uses: pnpm/action-setup@v4
+        with:
+          version: 10
 
       - name: 安裝 Node 依賴
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: 安裝 Composer 依賴（主機端）
         run: composer install --no-interaction --prefer-dist
@@ -603,12 +601,23 @@ jobs:
           npx wp-env run tests-cli --env-cwd=wp-content/plugins/power-checkout \
             vendor/bin/phpunit --testdox --colors=never 2>&1 | tee /tmp/phpunit_output.txt
 
-      - name: "載入測試輸出 (cycle 1)"
+      - name: "載入測試輸出與 fix prompt 模板 (cycle 1)"
         if: steps.test_cycle_1.outcome == 'failure'
         run: |
+          # 載入測試輸出
+          TEST_OUTPUT_CONTENT=$(tail -c 45000 /tmp/phpunit_output.txt)
+
+          # 從模板組合 prompt（cycle 1：第一次嘗試，無額外提示）
+          PROMPT_CONTENT=$(cat .github/prompts/claude-fix.md)
+          PROMPT_CONTENT="${PROMPT_CONTENT//\{\{ATTEMPT_LABEL\}\}/}"
+          PROMPT_CONTENT="${PROMPT_CONTENT//\{\{EXTRA_HINT\}\}/}"
+          PROMPT_CONTENT="${PROMPT_CONTENT//\{\{REVERT_HINT\}\}/}"
+          # TEST_OUTPUT 最後替換以避免內容中的特殊字元干擾
+          PROMPT_CONTENT="${PROMPT_CONTENT//\{\{TEST_OUTPUT\}\}/$TEST_OUTPUT_CONTENT}"
+
           {
-            echo 'TEST_OUTPUT<<GHEOF'
-            tail -c 45000 /tmp/phpunit_output.txt
+            echo 'FIX_PROMPT<<GHEOF'
+            echo "$PROMPT_CONTENT"
             echo 'GHEOF'
           } >> $GITHUB_ENV
 
@@ -616,35 +625,12 @@ jobs:
         id: claude_fix_1
         if: steps.test_cycle_1.outcome == 'failure'
         continue-on-error: true
-        uses: anthropics/claude-code-action@v1
+        uses: ./.github/actions/claude-retry
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-
-          additional_permissions: |
-            actions: read
-          settings: .claude/settings.json
-          plugin_marketplaces: |
-            https://github.com/j7-dev/wp-workflows.git
-          plugins: |
-            wp-workflows@wp-workflows
-          prompt: |
-            PHPUnit 整合測試失敗了。請根據以下測試輸出修復程式碼。
-
-            測試輸出：
-            ```
-            ${{ env.TEST_OUTPUT }}
-            ```
-
-            規則：
-            1. 仔細分析失敗的測試，找出根本原因
-            2. 優先修改生產程式碼（inc/ 目錄下的 PHP）
-            3. 如果問題出在測試基礎類別（tests/Integration/TestCase.php）或測試 setUp/helper，也可以修改
-            4. 如果問題是環境或權限問題（如 uploads 目錄不可寫），可修改 .wp-env.json 或測試 bootstrap
-            5. 修復後請 commit 變更
-          claude_args: |
-            --dangerously-skip-permissions
-            --max-turns 60
-            --model ${{ env.CLAUDE_MODEL }}
+          prompt: ${{ env.FIX_PROMPT }}
+          max_turns: '60'
+          model: ${{ env.CLAUDE_MODEL }}
 
       # ── 測試循環 2/3 ─────────────────────────────────
       - name: "PHPUnit 測試 (cycle 2/3)"
@@ -656,12 +642,22 @@ jobs:
           npx wp-env run tests-cli --env-cwd=wp-content/plugins/power-checkout \
             vendor/bin/phpunit --testdox --colors=never 2>&1 | tee /tmp/phpunit_output.txt
 
-      - name: "載入測試輸出 (cycle 2)"
+      - name: "載入測試輸出與 fix prompt 模板 (cycle 2)"
         if: steps.test_cycle_2.outcome == 'failure'
         run: |
+          # 載入測試輸出
+          TEST_OUTPUT_CONTENT=$(tail -c 45000 /tmp/phpunit_output.txt)
+
+          # 從模板組合 prompt（cycle 2：第二次嘗試，加上更細緻分析與 revert 提示）
+          PROMPT_CONTENT=$(cat .github/prompts/claude-fix.md)
+          PROMPT_CONTENT="${PROMPT_CONTENT//\{\{ATTEMPT_LABEL\}\}/第二次仍然}"
+          PROMPT_CONTENT="${PROMPT_CONTENT//\{\{EXTRA_HINT\}\}/（這是第 2 次修復嘗試，請更仔細地分析）}"
+          PROMPT_CONTENT="${PROMPT_CONTENT//\{\{REVERT_HINT\}\}/如果前一次修復方向錯誤，請大膽回退（git revert）並嘗試完全不同的方向；}"
+          PROMPT_CONTENT="${PROMPT_CONTENT//\{\{TEST_OUTPUT\}\}/$TEST_OUTPUT_CONTENT}"
+
           {
-            echo 'TEST_OUTPUT<<GHEOF'
-            tail -c 45000 /tmp/phpunit_output.txt
+            echo 'FIX_PROMPT<<GHEOF'
+            echo "$PROMPT_CONTENT"
             echo 'GHEOF'
           } >> $GITHUB_ENV
 
@@ -669,36 +665,12 @@ jobs:
         id: claude_fix_2
         if: steps.test_cycle_2.outcome == 'failure'
         continue-on-error: true
-        uses: anthropics/claude-code-action@v1
+        uses: ./.github/actions/claude-retry
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-
-          additional_permissions: |
-            actions: read
-          settings: .claude/settings.json
-          plugin_marketplaces: |
-            https://github.com/j7-dev/wp-workflows.git
-          plugins: |
-            wp-workflows@wp-workflows
-          prompt: |
-            PHPUnit 整合測試第二次仍然失敗。請更仔細分析根本原因並修復。
-
-            測試輸出：
-            ```
-            ${{ env.TEST_OUTPUT }}
-            ```
-
-            規則：
-            1. 這是第 2 次修復嘗試，請更仔細地分析根本原因
-            2. 優先修改生產程式碼（inc/ 目錄下的 PHP）
-            3. 如果問題出在測試基礎類別（tests/Integration/TestCase.php）或測試 setUp/helper，也可以修改
-            4. 如果問題是環境或權限問題（如 uploads 目錄不可寫），可修改 .wp-env.json 或測試 bootstrap
-            5. 如果前一次修復方向錯誤，請大膽回退（git revert）並嘗試完全不同的方向
-            6. 修復後請 commit 變更
-          claude_args: |
-            --dangerously-skip-permissions
-            --max-turns 60
-            --model ${{ env.CLAUDE_MODEL }}
+          prompt: ${{ env.FIX_PROMPT }}
+          max_turns: '60'
+          model: ${{ env.CLAUDE_MODEL }}
 
       # ── 測試循環 3/3（最終測試，無修復）───────────────
       - name: "PHPUnit 測試 (cycle 3/3 - final)"
@@ -906,97 +878,6 @@ jobs:
               });
             }
 
-      # ── 自動建立 PR ──────────────────────────────────
-      - name: 自動建立 PR
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          CURRENT_BRANCH=$(git branch --show-current)
-
-          # 如果已經在 master，就沒有 PR 可開
-          if [ "$CURRENT_BRANCH" = "master" ] || [ "$CURRENT_BRANCH" = "main" ]; then
-            echo "ℹ️ 已在主分支上，跳過 PR 建立"
-            exit 0
-          fi
-
-          # 確保有 origin/master 的引用（CI shallow clone 可能沒有）
-          git fetch origin master --depth=1 2>/dev/null || true
-
-          # 檢查是否有相對於 origin/master 的 commit 差異（避免只有 uncommitted changes 卻無 commit 的情況）
-          COMMIT_COUNT=$(git rev-list --count origin/master..HEAD 2>/dev/null || echo "0")
-          if [ "$COMMIT_COUNT" -eq "0" ]; then
-            echo "ℹ️ 分支與 master 無 commit 差異（可能僅有未 commit 的暫存變更），跳過 PR 建立"
-            exit 0
-          fi
-          echo "📊 偵測到 $COMMIT_COUNT 個 commit 差異"
-
-          # 重新設定 git 認證（claude-code-action 可能覆蓋了 checkout 的設定）
-          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
-
-          # 推送分支到遠端
-          echo "🔄 推送分支 $CURRENT_BRANCH 到遠端..."
-          if ! git push -u origin "$CURRENT_BRANCH"; then
-            echo "❌ git push 失敗，無法建立 PR"
-            exit 1
-          fi
-          echo "✅ 分支推送成功"
-
-          # 檢查是否已有此分支的 PR
-          EXISTING_PR=$(gh pr list --head "$CURRENT_BRANCH" --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
-          if [ -n "$EXISTING_PR" ]; then
-            echo "ℹ️ 此分支已有 PR #${EXISTING_PR}，跳過建立"
-            exit 0
-          fi
-
-          # 取得 issue 標題作為 PR 標題
-          ISSUE_NUMBER="${{ needs.claude.outputs.issue_num }}"
-
-          if [ -n "$ISSUE_NUMBER" ]; then
-            ISSUE_TITLE=$(gh issue view "$ISSUE_NUMBER" --json title --jq '.title' 2>/dev/null || echo "")
-            PR_TITLE="${ISSUE_TITLE:-Claude Code 自動修改}"
-            CLOSE_LINE="Closes #${ISSUE_NUMBER}"
-          else
-            PR_TITLE="Claude Code 自動修改"
-            CLOSE_LINE=""
-          fi
-
-          # 取得測試結果資訊
-          TEST_STATUS="${{ steps.final_result.outputs.status }}"
-          TEST_CYCLE="${{ steps.final_result.outputs.cycle }}"
-          FIX_COUNT="${{ steps.final_result.outputs.fix_count }}"
-
-          if [ "$TEST_STATUS" = "passed" ]; then
-            TEST_BADGE="✅ 測試通過（cycle ${TEST_CYCLE}/3，自動修復 ${FIX_COUNT} 次）"
-          else
-            TEST_BADGE="❌ 測試失敗（cycle ${TEST_CYCLE}/3，自動修復 ${FIX_COUNT} 次）需人工介入"
-          fi
-
-          # 建立 PR
-          gh pr create \
-            --title "$PR_TITLE" \
-            --body "$(cat <<EOF
-          ## Summary
-          ${CLOSE_LINE}
-
-          由 Claude Code 根據 Issue 需求自動實作。
-
-          ## 測試結果
-          ${TEST_BADGE}
-
-          ## Checklist
-          - [ ] Code review 完成
-          - [ ] 測試通過確認
-          - [ ] 無安全性疑慮
-
-          ---
-          *🤖 此 PR 由 Claude Code CI 自動建立*
-          EOF
-          )" \
-            --base master \
-            --head "$CURRENT_BRANCH"
-
-          echo "✅ PR 建立完成"
-
       # ══════════════════════════════════════════════════
       # AI 驗收 — AI 驗收
       # （原 Job 3，合併進來省去重複 setup）
@@ -1190,6 +1071,16 @@ jobs:
             --model ${{ env.CLAUDE_MODEL }}
             --agent wp-workflows:browser-tester
 
+      - name: 還原 plugin.php LC 設定
+        if: always()
+        run: |
+          if git diff --quiet HEAD -- plugin.php 2>/dev/null; then
+            echo "plugin.php 無變更，跳過還原"
+          else
+            echo "⚠️ 還原 plugin.php 至 HEAD 版本（防止 LC bypass 外流）"
+            git checkout HEAD -- plugin.php || true
+          fi
+
       # ── Smoke Test 媒體收集 + 上傳到 Bunny CDN ──
 
       - name: 收集 Smoke Test 媒體
@@ -1243,7 +1134,11 @@ jobs:
           BUNNY_STORAGE_PASSWORD: ${{ secrets.BUNNY_STORAGE_PASSWORD }}
           BUNNY_CDN_URL: ${{ secrets.BUNNY_CDN_URL }}
         run: |
-          BRANCH_DIR=$(echo "${{ github.ref_name }}" | sed 's/[^a-zA-Z0-9._-]/-/g')
+          # 注意：issue_comment/pull_request_review_comment 觸發時 github.ref_name
+          # 指向 default branch（master），不是 issue 分支。優先使用 claude job
+          # 解析出的 branch_name，才會以 issue 分支為單位歸檔。
+          RAW_BRANCH="${{ needs.claude.outputs.branch_name || github.ref_name }}"
+          BRANCH_DIR=$(echo "$RAW_BRANCH" | sed 's/[^a-zA-Z0-9._-]/-/g')
           bash .github/scripts/upload-to-bunny.sh /tmp/smoke-media "ci/${BRANCH_DIR}/smoke-test"
 
       - name: 上傳 Smoke Test 媒體 Artifact (備份)
@@ -1350,9 +1245,19 @@ jobs:
               combinedMd += `<details>\n<summary><b>${groupTitle}</b></summary>\n\n${groupContent}</details>\n\n`;
             }
 
+            // run_ai_acceptance 可能是 success / failure / skipped（條件 detect_smoke.needed 未觸發時）
             const smokeStatus = '${{ steps.run_ai_acceptance.outcome }}';
-            const emoji = smokeStatus === 'success' ? '✅' : '⚠️';
-            const statusText = smokeStatus === 'success' ? '通過' : '異常';
+            let emoji, statusText;
+            if (smokeStatus === 'success') {
+              emoji = '✅';
+              statusText = '通過';
+            } else if (smokeStatus === 'skipped' || smokeStatus === '') {
+              emoji = 'ℹ️';
+              statusText = '未觸發';
+            } else {
+              emoji = '⚠️';
+              statusText = '異常';
+            }
 
             // processedReport 為主要內容（含 CDN 圖片預覽）；combinedMd 僅在 report 缺失時作為 fallback
             const mainContent = processedReport
@@ -1383,3 +1288,120 @@ jobs:
                 body: body,
               });
             }
+
+      # ── 自動建立 PR（測試綠燈 + AI 驗收未失敗才發）─────────────────
+      - name: 自動建立 PR
+        if: steps.run_ai_acceptance.outcome != 'failure' && steps.final_result.outputs.status == 'passed'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          CURRENT_BRANCH=$(git branch --show-current)
+
+          # 如果已經在 master，就沒有 PR 可開
+          if [ "$CURRENT_BRANCH" = "master" ] || [ "$CURRENT_BRANCH" = "main" ]; then
+            echo "ℹ️ 已在主分支上，跳過 PR 建立"
+            exit 0
+          fi
+
+          # 確保有 origin/master 的引用（CI shallow clone 可能沒有）
+          git fetch origin master --depth=1 2>/dev/null || true
+
+          # 檢查是否有相對於 origin/master 的 commit 差異（避免只有 uncommitted changes 卻無 commit 的情況）
+          COMMIT_COUNT=$(git rev-list --count origin/master..HEAD 2>/dev/null || echo "0")
+          if [ "$COMMIT_COUNT" -eq "0" ]; then
+            echo "ℹ️ 分支與 master 無 commit 差異（可能僅有未 commit 的暫存變更），跳過 PR 建立"
+            exit 0
+          fi
+          echo "📊 偵測到 $COMMIT_COUNT 個 commit 差異"
+
+          # 重新設定 git 認證（claude-code-action 可能覆蓋了 checkout 的設定）
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+
+          # 推送分支到遠端
+          echo "🔄 推送分支 $CURRENT_BRANCH 到遠端..."
+          if ! git push -u origin "$CURRENT_BRANCH"; then
+            echo "❌ git push 失敗，無法建立 PR"
+            exit 1
+          fi
+          echo "✅ 分支推送成功"
+
+          # 檢查是否已有此分支的 PR
+          EXISTING_PR=$(gh pr list --head "$CURRENT_BRANCH" --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
+          if [ -n "$EXISTING_PR" ]; then
+            echo "ℹ️ 此分支已有 PR #${EXISTING_PR}，跳過建立"
+            exit 0
+          fi
+
+          # 取得 issue 標題作為 PR 標題
+          ISSUE_NUMBER="${{ needs.claude.outputs.issue_num }}"
+
+          if [ -n "$ISSUE_NUMBER" ]; then
+            ISSUE_TITLE=$(gh issue view "$ISSUE_NUMBER" --json title --jq '.title' 2>/dev/null || echo "")
+            PR_TITLE="${ISSUE_TITLE:-Claude Code 自動修改}"
+            CLOSE_LINE="Closes #${ISSUE_NUMBER}"
+          else
+            PR_TITLE="Claude Code 自動修改"
+            CLOSE_LINE=""
+          fi
+
+          # 取得測試結果資訊
+          TEST_STATUS="${{ steps.final_result.outputs.status }}"
+          TEST_CYCLE="${{ steps.final_result.outputs.cycle }}"
+          FIX_COUNT="${{ steps.final_result.outputs.fix_count }}"
+
+          if [ "$TEST_STATUS" = "passed" ]; then
+            TEST_BADGE="✅ 測試通過（cycle ${TEST_CYCLE}/3，自動修復 ${FIX_COUNT} 次）"
+          else
+            TEST_BADGE="❌ 測試失敗（cycle ${TEST_CYCLE}/3，自動修復 ${FIX_COUNT} 次）需人工介入"
+          fi
+
+          # AI 驗收結果
+          AI_OUTCOME="${{ steps.run_ai_acceptance.outcome }}"
+          SMOKE_NEEDED="${{ steps.detect_smoke.outputs.needed }}"
+          if [ "$SMOKE_NEEDED" != "true" ]; then
+            AI_BADGE="ℹ️ 未觸發 AI 驗收（無前後端變更）"
+          elif [ "$AI_OUTCOME" = "success" ]; then
+            AI_BADGE="✅ AI 驗收通過"
+          else
+            AI_BADGE="⏭️ AI 驗收狀態: ${AI_OUTCOME}"
+          fi
+
+          # 建立 PR — 用 printf 拼 body，避免 heredoc 結束標記縮排與 YAML block scalar 衝突。
+          PR_BODY=$(printf '%s\n' \
+            '## Summary' \
+            "${CLOSE_LINE}" \
+            '' \
+            '由 Claude Code 根據 Issue 需求自動實作。' \
+            '' \
+            '## 測試結果' \
+            "${TEST_BADGE}" \
+            '' \
+            '## AI 驗收' \
+            "${AI_BADGE}" \
+            '' \
+            '## Checklist' \
+            '- [ ] Code review 完成' \
+            '- [ ] 測試通過確認' \
+            '- [ ] 無安全性疑慮' \
+            '' \
+            '---' \
+            '*🤖 此 PR 由 Claude Code CI 自動建立*')
+
+          gh pr create \
+            --title "$PR_TITLE" \
+            --body "$PR_BODY" \
+            --base master \
+            --head "$CURRENT_BRANCH"
+
+          echo "✅ PR 建立完成"
+
+      - name: 通知 AI 驗收失敗（不發 PR）
+        if: steps.run_ai_acceptance.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUM: ${{ needs.claude.outputs.issue_num }}
+        run: |
+          if [ -n "$ISSUE_NUM" ]; then
+            gh issue comment "$ISSUE_NUM" --body "⚠️ AI 驗收失敗，依規則不自動建立 PR，請人工檢視分支 \`${{ needs.claude.outputs.branch_name }}\` 後再決定是否開 PR。"
+          fi
+          echo "⚠️ AI 驗收失敗，跳過 PR 建立"

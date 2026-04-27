@@ -18,7 +18,9 @@
 │   ├── pipe.yml          # 核心 pipeline（claude + integration-tests 兩 job）
 │   ├── pipe.md           # pipe.yml 的中文規格書（已 adapt）
 │   ├── issue.yml         # Issue 需求展開（issue-creator，通用檔）
-│   └── act-test.yml      # 本機 act 測試用（驗證多 job 結構）
+│   └── release.yml       # 推 v* tag 時自動打包並建立 GitHub Release
+├── act/
+│   └── test.yml          # 本機 act 測試用（驗證多 job 結構；刻意放在 workflows/ 之外避免線上誤觸發）
 ├── actions/
 │   └── claude-retry/
 │       └── action.yml    # 3 次重試 + 指數退避（通用檔）
@@ -73,7 +75,7 @@
 | `pipe.yml` AI 驗收 prompt 環境段 | LMS + `Admin SPA: ?page=power-course#/` | 結帳整合描述 + `page=wc-settings&tab=power_checkout_wc_settings` + HashRouter 路由清單 |
 | `pipe.yml` AI 驗收 port | `http://localhost:8895` | `http://localhost:8891`（與 `.wp-env.json` 顯式設定一致） |
 | `pipe.yml` 前端 build 指令 | `pnpm run build && pnpm run build:wp` | `pnpm run build && pnpm run build:blocks` |
-| `pipe.yml` / `act-test.yml` LC Bypass step | plugin.php 注入（capability-based） | 執行 `tests/e2e/helpers/lc-bypass.ts`（容忍多空格 regex 找 callback line 注入），同步更新 `.e2e-progress.json` 作為遙測 |
+| `pipe.yml` / `act/test.yml` LC Bypass step | plugin.php 注入（capability-based） | 執行 `tests/e2e/helpers/lc-bypass.ts`（容忍多空格 regex 找 callback line 注入），同步更新 `.e2e-progress.json` 作為遙測 |
 | `pipe.md` | （範本對應 power-course LMS） | 已重寫含本專案 adapt 差異對照表 |
 
 ### Kept（通用檔，未動）
@@ -114,7 +116,7 @@
 
 ```bash
 # 本機 act 驗證（Windows 範例）
-act workflow_dispatch -W .github/workflows/act-test.yml \
+act workflow_dispatch -W .github/act/test.yml \
   --container-architecture linux/amd64 \
   -P ubuntu-latest=catthehacker/ubuntu:act-latest \
   --container-options "--privileged" \
