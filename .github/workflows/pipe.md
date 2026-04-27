@@ -45,7 +45,7 @@
 
 | 段 | 核心動作 |
 |----|---------|
-| **A** 前置 | eyes reaction → checkout → `resolve_branch`（找或建 `issue/{N}`）→ HTTPS → `save_sha` |
+| **A** 前置 | eyes reaction → checkout → `resolve_branch`（找 `issue/{N}`，fallback `claude/issue-{N}-*`，都沒有就建新 `issue/{N}`）→ HTTPS → `save_sha` |
 | **B** 模式解析 | `parse_agent` 設 `PIPELINE_MODE`/`FULL_AUTO_MODE`/`PR_MODE` → `fetch_context`（issue 上下文）→ 組 clarifier prompt（`PR_MODE=true` 則跳過） |
 | **C** Clarifier | `claude-retry` composite action，agent=`zenbu-powers:clarifier`，`max_turns=200`(pipeline)/`120`(interactive)；`PR_MODE=true` 跳過 |
 | **D** 橋接 | `detect_specs`（比對 `specs/` diff）→ `dynamic_upgrade`（interactive + 生成 specs → 升級 pipeline_mode）→ 通知留言 |
@@ -123,6 +123,7 @@ run_integration_tests == 'true' &&
 5. **`parse_agent` 英文關鍵字採 word boundary**：`OK|go|start` 以 POSIX 風格 `[^[:alnum:]]` 包住，避免 `going`/`startup`/`Ok...` 誤觸發 pipeline；中文關鍵字（開工/全自動/確認/沒問題/開始）無此問題。
 6. **AI 驗收 prompt 寫死 `http://localhost:8891`**：已與 `.wp-env.json` 對齊（`"port": 8891`），改動 port 時兩處要同步。
 7. **`build:blocks` 產出目錄**：`inc/assets/dist/blocks/`（若測試環境未打包此目錄，WC Blocks 會 silently 不註冊付款方式）。
+8. **分支命名遷移**：`resolve_branch` 從 `claude/issue-{N}-{timestamp}` 遷移到 `issue/{N}`。舊命名的分支仍被 fallback 搜尋支援（`git branch -r --list "origin/claude/issue-{N}-*"`），確保 PR 模式能找到在遷移前建立的分支。待所有舊分支清理完畢後可移除 fallback。
 
 ---
 

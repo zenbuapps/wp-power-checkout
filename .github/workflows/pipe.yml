@@ -100,12 +100,21 @@ jobs:
             exit 0
           fi
 
-          # 尋找已存在的 issue/{N} 分支
+          # 尋找已存在的分支（優先 issue/{N}，fallback claude/issue-{N}-*）
           EXISTING_BRANCH=$(git branch -r --list "origin/issue/${ISSUE_NUM}" | tr -d ' ')
 
+          # Fallback: 搜尋舊命名格式 claude/issue-{N}-*（取最新的一個）
+          if [ -z "$EXISTING_BRANCH" ]; then
+            EXISTING_BRANCH=$(git branch -r --list "origin/claude/issue-${ISSUE_NUM}-*" | tr -d ' ' | sort -r | head -1)
+            if [ -n "$EXISTING_BRANCH" ]; then
+              echo "🔄 找到舊格式分支: $EXISTING_BRANCH（將沿用）"
+            fi
+          fi
+
           if [ -n "$EXISTING_BRANCH" ]; then
-            LOCAL_BRANCH="issue/${ISSUE_NUM}"
-            echo "✅ 找到已存在的分支: $LOCAL_BRANCH"
+            # 使用遠端分支的實際名稱（去掉 origin/ 前綴）
+            LOCAL_BRANCH="${EXISTING_BRANCH#origin/}"
+            echo "✅ 切換到已存在的分支: $LOCAL_BRANCH"
             git checkout -b "$LOCAL_BRANCH" "$EXISTING_BRANCH"
             echo "branch_switched=true" >> $GITHUB_OUTPUT
             echo "branch_name=$LOCAL_BRANCH" >> $GITHUB_OUTPUT
