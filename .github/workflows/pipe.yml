@@ -504,6 +504,8 @@ jobs:
           echo "📊 Clarifier: $CLARIFIER_OK | Planner: $PLANNER_OK | tdd-coordinator: $TDD_OK | FullAuto: $FULL_AUTO_MODE | PR: $PR_MODE | Pipeline: $PIPELINE_MODE"
 
       # ── 兜底：確保所有 local commits 都推到 remote ──
+      # claude-code-action 可能覆蓋 actions/checkout 設定的 HTTP auth header，
+      # 因此推送前必須重新設定 remote URL 使用 x-access-token 認證。
       - name: 推送 local commits 到 remote（兜底）
         if: steps.check_result.outputs.has_changes == 'true' && steps.resolve_branch.outputs.branch_switched == 'true'
         env:
@@ -517,6 +519,8 @@ jobs:
             echo "ℹ️ Local 與 remote 已同步，無需推送"
           else
             echo "🔄 偵測到 local commits 未推送（local: ${LOCAL_SHA:0:7}, remote: ${REMOTE_SHA:0:7}）"
+            # 重新設定 git 認證（claude-code-action 可能覆蓋了 checkout 的 extraheader）
+            git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
             git push origin "HEAD:${BRANCH}" --force-with-lease
             echo "✅ 兜底推送完成"
           fi
