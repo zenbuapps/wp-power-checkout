@@ -42,10 +42,13 @@ final class Requester {
 	 *
 	 *  @param string               $endpoint 端點
 	 *  @param array<string, mixed> $request_body 請求參數
+	 *  @param int|null             $timeout 逾時秒數，null 時使用預設值 self::TIMEOUT。
+	 *                                       前台同步路徑（例如 order-received 導回查詢）必須傳入較短的
+	 *                                       逾時，避免客戶盯著白畫面 60 秒。
 	 *  @return array<string, mixed> Response Body
 	 *  @throws \Exception 發生錯誤時拋出
 	 */
-	public function post( string $endpoint, array $request_body = [] ): array {
+	public function post( string $endpoint, array $request_body = [], ?int $timeout = null ): array {
 		$api_url = $this->get_endpoint( $endpoint );
 
 		$request_header = RequestHeader::create( $this->order )->to_array();
@@ -60,7 +63,7 @@ final class Requester {
 				'body'     => $json_body,
 				'headers'  => $request_header,
 				'blocking' => true,
-				'timeout'  => self::TIMEOUT,
+				'timeout'  => $timeout ?? self::TIMEOUT,
 			]
 			);
 

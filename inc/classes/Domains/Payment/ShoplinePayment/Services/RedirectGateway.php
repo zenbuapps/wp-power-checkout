@@ -16,8 +16,10 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Refund\RefundDTO
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Webhooks\Refund as WebhooksRefundDTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http\ApiClient;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http\WebHook;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Managers\ReturnSyncManager;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Abstracts\PaymentGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\ResponseStatus;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\ReturnSyncResult;
 use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Shared\Errors\ErrorCode;
 use J7\PowerCheckout\Shared\Errors\NormalizedError;
@@ -52,6 +54,15 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 	 */
 	protected function before_process_payment( \WC_Order $order ): string {
 		$response_dto = ( new ApiClient( $this, $order ) )->create_session();
+
+		// 儲存 sessionId（缺陷 D）。寫在 EXPIRED 判斷之前，讓被判逾期而取消的訂單也留下
+		// sessionId 供客服追查；寫入失敗不得中斷付款流程。
+		try {
+			( new MetaKeys( $order ) )->update_identity( $response_dto->sessionId );
+		} catch ( \Throwable $e ) {
+			$this->logger( "⚠️ {$this->title} sessionId 寫入失敗<br>{$e->getMessage()}", 'error', [], 5 );
+		}
+
 		// 取得要跳轉的 url
 
 		if (ResponseStatus::tryFrom( $response_dto->status) === ResponseStatus::EXPIRED) {
@@ -141,20 +152,15 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 	 */
 	protected function before_order_received( \WC_Order $order ): void {
 		try {
-            $trade_order_id = $_GET['tradeOrderId'] ?? '';//phpcs:ignore
-			if (!$trade_order_id) {
-				return;
+			$result = ( new ReturnSyncManager( $this, $order ) )->sync();
+			if ( \in_array( $result, [ ReturnSyncResult::API_FAILED, ReturnSyncResult::SETTLE_FAILED ], true ) ) {
+				$this->logger( "⚠️ {$this->title} 導回同步未完成（{$result->label()}），改由 Webhook 認列", 'warning', [], 5 );
 			}
-			$order_params = new MetaKeys( $order);
-			// 檢查 payment_identity (tradeOrderId) 是否重複，重複代表發過，就不用再發 API
-			$payment_identity = $order_params->get_payment_identity();
-			if ($payment_identity === $trade_order_id) {
-				return;
-			}
-
-			// 儲存 payment_identity
-			$order_params->update_payment_identity( (string) $trade_order_id);
-		} catch (\Throwable $e) {
+		} catch ( \Throwable $e ) {
+			// 第二道保險，不是唯一保險：ReturnSyncManager::sync() 內部已對每個會拋錯的步驟
+			// 各自 catch 並轉為 ReturnSyncResult，never-throw 的保證在它自己身上。
+			// 此處再包一層，是為了兜住 sync() 之外的意外（建構子、未來新增的呼叫）。
+			// thankyou 頁絕不可 500，也絕不可因例外而跳過 before_page_render() 的 empty_cart()。
 			$this->logger( "❌ {$this->title} 發生錯誤<br>{$e->getMessage()}", 'error', [], 5 );
 		}
 	}

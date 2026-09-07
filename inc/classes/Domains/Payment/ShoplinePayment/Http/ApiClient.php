@@ -56,6 +56,11 @@ final class ApiClient {
 	/**
 	 * 查詢結帳交易
 	 *
+	 * 目前無呼叫端。`MetaKeys::update_identity()` 已於結帳時把 sessionId 落盤，
+	 * 本方法保留供未來「主動查詢 session 補單」路徑使用——那是
+	 * 「客戶付款後從未導回、且沒有 tradeOrderId」訂單的唯一人工救援路徑
+	 * （見 issue #18 第六階段，本次未實作）。請勿誤刪。
+	 *
 	 * @see https://docs.shoplinepayments.com/api/trade/sessionQuery/
 	 * @return SessionDTO 結帳交易查詢結果
 	 * @throws \Exception 如果結帳交易查詢失敗
@@ -74,16 +79,21 @@ final class ApiClient {
 	/**
 	 * 查詢付款交易
 	 *
+	 * @param string   $trade_order_id SLP 付款交易訂單編號，由呼叫端負責清理
+	 * @param int|null $timeout        逾時秒數，null 使用 Requester 預設值。
+	 *                                 前台導回同步查詢請傳入短逾時，避免阻塞 thankyou 頁。
+	 *
 	 * @see https://docs.shoplinepayments.com/api/trade/query/
 	 * @return PaymentDTO 結帳交易查詢結果
 	 * @throws \Exception 如果結帳交易查詢失敗
 	 *  */
-	public function get_payment(): PaymentDTO {
-		$request_body = GetPaymentDTO::create()->to_array();
+	public function get_payment( string $trade_order_id, ?int $timeout = null ): PaymentDTO {
+		$request_body = GetPaymentDTO::create( $trade_order_id )->to_array();
 
 		$response_body = $this->requester->post(
 			'/trade/payment/get',
-			$request_body
+			$request_body,
+			$timeout
 		);
 		return PaymentDTO::create( $response_body );
 	}

@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http;
 
-use J7\PowerCheckout\Domains\Payment\Shared\Helpers\MetaKeys;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\RedirectSettingsDTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Webhooks;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Webhooks\Body;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Managers\OrderResolver;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Managers\StatusManager;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\RedirectGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\ResponseStatus;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\StatusSource;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Exceptions\SignatureException;
 use J7\PowerCheckout\Plugin;
 use J7\WpUtils\Classes\ApiBase;
 
@@ -23,6 +25,15 @@ use J7\WpUtils\Classes\ApiBase;
 final class WebHook extends ApiBase {
 
 	use \J7\WpUtils\Traits\SingletonTrait;
+
+	/** @var string log 用：尚未驗簽（驗簽前就失敗，例如 timestamp 超出容差） */
+	private const VERIFICATION_NOT_VERIFIED = 'not_verified';
+
+	/** @var string log 用：驗簽通過 */
+	private const VERIFICATION_VERIFIED = 'verified';
+
+	/** @var string log 用：本地環境略過驗簽 */
+	private const VERIFICATION_SKIPPED_LOCAL = 'skipped_local_env';
 
 	/** @var string Namespace power-checkout/{payment_gateway} */
 	protected $namespace = 'power-checkout/slp';
@@ -43,19 +54,32 @@ final class WebHook extends ApiBase {
 
 	/**
 	 * 結帳交易 WebHooks 通知
-	 * 回 http.statusCode 200 通知 SLP 處理成功，不再通知
-	 * 非200：通知 SLP 失敗，等待下一次通知
-	 * 收到通知就始終回 200 ，不用讓 SLP 重試
+	 *
+	 * 回應碼判準只有一個：「同一份 payload 之後有沒有可能成功？」
+	 *  - 驗簽不符 → 401。極可能是商家 signKey 設定錯誤，回 200 會讓 SLP 永久放棄這筆通知，
+	 *    商家改好設定也救不回來；回 401 保留重送機會，且不洩漏任何資訊。
+	 *  - 其餘（timestamp 超時 / DTO 解析失敗 / 找不到訂單 / 業務例外 / 正常完成）→ 一律 200。
+	 *    重送不會讓結果改變，回 500 只會造成 SLP 無限重試。
 	 *
 	 * @param \WP_REST_Request $request 請求
 	 *
 	 * @return \WP_REST_Response 回應
+	 * @see specs/open-issue/issue-18-plan.md §決策 4
 	 */
 	public function post_webhook_callback( \WP_REST_Request $request ): \WP_REST_Response {
-		$is_valid    = $this->is_valid($request);
 		$body_params = $request->get_params();
 
+		/*
+		* 真實的驗簽結果，供 log 判讀。
+		* 舊版把驗簽結果賦值給從未使用的 $is_valid，且 log 一律寫死 'is_valid' => 'true'，
+		* 不論驗簽是否通過都印 true，等於假的可觀測性。
+		*/
+		$sign_verification = self::VERIFICATION_NOT_VERIFIED;
+
 		try {
+			$this->assert_valid($request);
+			$sign_verification = ( 'local' === Plugin::$env ) ? self::VERIFICATION_SKIPPED_LOCAL : self::VERIFICATION_VERIFIED;
+
 			$webhook_dto = Body::create($body_params);
 
 			$webhook_data_dto = $webhook_dto->data;
@@ -66,26 +90,45 @@ final class WebHook extends ApiBase {
 			}
 
 			if ($webhook_data_dto instanceof Webhooks\Payment && $webhook_data_dto->is_successed_or_failed()) {
-				$order = MetaKeys::get_order_by_identity_payment_key($webhook_data_dto->tradeOrderId);
+				$order = OrderResolver::resolve( $webhook_data_dto->tradeOrderId, $webhook_data_dto->referenceOrderId );
 
 				if (!$order) {
-					throw new \Exception("找不到訂單，tradeOrderId: {$webhook_data_dto->tradeOrderId}");
+					throw new \Exception("找不到訂單，tradeOrderId: {$webhook_data_dto->tradeOrderId}, referenceOrderId: {$webhook_data_dto->referenceOrderId}");
 				}
 
-				$status_manager = new StatusManager($webhook_data_dto, $order);
+				$status_manager = new StatusManager($webhook_data_dto, $order, StatusSource::WEBHOOK);
 				$status_manager->update_order_status();
 			}
 
 			// 收到通知就始終回 200 ，不用讓 SLP 重試
 			return new \WP_REST_Response(null, 200);
+		} catch (SignatureException $e) {
+			// 驗簽不符：保留 SLP 重送機會（商家可能只是 signKey 填錯），回應不洩漏任何資訊
+			Plugin::logger(
+				'WebHook 驗簽失敗',
+				'error',
+				[
+					'error'             => $e->getMessage(),
+					'sign_verification' => $sign_verification,
+					'params'            => $body_params,
+				]
+			);
+			return new \WP_REST_Response(
+				[
+					'code'    => 'invalid_signature',
+					'message' => 'Invalid signature',
+					'data'    => null,
+				],
+				401
+			);
 		} catch (\Throwable $e) {
 			Plugin::logger(
 				'WebHook 處理失敗',
 				'error',
 				[
-					'error'    => $e->getMessage(),
-					'is_valid' => 'true',
-					'params'   => $body_params,
+					'error'             => $e->getMessage(),
+					'sign_verification' => $sign_verification,
+					'params'            => $body_params,
 				]
 			);
 			// 收到通知就始終回 200 ，不用讓 SLP 重試
@@ -95,7 +138,7 @@ final class WebHook extends ApiBase {
 					'message' => $e->getMessage(),
 					'data'    => null,
 				],
-				500
+				200
 			);
 		}
 	}
@@ -104,17 +147,20 @@ final class WebHook extends ApiBase {
 
 
 	/**
-	 * 驗證簽章
+	 * 驗證通知有效性（timestamp 容差 + 簽章）
+	 *
+	 * 驗證失敗一律 throw，成功則靜默返回。
+	 * 兩種失敗的例外型別刻意不同，讓呼叫端能對應到不同的 HTTP 回應碼。
 	 *
 	 * @param \WP_REST_Request $request 請求
 	 *
-	 * @return true 是否驗證成功
-	 * @throws \Exception 如果驗證失敗
+	 * @return void
+	 * @throws \Exception 簽章不符時拋 SignatureException（可重送）；timestamp 超出容差時拋 \Exception（重送必然也失敗）
 	 */
-	private function is_valid( \WP_REST_Request $request ): bool {
+	private function assert_valid( \WP_REST_Request $request ): void {
 		if ('local' === Plugin::$env) {
 			// 本地環境不驗證簽章
-			return true;
+			return;
 		}
 
 		// 容許的時間誤差
@@ -128,7 +174,7 @@ final class WebHook extends ApiBase {
 			);
 		}
 
-		return $this->verify_hmac_sha256_signature($request);
+		$this->verify_hmac_sha256_signature($request);
 	}
 
 	/**
@@ -136,19 +182,18 @@ final class WebHook extends ApiBase {
 	 *
 	 * @param \WP_REST_Request $request 請求
 	 *
-	 * @return true 是否驗證成功
-	 * @throws \Exception 如果簽章驗證失敗
+	 * @return void
+	 * @throws SignatureException 如果簽章驗證失敗
 	 */
-	private function verify_hmac_sha256_signature( \WP_REST_Request $request ): bool {
+	private function verify_hmac_sha256_signature( \WP_REST_Request $request ): void {
 		$timestamp            = (string) $request->get_header('timestamp');
 		$payload              = "{$timestamp}.{$request->get_body()}";
 		$calculated_signature = $this->generate_hmac_sha256_signature($payload);
 		$sign                 = (string) $request->get_header('sign');
 		$is_verified          = \hash_equals($sign, $calculated_signature);
 		if (!$is_verified) {
-			throw new \Exception("Invalid sign, calculated: {$calculated_signature}, actual: {$sign}");
+			throw new SignatureException("Invalid sign, calculated: {$calculated_signature}, actual: {$sign}");
 		}
-		return true;
 	}
 
 	/**
@@ -174,11 +219,18 @@ final class WebHook extends ApiBase {
 		return \get_rest_url(null, 'power-checkout/slp/webhook');
 	}
 
-	/** 處理退款資訊 */
+	/**
+	 * 處理退款資訊
+	 *
+	 * @param Webhooks\Refund $refund_dto 退款通知 DTO
+	 *
+	 * @return void
+	 * @throws \Exception 如果找不到訂單
+	 */
 	private function handle_refund( Webhooks\Refund $refund_dto ): void {
-		$order = MetaKeys::get_order_by_identity_payment_key($refund_dto->tradeOrderId);
+		$order = OrderResolver::resolve( $refund_dto->tradeOrderId, $refund_dto->referenceOrderId );
 		if (!$order) {
-			throw new \Exception("找不到訂單，tradeOrderId: {$refund_dto->tradeOrderId}");
+			throw new \Exception("找不到訂單，tradeOrderId: {$refund_dto->tradeOrderId}, referenceOrderId: {$refund_dto->referenceOrderId}");
 		}
 
 		// 如果 webhook 通知退款失敗

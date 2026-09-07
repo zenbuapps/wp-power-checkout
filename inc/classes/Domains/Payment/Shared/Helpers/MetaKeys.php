@@ -22,6 +22,13 @@ class MetaKeys {
 	/** @var string 紀錄退款詳情 */
 	private const REFUND_DETAIL_KEY = '_pc_refund_detail';
 
+	/**
+	 * @var string 已處理過的付款狀態（冪等守衛）
+	 * 元素格式為 "{付款識別碼}:{狀態}"，例如 "TRADE_001:SUCCEEDED"
+	 * 對齊 _pc_logistics_processed_status 既有慣例
+	 */
+	private const PROCESSED_STATUS_KEY = '_pc_payment_processed_status';
+
 	/** Construct */
 	public function __construct(
 		private readonly \WC_Order $_order,
@@ -115,6 +122,53 @@ class MetaKeys {
 	 */
 	public function update_refund_detail( array $value ): void {
 		$this->_order->update_meta_data( self::REFUND_DETAIL_KEY, $value );
+		$this->_order->save_meta_data();
+	}
+
+
+	/**
+	 * 取得已處理過的付款狀態清單（冪等守衛）
+	 *
+	 * 用於避免「導回同步」與「Webhook 通知」兩條路徑對同一筆付款狀態重複認列，
+	 * 造成重複 order note、重複狀態轉換、重複觸發發票自動開立。
+	 *
+	 * @return array<int, string> 元素格式 "{付款識別碼}:{狀態}"
+	 */
+	public function get_processed_status(): array {
+		$processed = $this->_order->get_meta( self::PROCESSED_STATUS_KEY );
+		if (!\is_array($processed)) {
+			return [];
+		}
+
+		return \array_values( \array_filter( $processed, '\is_string' ) );
+	}
+
+
+	/**
+	 * 檢查指定的付款狀態是否已處理過
+	 *
+	 * @param string $key 冪等鍵，格式 "{付款識別碼}:{狀態}"
+	 * @return bool 是否已處理過
+	 */
+	public function is_status_processed( string $key ): bool {
+		return \in_array( $key, $this->get_processed_status(), true );
+	}
+
+
+	/**
+	 * 將付款狀態加入已處理清單（冪等守衛）
+	 *
+	 * @param string $key 冪等鍵，格式 "{付款識別碼}:{狀態}"
+	 * @return void
+	 */
+	public function push_processed_status( string $key ): void {
+		$processed = $this->get_processed_status();
+		if (\in_array( $key, $processed, true )) {
+			return;
+		}
+
+		$processed[] = $key;
+		$this->_order->update_meta_data( self::PROCESSED_STATUS_KEY, $processed );
 		$this->_order->save_meta_data();
 	}
 }
