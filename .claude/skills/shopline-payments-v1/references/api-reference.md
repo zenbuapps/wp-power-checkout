@@ -209,15 +209,20 @@ POST {DOMAIN}/api/v1/trade/orders/cancel
 ## 6. Query Payment
 
 ```
-POST {DOMAIN}/api/v1/trade/orders/query
+POST {DOMAIN}/api/v1/trade/payment/get
 ```
 
 ### Request Body
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `tradeOrderId` | String | Conditional | SLP payment order ID |
-| `referenceOrderId` | String | Conditional | Merchant reference order ID |
+| `tradeOrderId` | String(64) | Yes | SLP payment order ID — this endpoint accepts **only** this key |
+
+> **This endpoint does NOT accept `referenceOrderId`.** To look up a payment when you
+> only hold the merchant order ID (e.g. the customer never returned from the hosted
+> page, so no `tradeOrderId` was ever captured), query the session instead:
+> `POST {DOMAIN}/api/v1/trade/sessions/query` with `sessionId`, which is why the
+> `sessionId` returned by Create Session must be persisted at checkout time.
 
 ---
 

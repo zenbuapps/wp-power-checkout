@@ -95,7 +95,11 @@ inc/classes/
 ├── Domains/
 │   ├── Payment/
 │   │   ├── ProviderRegister.php     # Registers gateways + WC Blocks integration
-│   │   ├── ShoplinePayment/         # SLP: redirect gateway, API client, webhook, status manager
+│   │   ├── ShoplinePayment/         # SLP: redirect gateway, API client, webhook
+│   │   │   ├── Managers/StatusManager.php    # Idempotency + terminal/currency/amount guards; StatusSource label
+│   │   │   ├── Managers/ReturnSyncManager.php # Return-sync query + settle (never-throw, throttled, order_key gated)
+│   │   │   ├── Managers/OrderResolver.php     # Webhook lookup: identity → referenceOrderId fallback + gateway check
+│   │   │   └── Shared/Exceptions/SignatureException.php # Distinguishes 401 (retryable) from 200 (do-not-retry)
 │   │   ├── EcpayAIO/                # ECPay AIO redirect gateway (ID: ecpay_aio)
 │   │   │   ├── Services/AioRedirectGateway.php
 │   │   │   ├── Http/AioCallback.php       # ReturnURL + PaymentInfoURL callbacks
@@ -267,7 +271,7 @@ Frontend access: always use `utils/env.ts`, never read `window` directly.
 | `power-checkout/v1` | POST | `/logistics/{order_id}/print` | Nonce |
 | `power-checkout/v1` | POST | `/logistics/{order_id}/cancel` | Nonce |
 | `power-checkout/v1` | POST | `/logistics/{order_id}/return` | Nonce |
-| `power-checkout/slp` | POST | `/webhook` | HMAC-SHA256 |
+| `power-checkout/slp` | POST | `/webhook` | HMAC-SHA256 (signature mismatch → 401; everything else → 200, never 500) |
 | `power-checkout/ecpay` | POST | `/aio/return` | CheckMacValue SHA256 |
 | `power-checkout/ecpay` | POST | `/aio/payment-info` | CheckMacValue SHA256 |
 | `power-checkout/ecpay` | POST | `/ecpg/return` | AES-128-CBC (TransCode + RtnCode) |
@@ -288,11 +292,21 @@ ECPay callbacks use `permission_callback: __return_true`; auth is verified insid
 
 ## Shopline Payment Flow
 
-1. `process_payment()` → `ApiClient::create_session()` → redirect to SLP hosted page
-2. SLP sends webhook POST to `/wp-json/power-checkout/slp/webhook`
-3. Webhook signature: `hash_hmac('sha256', "{timestamp}.{body}", $signKey)`
-4. `StatusManager::update_order_status()`: SUCCEEDED→processing, EXPIRED→cancelled, others→pending
-5. Refund support by payment method:
+1. `process_payment()` → `ApiClient::create_session()` → writes `_pc_identity` (sessionId, before the EXPIRED check) → redirect to SLP hosted page
+2. **Return sync (issue #18)**: customer redirected back to `order-received?key=…&tradeOrderId=…` → `before_order_received()` delegates to `Managers/ReturnSyncManager::sync()`, which queries `/trade/payment/get` **synchronously** and settles payment in the same request (the `wp` action runs before `the_content`, so the thankyou template re-reads the corrected status)
+   - Gates in order: `tradeOrderId` regex whitelist `[A-Za-z0-9_-]{1,64}` → `order_key` `hash_equals` → status must be pending/failed → 30s transient throttle `pc_slp_return_sync_{order_id}` → API query (10s timeout, filter `power_checkout_slp_return_query_timeout`) → `referenceOrderId === (string) $order->get_id()` → write `_pc_payment_identity` → `StatusManager`
+   - **never-throw**: `sync()` returns a `ReturnSyncResult` enum instead of throwing; `before_order_received()` wraps it in a second try/catch. The thankyou page must never 500 nor skip `empty_cart()`
+3. SLP sends webhook POST to `/wp-json/power-checkout/slp/webhook`
+4. Webhook signature: `hash_hmac('sha256', "{timestamp}.{body}", $signKey)`
+   - Response codes: signature mismatch → **401** (merchant may have mis-typed signKey; keep SLP's retry); everything else (stale timestamp / DTO parse failure / order not found / business exception / success) → **200**. Never 500 — SLP retries every 60 min forever
+5. Webhook order lookup goes through `Managers/OrderResolver::resolve($tradeOrderId, $referenceOrderId)`: `_pc_payment_identity` first → `referenceOrderId` fallback (immune to "customer never returned") → gateway check (`payment_method === shopline_payment_redirect`) → consistency re-check → back-fills identity on fallback hit
+6. `StatusManager::update_order_status($source)`: SUCCEEDED→processing (+ `set_transaction_id`), EXPIRED→cancelled, others→pending. Shared by both paths, with four guards:
+   - Idempotency: `_pc_payment_processed_status` holds `"{tradeOrderId}:{status}"`
+   - Terminal-state guard (SUCCEEDED only): refunded / cancelled / completed cannot be "revived"
+   - Currency guard: notified currency must equal `$order->get_currency()` (store default may be USD)
+   - Amount guard: `abs(notified_cents - round(total * 100)) <= 1` (±1 cent float tolerance)
+   - `StatusSource::RETURN_SYNC` / `WEBHOOK` prefixes the order note title so support can see which path settled it
+7. Refund support by payment method:
 
 | Payment Method | Partial Refund | Full Refund |
 |---|---|---|
@@ -550,9 +564,11 @@ Environment: dev `https://invoiceapi-dev.paynow.com.tw` / prod `https://invoicea
 
 | Key | Purpose |
 |---|---|
-| `pc_payment_identity` | tradeOrderId (idempotency guard) — SLP |
-| `pc_payment_detail` | Payment details (admin display) — SLP |
-| `pc_refund_detail` | Refund details — SLP |
+| `_pc_identity` | Third-party session identifier — SLP `sessionId`; written by `before_process_payment()` before the EXPIRED check |
+| `_pc_payment_identity` | tradeOrderId (idempotency guard) — SLP; written **only after** `order_key` + `referenceOrderId` verification (return sync) or by `OrderResolver` back-fill (webhook) |
+| `_pc_payment_detail` | Payment details (admin display) — SLP |
+| `_pc_refund_detail` | Refund details — SLP |
+| `_pc_payment_processed_status` | Idempotency guard array — elements: `"{tradeOrderId}:{status}"`; shared by return sync and webhook — SLP |
 | `pc_issued_data` | Invoice issuance response (ezPay: includes `invoice_trans_no` + `random_num`; allowance_data includes `allowance_no`) |
 | `pc_cancelled_data` | Invoice void response |
 | `pc_provider_id` | Which invoice provider was used |
