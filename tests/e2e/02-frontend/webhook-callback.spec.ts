@@ -42,7 +42,7 @@ test.describe('Webhook 回呼與付款回導', () => {
         const order = orderRes.data as Record<string, unknown>
         const metaData = order.meta_data as Array<Record<string, unknown>>
         const pcPaymentIdentity = metaData?.find(
-          (m) => m.key === 'pc_payment_identity',
+          (m) => m.key === '_pc_payment_identity',
         )
         tradeOrderId = pcPaymentIdentity?.value as string | undefined
       }

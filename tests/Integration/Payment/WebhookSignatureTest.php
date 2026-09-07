@@ -118,8 +118,12 @@ final class WebhookSignatureTest extends TestCase {
 	 */
 	public function test_付款成功Webhook流程_訂單狀態更新(): void {
 		// Given: 一筆有 tradeOrderId 的 pending 訂單
+		// ⚠️ issue #18 後 StatusManager 有金額 / 幣別守衛，訂單必須帶正確的 total 與 TWD 幣別
 		$trade_order_id = 'TRADE_WEBHOOK_001';
 		$order          = $this->create_order_with_payment_identity( $trade_order_id, 'pending' );
+		$order->set_currency( 'TWD' );
+		$order->set_total( '100.00' );
+		$order->save();
 
 		// When: 模擬 StatusManager 處理付款成功通知
 		$payment_dto = \J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Payment\PaymentDTO::create(
@@ -333,17 +337,17 @@ final class WebhookSignatureTest extends TestCase {
 
 	// ========== FM-06 護欄：偽造驗簽的 SLP webhook 不得變更訂單狀態 ==========
 	// einvoice 第六階段-b 改動 B：補強 callback 防重送風暴護欄。
-	// ⚠️ 硬約束：本輪「不改 WebHook.php 任何一行」。SLP webhook 的既有設計與其他 5 金流不同
-	//    （成功回 200；mapping 失敗回 500；env=production 下驗簽失敗於 try 區塊外 throw → 由 WP
-	//    包成 HTTP 500），故此處不主張「一律 HTTP 200」，而是鎖定真正關鍵的不變式（FM-06）：
+	// issue #18 缺陷 B 修復後：驗簽移入 try 區塊，驗簽不符改回 HTTP 401（不再 throw、不再 500），
+	//    其餘失敗一律回 200。核心不變式（FM-06）不變：
 	//    偽造驗簽的請求「絕不」推進訂單狀態（不 payment_complete、不轉 processing）。
 
 	/**
 	 * 偽造簽章的 SLP webhook（env=production）不得將 pending 訂單推進為 processing
 	 *
-	 * 以 production 環境強制觸發 is_valid 的簽章驗證（local 環境會跳過驗章）；
-	 * 帶正確時間戳但錯誤 sign → verify_hmac_sha256_signature 於 try 區塊外 throw，
-	 * 處理流程（StatusManager::update_order_status）永遠不會執行，故訂單維持 pending。
+	 * 以 production 環境強制觸發 assert_valid 的簽章驗證（local 環境會跳過驗章）；
+	 * 帶正確時間戳但錯誤 sign → verify_hmac_sha256_signature 拋 SignatureException →
+	 * callback 捕捉後回 401，處理流程（StatusManager::update_order_status）永遠不會執行，
+	 * 故訂單維持 pending。
 	 *
 	 * @test
 	 * @group security
@@ -384,21 +388,19 @@ final class WebhookSignatureTest extends TestCase {
 		$request->set_header( 'sign', 'forged_signature_value' ); // 偽造簽章
 		$request->set_body( $body );
 
-		// When: 偽造簽章請求進 callback（依既有設計：驗簽失敗於 try 外 throw → 不更新訂單）
-		$threw = false;
+		// When: 偽造簽章請求進 callback（issue #18 缺陷 B 後：不 throw，回 401）
 		try {
-			WebHook::instance()->post_webhook_callback( $request );
-		} catch ( \Throwable ) {
-			$threw = true; // SLP 既有設計：env=production 驗簽失敗會 throw（不改）
+			$response = WebHook::instance()->post_webhook_callback( $request );
 		} finally {
 			Plugin::$env = $original_env; // 還原環境，避免污染其他測試
 		}
 
 		// Then: 關鍵不變式（FM-06）——偽造驗簽絕不推進訂單狀態，維持 pending
 		$this->assert_order_status( $order, 'pending' );
-		$this->assertTrue(
-			$threw,
-			'SLP webhook 在 env=production 下偽造簽章應於 try 區塊外 throw（既有設計，本輪不改）'
+		$this->assertSame(
+			401,
+			$response->get_status(),
+			'驗簽不符應回 401（保留 SLP 重送機會，商家可修正 signKey 後救回這筆通知）'
 		);
 	}
 
@@ -446,15 +448,13 @@ final class WebhookSignatureTest extends TestCase {
 		$request->set_body( $body );
 
 		try {
-			WebHook::instance()->post_webhook_callback( $request );
-		} catch ( \Throwable ) {
-			// 既有設計：env=production 驗簽失敗於 try 外 throw（本輪不改 WebHook.php）
-			$this->assertTrue( true );
+			$response = WebHook::instance()->post_webhook_callback( $request );
 		} finally {
 			Plugin::$env = $original_env;
 		}
 
-		// Then: 不寫入付款明細（驗簽失敗 → StatusManager 從未執行）
+		// Then: 回 401 且不寫入付款明細（驗簽失敗 → StatusManager 從未執行）
+		$this->assertSame( 401, $response->get_status(), '驗簽不符應回 401' );
 		$detail = $this->get_payment_detail( \wc_get_order( $order->get_id() ) );
 		$this->assertEmpty( $detail, '偽造驗簽不得寫入付款明細' );
 	}

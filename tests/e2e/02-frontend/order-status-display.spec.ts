@@ -135,7 +135,7 @@ test.describe('訂單狀態顯示', () => {
       const orderRes = await wpGet(opts, EP.WC_ORDER(testOrderId!))
       const order = orderRes.data as Record<string, unknown>
       const metaData = order.meta_data as Array<Record<string, unknown>>
-      const pcPaymentIdentity = metaData?.find((m) => m.key === 'pc_payment_identity')
+      const pcPaymentIdentity = metaData?.find((m) => m.key === '_pc_payment_identity')
       // global-setup 應設定此欄位
       if (pcPaymentIdentity) {
         expect(pcPaymentIdentity.value).toBeTruthy()
