@@ -140,17 +140,19 @@ final class MpgRequestParams extends DTO {
 	/**
 	 * 由訂單與 gateway 組裝建單參數
 	 *
-	 * @param \WC_Order              $order   訂單
-	 * @param AbstractPaymentGateway $gateway 付款閘道
+	 * @param \WC_Order              $order    訂單
+	 * @param AbstractPaymentGateway $gateway  付款閘道
+	 * @param string                 $order_no 本次付款嘗試的 MerchantOrderNo（導轉時由 MpgOrderNo::encode_unique 產生）；
+	 *                                         空字串時沿用訂單目前編號，沒有則新編
 	 *
 	 * @return self
 	 */
-	public static function instance( \WC_Order $order, AbstractPaymentGateway $gateway ): self {
+	public static function instance( \WC_Order $order, AbstractPaymentGateway $gateway, string $order_no = '' ): self {
 		$settings = MpgSettingsDTO::instance();
 
-		$meta_keys = new MpgMetaKeys( $order );
-		// 冪等：已有 order_no 沿用（避免重建造成 MPG03002），否則新編
-		$order_no = $meta_keys->get_order_no();
+		if ( '' === $order_no ) {
+			$order_no = ( new MpgMetaKeys( $order ) )->get_order_no();
+		}
 		if ( '' === $order_no ) {
 			$order_no = MpgOrderNo::encode( $order->get_id() );
 		}

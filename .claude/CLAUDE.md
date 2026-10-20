@@ -346,6 +346,14 @@ ECPay callbacks use `permission_callback: __return_true`; auth is verified insid
 
 ---
 
+## NewebPay MPG Payment Flow (newebpay_mpg)
+
+1. `before_process_payment()` marks `_pc_newebpay_redirect_pending` and returns the order-received URL (no API call)
+2. `before_order_received()` auto-submits the MPG form **only** when the redirect is pending (or no MerchantOrderNo was ever sent); each attempt gets a new number via `MpgOrderNo::encode_unique()` (NewebPay rejects resubmitting a used number with `MPG03008`, even for an unpaid ATM code) and appends it to `_pc_newebpay_order_no_history`. Plain revisits (ATM/CVS code issued, payment failed, MPG03008 bounce, refresh) never auto-submit — issue #25 infinite loop
+3. thank-you page (`woocommerce_thankyou_newebpay_mpg`): shows ATM account / CVS code / barcode + expiry from `_pc_newebpay_payment_info` (CustomerURL points to our ReturnURL, so NewebPay never shows the code to the customer); pending without a code → 「前往付款」 (order-pay)
+4. `TradeInfoCrypto::decrypt()` strips 1–32 PKCS#7 padding manually — NewebPay pads with a **32-byte** block (pad > 16 breaks OpenSSL's default unpad, issue #24)
+5. `StatusManager`: paid = `RespondCode=00` **or** (offline type + `PayTime`); code-issued = offline type + not paid → write payment info, keep pending; failure notices on paid / code-issued orders only add a note (never overwrite detail/info or revert status); paid writes the settled MerchantOrderNo back to `_pc_newebpay_order_no` (QueryTradeInfo); callback lookup matches current number **and** history
+
 ## Refund Failure Handling (all gateways)
 
 Gateway refunds are sent in `process_gateway_refund()` on `woocommerce_order_refunded` — **after** `wc_create_refund()` has already flipped a full refund to `refunded`. Every gateway's catch block (SLP / AIO / ECPG / NewebPay MPG / PAYUNi UPP / UNi Embed / PayNow) calls `AbstractPaymentGateway::fail_gateway_refund()`:

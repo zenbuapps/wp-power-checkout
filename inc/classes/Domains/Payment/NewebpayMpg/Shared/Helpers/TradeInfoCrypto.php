@@ -9,7 +9,8 @@
  *  - 演算法：aes-256-cbc
  *  - Key：HashKey padEnd(32,'0') 取前 32 bytes
  *  - IV：HashIV padEnd(16,'0') 取前 16 bytes
- *  - Padding：PKCS#7（openssl CBC 預設）
+ *  - Padding：加密用 PKCS#7（openssl CBC 預設，16 bytes 區塊，藍新可解）；
+ *    解密須相容藍新的 32 bytes 區塊 PKCS#7（補位值 1～32，見 decrypt）
  *  - 輸出：hex（小寫，bin2hex）
  *  - 輸入：已組好的 key=value&... 明文字串（value 須先 URL-encode，由呼叫端負責）
  *
@@ -42,6 +43,9 @@ final class TradeInfoCrypto {
 
 	/** @var int IV 長度（bytes） */
 	private const IV_LENGTH = 16;
+
+	/** @var int 藍新 PKCS#7 補位區塊大小（bytes；補位值最大 32，見 decrypt） */
+	private const PADDING_BLOCK_SIZE = 32;
 
 	/** Constructor */
 	public function __construct(
@@ -78,10 +82,16 @@ final class TradeInfoCrypto {
 	/**
 	 * AES-256-CBC 解密，輸入 hex
 	 *
+	 * ⚠️ 藍新加密時以 32 bytes 為區塊做 PKCS#7 補位（官方 PHP 範例 addpadding blocksize=32，ezPay 同體系亦同），
+	 *    補位值可能是 17～32；OpenSSL 預設的 PKCS#7 解補位只認 1～16，遇到 > 16 會直接回 false
+	 *    （ATM / 超商取號回傳明文較長，約一半機率踩到，issue #24）。
+	 *    故以 OPENSSL_ZERO_PADDING 關掉 OpenSSL 解補位，自行移除 1～32 的 PKCS#7 補位（同時相容 16 bytes 區塊）。
+	 *    TradeSha 已在解密前驗過，自行解補位不降低安全性。
+	 *
 	 * @param string $encrypted_hex hex 密文字串
 	 *
 	 * @return string 解密後明文（JSON 或 key=value&... 字串）
-	 * @throws \RuntimeException When hex 非法 / openssl_decrypt 失敗.
+	 * @throws \RuntimeException When hex 非法 / openssl_decrypt 失敗 / 補位格式不符.
 	 */
 	public function decrypt( string $encrypted_hex ): string {
 		$raw = \hex2bin( \trim( $encrypted_hex ) );
@@ -93,15 +103,35 @@ final class TradeInfoCrypto {
 			$raw,
 			self::CIPHER,
 			$this->get_key(),
-			OPENSSL_RAW_DATA,
+			OPENSSL_RAW_DATA | OPENSSL_ZERO_PADDING, // 不讓 OpenSSL 解補位，由 strip_padding 處理
 			$this->get_iv()
 		);
 
-		if ( false === $decrypted ) {
+		if ( false === $decrypted || '' === $decrypted ) {
 			throw new \RuntimeException( 'NewebPay MPG TradeInfo decrypt：openssl_decrypt 失敗' );
 		}
 
-		return $decrypted;
+		return self::strip_padding( $decrypted );
+	}
+
+	/**
+	 * 移除 PKCS#7 補位（補位值 1～32，相容藍新 32 bytes 區塊與標準 16 bytes 區塊）
+	 *
+	 * @param string $decrypted 含補位的明文
+	 *
+	 * @return string 去除補位後的明文
+	 * @throws \RuntimeException When 補位格式不符.
+	 */
+	private static function strip_padding( string $decrypted ): string {
+		$length = \strlen( $decrypted );
+		$pad    = \ord( $decrypted[ $length - 1 ] );
+
+		if ( $pad < 1 || $pad > self::PADDING_BLOCK_SIZE || $pad > $length
+			|| \substr( $decrypted, -$pad ) !== \str_repeat( \chr( $pad ), $pad ) ) {
+			throw new \RuntimeException( 'NewebPay MPG TradeInfo decrypt：補位格式不符' );
+		}
+
+		return \substr( $decrypted, 0, $length - $pad );
 	}
 
 	/**

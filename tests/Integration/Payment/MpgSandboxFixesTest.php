@@ -249,8 +249,13 @@ final class MpgSandboxFixesTest extends TestCase {
 	 * @group happy
 	 */
 	public function test_pending訂單仍渲染藍新導轉表單(): void {
-		// Given: pending 訂單
+		// Given: pending 訂單 + 顧客剛發起付款（process_payment 留下待導轉旗標；無旗標的單純重訪不導轉，issue #25）
 		$order = $this->create_mpg_order( 'PCMPEND' . \uniqid(), 'pending' );
+		( new MpgMetaKeys( $order ) )->mark_redirect_pending();
+
+		$attempts = new \ReflectionProperty( MpgRedirectGateway::class, 'redirect_attempts' );
+		$attempts->setAccessible( true );
+		$attempts->setValue( null, [] );
 
 		// When
 		$output = $this->invoke_before_order_received( $order );
