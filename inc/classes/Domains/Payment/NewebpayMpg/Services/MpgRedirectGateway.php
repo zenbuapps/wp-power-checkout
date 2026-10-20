@@ -12,8 +12,10 @@ use J7\PowerCheckout\Domains\Payment\NewebpayMpg\Http\EWalletRefundClient;
 use J7\PowerCheckout\Domains\Payment\NewebpayMpg\Http\MpgCallback;
 use J7\PowerCheckout\Domains\Payment\NewebpayMpg\Http\QueryTradeClient;
 use J7\PowerCheckout\Domains\Payment\NewebpayMpg\Managers\StatusManager;
+use J7\PowerCheckout\Domains\Payment\NewebpayMpg\Shared\Enums\MpgPaymentMethod;
 use J7\PowerCheckout\Domains\Payment\NewebpayMpg\Shared\Enums\MpgStatus;
 use J7\PowerCheckout\Domains\Payment\NewebpayMpg\Shared\Helpers\MpgMetaKeys;
+use J7\PowerCheckout\Domains\Payment\NewebpayMpg\Shared\Helpers\MpgOrderNo;
 use J7\PowerCheckout\Domains\Payment\NewebpayMpg\Shared\Helpers\MpgPaymentType;
 use J7\PowerCheckout\Domains\Payment\Shared\Abstracts\AbstractPaymentGateway;
 use J7\PowerCheckout\Domains\Payment\Shared\Helpers\BlocksIntegration;
@@ -52,58 +54,160 @@ final class MpgRedirectGateway extends AbstractPaymentGateway implements IGatewa
 	public $method_description = '藍新 NewebPay MPG 多功能支付，支援信用卡、ATM、超商代碼、超商條碼、WebATM、LINE Pay、Apple Pay 等付款方式';
 
 	/**
+	 * @var array<int, bool> 本次 HTTP 請求對各訂單的導轉嘗試（true = 已輸出導轉表單；false = 嘗試過但建單失敗）
+	 *
+	 * 同請求防重入：每個 gateway 實例都在建構時掛了 wp hook，before_order_received 可能被呼叫多次，
+	 * 有記錄即不再產生第二個 MerchantOrderNo。thank-you 繳費資訊 / 付款提示僅在「已輸出表單」時略過。
+	 */
+	private static array $redirect_attempts = [];
+
+	/**
 	 * 藍新 MPG 核心支付邏輯
 	 *
 	 * MPG 不在此階段發 API，僅回傳 order-received URL；實際跳轉在 before_order_received
 	 * 以 auto-form submit 至藍新 mpg_gateway。
 	 *
+	 * 標記「待導轉」：本方法只在顧客實際發起付款時執行（classic / block 結帳、WC 沿用 pending 訂單再結帳、
+	 * 我的帳戶 → 付款），order-received 頁據此以新的 MerchantOrderNo 導轉藍新一次。
+	 *
 	 * @param \WC_Order $order 訂單
 	 * @return string order-received URL
 	 */
 	protected function before_process_payment( \WC_Order $order ): string {
+		( new MpgMetaKeys( $order ) )->mark_redirect_pending();
+
 		return $this->get_return_url( $order );
 	}
 
 	/**
-	 * 第三方金流頁面 render 前（order-received）
+	 * 第三方金流頁面 render 前（order-received）：以新的 MerchantOrderNo 組裝 MpgRequestParams 並 render auto-form
 	 *
-	 * 冪等檢查（已寫入 MerchantOrderNo 則 skip 重建）→ 組裝 MpgRequestParams →
-	 * render auto-form template POST 到藍新 mpg_gateway。
+	 * 何時導轉藍新（全部成立才導轉；order key 已由 before_page_render 驗過）：
+	 *  1. 訂單仍待付款（needs_payment）——已付款絕不再導轉（sandbox 實測：重複導轉被拒單，買家被甩出完成頁）。
+	 *  2. 本請求尚未為此訂單輸出過表單（每個 gateway 實例都掛 wp hook，同請求不得產生兩個編號）。
+	 *  3. 顧客剛發起付款（process_payment 留下待導轉旗標），或此訂單從未送出過編號（升級前建立的訂單）。
+	 *     單純重訪（ATM / 超商取號後導回、付款失敗導回、MPG03008 導回、重新整理、上一頁）不自動導轉——
+	 *     取號型付款取號後訂單本來就維持待付款，舊版每次進完成頁都重送同一編號，藍新回 MPG03008 再導回完成頁，
+	 *     形成無限循環（issue #25）。thank-you 頁改由 {@see self::render_thankyou_payment_info()} 顯示繳費資訊或付款連結。
+	 *
+	 * 每次導轉都用新的 MerchantOrderNo：藍新同一編號送出後不可再送（MPG03008）。
+	 * 舊編號保留於歷史（MpgMetaKeys::start_payment_attempt），其取號 / 繳費通知仍能反查本訂單。
 	 *
 	 * @param \WC_Order $order 訂單
 	 * @return void
 	 */
 	protected function before_order_received( \WC_Order $order ): void {
-		// 冪等：已付款（processing / completed）不得再導往藍新——重複導轉會被藍新
-		// 以重複 MerchantOrderNo 拒單，買家會被甩出完成頁（sandbox 端到端實測）。
-		// 僅 pending / failed（needs_payment）渲染付款表單。
-		if ( ! $order->needs_payment() ) {
+		$order_id = $order->get_id();
+		if ( ! $order->needs_payment() || isset( self::$redirect_attempts[ $order_id ] ) ) {
 			return;
 		}
 
 		try {
 			$meta_keys = new MpgMetaKeys( $order );
-
-			$request_params = MpgRequestParams::instance( $order, $this );
-
-			// 寫入冪等鍵 MerchantOrderNo（若尚未寫入；instance() 已沿用既有 order_no）
-			if ( '' === $meta_keys->get_order_no() ) {
-				$meta_keys->update_order_no( $request_params->MerchantOrderNo );
+			if ( '' !== $meta_keys->get_order_no() && ! $meta_keys->is_redirect_pending() ) {
+				return;
 			}
 
-			$settings = MpgSettingsDTO::instance();
+			// 先佔位：即使下方組參數失敗，同一請求的其他 gateway 實例也不再重試建單
+			self::$redirect_attempts[ $order_id ] = false;
+
+			$order_no       = MpgOrderNo::encode_unique( $order_id, $meta_keys->get_used_order_nos() );
+			$request_params = MpgRequestParams::instance( $order, $this, $order_no );
+
+			// 參數組裝成功才記錄本次編號（目前編號 + 歷史）並清除待導轉旗標
+			$meta_keys->start_payment_attempt( $order_no );
 
 			// render auto-form（隱藏表單自動 submit 至藍新 mpg_gateway）
 			Plugin::load_template(
 				'auto-form',
 				[
 					'params' => $request_params->to_form_params(),
-					'url'    => $settings->endpoint,
+					'url'    => MpgSettingsDTO::instance()->endpoint,
 				]
 			);
+			self::$redirect_attempts[ $order_id ] = true;
 		} catch ( \Throwable $e ) {
 			$this->logger( "❌ {$this->title} 建單時發生錯誤<br>{$e->getMessage()}", 'error', [], 5 );
 		}
+	}
+
+	/**
+	 * [thank-you 頁] 顯示取號繳費資訊，或待付款訂單的「前往付款」連結（woocommerce_thankyou_newebpay_mpg）
+	 *
+	 *  - 已取號（ATM 虛擬帳號 / 超商代碼 / 超商條碼）：顯示繳費資訊。CustomerURL 指向本站，藍新不會在它的頁面顯示帳號，
+	 *    這裡是顧客唯一看得到帳號的地方。
+	 *  - 尚未取號、仍待付款：單純重訪不再自動導轉（見 before_order_received），提供 order-pay 連結重新付款
+	 *    （order-pay → process_payment → 回 order-received 以新的 MerchantOrderNo 導轉）。
+	 *  - 已付款 / 本請求已輸出自動導轉表單 → 不顯示（建單失敗時仍顯示，讓顧客有入口重試）。
+	 *
+	 * @param int $order_id 訂單 ID
+	 * @return void
+	 */
+	public static function render_thankyou_payment_info( int $order_id ): void {
+		if ( true === ( self::$redirect_attempts[ $order_id ] ?? false ) ) {
+			return;
+		}
+
+		$order = \wc_get_order( $order_id );
+		if ( ! $order instanceof \WC_Order || self::ID !== $order->get_payment_method() || ! $order->needs_payment() ) {
+			return;
+		}
+
+		$payment_info = ( new MpgMetaKeys( $order ) )->get_payment_info();
+		if ( $payment_info ) {
+			echo self::get_payment_info_html( $payment_info ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- 內容已逐欄 escape
+			return;
+		}
+
+		if ( ! $order->has_status( 'pending' ) ) {
+			return; // failed 訂單 WC 模板已自帶付款按鈕
+		}
+
+		// 以 printf + 逐一 escape 輸出（heredoc 插值會被 EscapeOutput sniff 視為未 escape）
+		\printf(
+			'<div class="woocommerce-info pc-newebpay-mpg-pending-payment">%1$s <a href="%2$s" class="button pay">%3$s</a></div>',
+			\esc_html__( '此訂單尚未完成付款。如需重新付款或改用其他付款方式，請點選「前往付款」。', 'power_checkout' ),
+			\esc_url( $order->get_checkout_payment_url() ),
+			\esc_html__( '前往付款', 'power_checkout' )
+		);
+	}
+
+	/**
+	 * 組前台取號繳費資訊 HTML（逐欄 escape）
+	 *
+	 * @param array<string, mixed> $payment_info 取號繳費資訊（StatusManager 寫入的 _pc_newebpay_payment_info）
+	 * @return string HTML
+	 */
+	private static function get_payment_info_html( array $payment_info ): string {
+		$method = MpgPaymentMethod::tryFrom( (string) ( $payment_info['PaymentType'] ?? '' ) );
+
+		$expire     = \trim( ( (string) ( $payment_info['ExpireDate'] ?? '' ) ) . ' ' . ( (string) ( $payment_info['ExpireTime'] ?? '' ) ) );
+		$code_label = MpgPaymentMethod::VACC === $method ? \__( '轉帳帳號', 'power_checkout' ) : \__( '繳費代碼', 'power_checkout' );
+
+		$rows = [
+			\__( '付款方式', 'power_checkout' ) => $method?->label() ?? (string) ( $payment_info['PaymentType'] ?? '' ),
+			\__( '銀行代碼', 'power_checkout' ) => (string) ( $payment_info['BankCode'] ?? '' ),
+			$code_label                     => (string) ( $payment_info['CodeNo'] ?? '' ),
+			\__( '條碼一', 'power_checkout' )  => (string) ( $payment_info['Barcode_1'] ?? '' ),
+			\__( '條碼二', 'power_checkout' )  => (string) ( $payment_info['Barcode_2'] ?? '' ),
+			\__( '條碼三', 'power_checkout' )  => (string) ( $payment_info['Barcode_3'] ?? '' ),
+			\__( '繳費期限', 'power_checkout' ) => $expire,
+		];
+
+		$items = '';
+		foreach ( $rows as $label => $value ) {
+			if ( '' === $value ) {
+				continue;
+			}
+			$items .= \sprintf( '<li>%1$s：<strong>%2$s</strong></li>', \esc_html( (string) $label ), \esc_html( $value ) );
+		}
+
+		return \sprintf(
+			'<section class="woocommerce-order-details pc-newebpay-mpg-payment-info"><h2 class="woocommerce-order-details__title">%1$s</h2><p>%2$s</p><ul>%3$s</ul></section>',
+			\esc_html__( '繳費資訊', 'power_checkout' ),
+			\esc_html__( '請於繳費期限內完成付款，付款完成後訂單會自動更新。', 'power_checkout' ),
+			$items
+		);
 	}
 
 	/** [Admin] 在後台 order detail 頁地址下方顯示資訊 */
@@ -478,6 +582,9 @@ final class MpgRedirectGateway extends AbstractPaymentGateway implements IGatewa
 
 		// 整合區塊結帳
 		\add_action( 'woocommerce_blocks_loaded', [ __CLASS__, 'register_checkout_blocks' ] );
+
+		// thank-you 頁：取號繳費資訊 / 待付款「前往付款」連結（取代舊版每次進完成頁都自動導轉藍新）
+		\add_action( 'woocommerce_thankyou_' . self::ID, [ __CLASS__, 'render_thankyou_payment_info' ] );
 
 		// 後台訂單操作：重新查詢付款狀態（對帳補單）
 		\add_filter( 'woocommerce_order_actions', [ __CLASS__, 'add_order_actions' ], 10, 2 );

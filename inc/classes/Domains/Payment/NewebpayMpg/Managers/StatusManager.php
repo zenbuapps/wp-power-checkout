@@ -17,6 +17,7 @@ use J7\WpUtils\Classes\WP;
  *  - Status='SUCCESS' 且 Result.RespondCode='00'（付款成功）→ 處理中（先做金額防竄改比對）。
  *  - Status='SUCCESS' 但為 offline 取號（VACC/CVS/BARCODE，無 RespondCode='00'）→ 寫繳費資訊，不改狀態。
  *  - 其他（付款失敗）→ 維持等待付款，記錄 Status / Message / RespondCode。
+ *    但訂單已付款或已取號時只加 note，不覆寫付款明細 / 取號資訊、不改狀態（例：MPG03008 重送被拒）。
  *
  * 金額防竄改：轉 processing 前比對 Result.Amt 與訂單應收（ceil 整數）。
  * 不符 → 維持 pending + order note 告警，絕不自動完成付款。
@@ -57,6 +58,21 @@ final class StatusManager {
 
 		$meta_keys = new MpgMetaKeys( $this->order );
 
+		// 失敗通知（例：重送已用過的編號被拒 MPG03008）不得覆寫既有成果：
+		// 已付款訂單的付款明細 / TradeNo 是退款依據；已取號訂單的帳號仍有效、顧客可能正要去繳費（issue #25）。
+		$is_failure = ! $this->is_offline_get_code() && ! $this->is_paid();
+		if ( $is_failure && ( ! $this->order->needs_payment() || $meta_keys->get_payment_info() ) ) {
+			$this->order->add_order_note(
+				\sprintf(
+					'藍新付款失敗通知（已忽略，不影響既有付款 / 取號資訊），Status：%s，Message：%s，MerchantOrderNo：%s',
+					$status,
+					$message,
+					(string) ( $this->result['MerchantOrderNo'] ?? '' )
+				)
+			);
+			return;
+		}
+
 		// 寫入付款明細（整個 Result，供後台顯示與退款分流）
 		$meta_keys->update_payment_detail( $this->result );
 
@@ -72,13 +88,13 @@ final class StatusManager {
 		);
 
 		// offline 取號（Status=SUCCESS 但非付款成功）→ 寫繳費資訊，不改狀態
-		if ( $this->is_offline_get_code( $status, $respond_code, $payment_type ) ) {
+		if ( $this->is_offline_get_code() ) {
 			$this->handle_offline_get_code( $meta_keys, $payment_type );
 			return;
 		}
 
-		// 付款成功判定（Status=SUCCESS 且 RespondCode=00）
-		if ( MpgStatus::is_paid_success( $status, $respond_code ) ) {
+		// 付款成功判定（見 is_paid）
+		if ( $this->is_paid() ) {
 			// 金額防竄改：不符則維持 pending + 告警
 			if ( ! $this->is_amount_matched() ) {
 				$this->order->add_order_note(
@@ -91,6 +107,9 @@ final class StatusManager {
 				$this->order->update_status( OrderStatus::PENDING->value );
 				return;
 			}
+
+			// 目前編號改寫為實際付款的 MerchantOrderNo（重試付款後可能是舊編號的 ATM 繳費），QueryTradeInfo 才查得到
+			$meta_keys->settle_order_no( (string) ( $this->result['MerchantOrderNo'] ?? '' ) );
 
 			$this->order->payment_complete( $trade_no );
 			$this->order->update_status( OrderStatus::PROCESSING->value );
@@ -112,26 +131,42 @@ final class StatusManager {
 	}
 
 	/**
-	 * 是否為 offline 取號通知（Status=SUCCESS、PaymentType 為 VACC/CVS/BARCODE、尚未付款）
+	 * 是否為付款成功通知
 	 *
-	 * Offline 取號通知 Status 為 SUCCESS 但 RespondCode 非 '00'（或無 RespondCode），
-	 * 且付款方式為取號型；此時應寫繳費資訊但不改狀態。
-	 *
-	 * @param string $status       頂層 Status
-	 * @param string $respond_code Result.RespondCode
-	 * @param string $payment_type Result.PaymentType
+	 *  - 信用卡 / 電子錢包等：Status=SUCCESS 且 RespondCode=00（銀行回應碼）。
+	 *  - 取號型（VACC/CVS/BARCODE）繳費完成：Status=SUCCESS 且帶 PayTime（支付完成時間）。
+	 *    RespondCode 屬信用卡回傳欄位，ATM / 超商繳費完成的 NotifyURL 不一定帶；
+	 *    取號通知（CustomerURL）則沒有 PayTime——僅認 RespondCode 會讓顧客轉帳後訂單永遠停在待付款。
 	 *
 	 * @return bool
 	 */
-	private function is_offline_get_code( string $status, string $respond_code, string $payment_type ): bool {
-		if ( ! MpgStatus::is_status_success( $status ) ) {
-			return false;
+	public function is_paid(): bool {
+		$status = (string) ( $this->_decoded['Status'] ?? '' );
+		if ( MpgStatus::is_paid_success( $status, (string) ( $this->result['RespondCode'] ?? '' ) ) ) {
+			return true;
 		}
-		// 已付款成功（RespondCode=00）不算取號
-		if ( MpgStatus::RESPOND_CODE_SUCCESS === $respond_code ) {
-			return false;
-		}
-		$method = MpgPaymentMethod::tryFrom( $payment_type );
+
+		return MpgStatus::is_status_success( $status )
+		&& $this->is_offline_payment_type()
+		&& '' !== (string) ( $this->result['PayTime'] ?? '' );
+	}
+
+	/**
+	 * 是否為 offline 取號通知（Status=SUCCESS、PaymentType 為 VACC/CVS/BARCODE、尚未付款）
+	 *
+	 * 取號通知 Status 為 SUCCESS，但沒有 RespondCode='00' 也沒有 PayTime；此時應寫繳費資訊但不改狀態。
+	 *
+	 * @return bool
+	 */
+	private function is_offline_get_code(): bool {
+		return MpgStatus::is_status_success( (string) ( $this->_decoded['Status'] ?? '' ) )
+		&& $this->is_offline_payment_type()
+		&& ! $this->is_paid();
+	}
+
+	/** @return bool Result.PaymentType 是否為取號型（VACC/CVS/BARCODE） */
+	private function is_offline_payment_type(): bool {
+		$method = MpgPaymentMethod::tryFrom( (string) ( $this->result['PaymentType'] ?? '' ) );
 		return null !== $method && $method->is_offline();
 	}
 
@@ -150,7 +185,7 @@ final class StatusManager {
 		}
 
 		// 萃取繳費資訊欄位（依付款方式不同）
-		$info_keys = [ 'PaymentType', 'BankCode', 'CodeNo', 'Barcode_1', 'Barcode_2', 'Barcode_3', 'ExpireDate', 'StoreType', 'StoreCode' ];
+		$info_keys = [ 'PaymentType', 'BankCode', 'CodeNo', 'Barcode_1', 'Barcode_2', 'Barcode_3', 'ExpireDate', 'ExpireTime', 'StoreType', 'StoreCode' ];
 		$info      = [];
 		foreach ( $info_keys as $key ) {
 			if ( isset( $this->result[ $key ] ) && '' !== $this->result[ $key ] ) {

@@ -101,8 +101,8 @@ final class MpgCallback extends ApiBase {
 		}
 
 		$redirect = $order instanceof \WC_Order
-			? $order->get_checkout_order_received_url()
-			: \wc_get_checkout_url();
+		? $order->get_checkout_order_received_url()
+		: \wc_get_checkout_url();
 
 		$response = new \WP_REST_Response( null, 302 );
 		$response->header( 'Location', $redirect );
@@ -184,8 +184,19 @@ final class MpgCallback extends ApiBase {
 			return null;
 		}
 
-		// 6. 冪等：已 processing 則 skip
+		// 6. 冪等：已 processing 則 skip；若是另一個編號的付款成功（例：重試前拿的 ATM 帳號也繳了）只加 note 提醒商家
 		if ( $order->has_status( OrderStatus::PROCESSING->value ) ) {
+			if ( ( new StatusManager( $decoded, $order ) )->is_paid()
+				&& $order_no !== ( new MpgMetaKeys( $order ) )->get_order_no() ) {
+				$order->add_order_note(
+					\sprintf(
+						'⚠️ 藍新疑似重複付款：訂單已付款，又收到另一筆付款成功通知（MerchantOrderNo：%s，TradeNo：%s，Amt：%s），請至藍新後台確認並退款',
+						$order_no,
+						(string) ( $result['TradeNo'] ?? '' ),
+						(string) ( $result['Amt'] ?? '' )
+					)
+				);
+			}
 			return $order;
 		}
 
