@@ -17,6 +17,7 @@ export const ROUTER_MAPPER = {
 	ecpay_logistics: '/logistics/ecpay_logistics',
 	payuni_logistics: '/logistics/payuni_logistics',
 	paynow_logistics: '/logistics/paynow_logistics',
+	checkout_enhancement: '/checkout',
 }
 
 const routes = [
@@ -87,6 +88,10 @@ const routes = [
 	{
 		path: '/receipts/ecpay_receipt',
 		component: () => import('@/pages/Receipts/Ecpay/index.vue'),
+	},
+	{
+		path: '/checkout',
+		component: () => import('@/pages/Checkout/index.vue'),
 	},
 ]
 
