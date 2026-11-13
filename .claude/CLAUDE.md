@@ -606,7 +606,7 @@ Domain `Domains/Checkout/`; virtual provider id `checkout_enhancement` (no gatew
 
 ### Settings REST (special case in `SettingApiService`)
 
-- Reuses `GET/POST /power-checkout/v1/settings/{provider_id}`; branch detected by `is_checkout_enhancement_route()` which reads **URL params only** (`get_url_params()`), never `$request['provider_id']` (JSON body outranks URL params and could redirect the route)
+- Reuses `GET/POST /power-checkout/v1/settings/{provider_id}`; branch detected by `is_checkout_enhancement_route()`. **All** `/settings/{provider_id}` callbacks (GET / POST / toggle) resolve the target via `route_provider_id()` = URL params only (`get_url_params()`), never `$request['provider_id']` (JSON body / query string outrank URL params and could redirect writes to another `woocommerce_{x}_settings`); POST also drops `provider_id` from the saved params
 - GET: `get_all()` = `DEFAULTS` merged with stored values (corrupt/missing option → all defaults)
 - POST: `merge_valid()` validates per key — toggles `yes`/`no`, colors `#RRGGBB`, texts non-empty after sanitize (`free_shipping_text_left` must contain `{price}`); an invalid key keeps its stored value, valid keys are still saved; unknown keys and `provider_id` are never written
 - DTO deliberately does not extend wp-utils `DTO`/`BaseSettingsDTO` (required_properties typo issue)
