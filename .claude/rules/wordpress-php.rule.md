@@ -26,7 +26,7 @@ inc/classes/Domains/{Domain}/
     Shared/Traits/           # Reusable property traits for DTOs
 ```
 
-Three domains: Payment, Invoice, Settings. Each domain has a `ProviderRegister` with a static `register_hooks()` method called from `Bootstrap`.
+Domains: Payment, Invoice, Settings, Checkout (checkout enhancement: toggle-driven services, no provider container). Each domain has a `ProviderRegister` with a static `register_hooks()` method called from `Bootstrap`.
 
 ## Hook Registration Pattern
 

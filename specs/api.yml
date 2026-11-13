@@ -263,6 +263,128 @@ components:
           description: 最大交易金額
           maximum: 50000
 
+    # ===== 結帳體驗強化（Checkout domain）=====
+    CheckoutEnhancementSettings:
+      type: object
+      description: |
+        woocommerce_checkout_enhancement_settings（provider_id=checkout_enhancement）。
+        GET 時未儲存過的鍵以預設值補齊；所有開關預設 no。
+      required:
+        - last_name_first
+        - tw_address
+        - tw_phone_validation
+        - virtual_hide_address
+        - virtual_auto_complete
+        - free_shipping_hint
+        - free_shipping_text_left
+        - free_shipping_text_achieved
+        - free_shipping_bg_color
+        - free_shipping_text_color
+      properties:
+        last_name_first:
+          type: string
+          enum: ["yes", "no"]
+          default: "no"
+          description: 姓在前名在後（僅 TW 地址；傳統 + 區塊結帳）
+        tw_address:
+          type: string
+          enum: ["yes", "no"]
+          default: "no"
+          description: 台灣縣市下拉（傳統 + 區塊）；鄉鎮下拉與郵遞區號自動帶入（僅傳統）
+        tw_phone_validation:
+          type: string
+          enum: ["yes", "no"]
+          default: "no"
+          description: 台灣手機格式檢查，去除空白/連字號後須符合 ^09\d{8}$（傳統 + 區塊）
+        virtual_hide_address:
+          type: string
+          enum: ["yes", "no"]
+          default: "no"
+          description: 全虛擬購物車隱藏帳單地址欄位並取消必填（傳統 + 區塊，區塊以頁面載入時判定）
+        virtual_auto_complete:
+          type: string
+          enum: ["yes", "no"]
+          default: "no"
+          description: 全虛擬訂單轉為處理中後自動完成（含管理員手動改狀態）
+        free_shipping_hint:
+          type: string
+          enum: ["yes", "no"]
+          default: "no"
+          description: 購物車 / 結帳頁運送區上方顯示差多少免運（傳統 + 區塊）
+        free_shipping_text_left:
+          type: string
+          pattern: '\{price\}'
+          default: "再買 {price} 元即可享免運"
+          description: 未達門檻文案，必須含 {price}（替換為差額數字，含千分位）
+        free_shipping_text_achieved:
+          type: string
+          default: "已享免運"
+        free_shipping_bg_color:
+          type: string
+          pattern: "^#[0-9a-fA-F]{6}$"
+          default: "#d36f6f"
+        free_shipping_text_color:
+          type: string
+          pattern: "^#[0-9a-fA-F]{6}$"
+          default: "#ffffff"
+
+    CheckoutEnhancementSettingsUpdate:
+      type: object
+      description: |
+        部分更新：未送出的鍵保留原值（wp_parse_args 合併）。
+        鍵級驗證：值不符 enum / pattern 的鍵被忽略並維持原值，其餘合法鍵照常儲存（回應仍 200）。
+        所有字串經 sanitize_text_field_deep（HTML 標籤移除）。
+      properties:
+        last_name_first:
+          $ref: "#/components/schemas/CheckoutEnhancementSettings/properties/last_name_first"
+        tw_address:
+          $ref: "#/components/schemas/CheckoutEnhancementSettings/properties/tw_address"
+        tw_phone_validation:
+          $ref: "#/components/schemas/CheckoutEnhancementSettings/properties/tw_phone_validation"
+        virtual_hide_address:
+          $ref: "#/components/schemas/CheckoutEnhancementSettings/properties/virtual_hide_address"
+        virtual_auto_complete:
+          $ref: "#/components/schemas/CheckoutEnhancementSettings/properties/virtual_auto_complete"
+        free_shipping_hint:
+          $ref: "#/components/schemas/CheckoutEnhancementSettings/properties/free_shipping_hint"
+        free_shipping_text_left:
+          $ref: "#/components/schemas/CheckoutEnhancementSettings/properties/free_shipping_text_left"
+        free_shipping_text_achieved:
+          $ref: "#/components/schemas/CheckoutEnhancementSettings/properties/free_shipping_text_achieved"
+        free_shipping_bg_color:
+          $ref: "#/components/schemas/CheckoutEnhancementSettings/properties/free_shipping_bg_color"
+        free_shipping_text_color:
+          $ref: "#/components/schemas/CheckoutEnhancementSettings/properties/free_shipping_text_color"
+
+    FreeShippingHint:
+      type: object
+      nullable: true
+      description: |
+        WooCommerce Store API cart extension 資料（非 PC REST 端點）：
+        GET /wp-json/wc/store/v1/cart → extensions["power-checkout"].free_shipping_hint。
+        開關關閉、全虛擬購物車、空購物車、或運送區域無已啟用的 free_shipping 門檻時為 null。
+        計算一律在後端；前端（Cart/Checkout block slot fill）只負責呈現。
+      required: [achieved, diff, text, bg_color, text_color]
+      properties:
+        achieved:
+          type: boolean
+          description: 差額 ≤ 0（或 either 已套用免運券）
+          example: false
+        diff:
+          type: number
+          description: 差額（已依商店小數位四捨五入；已達時為 0）
+          example: 150
+        text:
+          type: string
+          description: 已替換 {price} 並 esc_html 的提示文案
+          example: "再買 150 元即可享免運"
+        bg_color:
+          type: string
+          example: "#d36f6f"
+        text_color:
+          type: string
+          example: "#ffffff"
+
     AmegoSettings:
       type: object
       description: 光貿電子發票完整設定
@@ -762,6 +884,9 @@ paths:
             value: "shopline_payment_redirect"
           amego:
             value: "amego"
+          checkout_enhancement:
+            summary: 結帳體驗強化設定（虛擬 provider，不進 ProviderUtils container，直接讀寫 woocommerce_checkout_enhancement_settings）
+            value: "checkout_enhancement"
 
     get:
       tags: [Settings]
@@ -788,8 +913,14 @@ paths:
                           Provider 設定（結構依 provider 而異）：
                           - shopline_payment_redirect: ShoplinePaymentSettings
                           - amego: AmegoSettings
+                          - checkout_enhancement: CheckoutEnhancementSettings（未儲存過的鍵以預設值補齊）
+                        anyOf:
+                          - type: object
+                          - $ref: "#/components/schemas/CheckoutEnhancementSettings"
         "401":
           description: 未登入或 Nonce 無效
+        "403":
+          description: 已登入但無 manage_options / manage_woocommerce 權限
         "500":
           description: "找不到 Provider（Can't find Provider with provider_id: {id}）"
 
@@ -807,8 +938,10 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              description: 設定欄位 key-value pairs（依 provider 而異，未傳的欄位不會被覆蓋）
+              anyOf:
+                - type: object
+                  description: 設定欄位 key-value pairs（依 provider 而異，未傳的欄位不會被覆蓋）
+                - $ref: "#/components/schemas/CheckoutEnhancementSettingsUpdate"
       responses:
         "200":
           description: 儲存成功
@@ -825,9 +958,11 @@ paths:
                         example: "儲存成功"
                       data:
                         type: object
-                        description: 更新後的完整設定
+                        description: 更新後的完整設定（checkout_enhancement：不合法的鍵被忽略、維持原值，仍回 200）
         "401":
           description: 未登入或 Nonce 無效
+        "403":
+          description: 已登入但無 manage_options / manage_woocommerce 權限
 
   /settings/{provider_id}/toggle:
     post:

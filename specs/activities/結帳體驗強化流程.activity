@@ -1,0 +1,37 @@
+[ACTIVITY] 結帳體驗強化流程
+[ACTOR] 管理員 -> {specs/actors/管理員.md}
+[ACTOR] 顧客 -> {specs/actors/顧客.md}
+[ACTOR] 第三方金流 -> {specs/actors/第三方金流.md}
+
+# 設定：6 個獨立開關（預設皆 no）存於 woocommerce_checkout_enhancement_settings（重用 POST /settings/{provider_id}）
+[STEP:1] @管理員 {specs/features/settings/checkout-enhancement-settings.feature}
+
+# 顧客進入購物車 / 結帳頁：運送區上方單一免運提示列（傳統 + 區塊）
+[STEP:2] @顧客 {specs/features/checkout/free-shipping-hint.feature}
+[DECISION:2a] 免運提示開關與 WC 免運費方式門檻
+  [BRANCH:2a:未開啟或無門檻] @顧客 {specs/features/checkout/free-shipping-hint.feature}
+  [BRANCH:2a:未達門檻] @顧客 {specs/features/checkout/free-shipping-hint.feature}
+  [BRANCH:2a:已達門檻] @顧客 {specs/features/checkout/free-shipping-hint.feature}
+[MERGE:2a]
+
+# 結帳頁地址欄位：姓在前（TW）、縣市下拉（兩種結帳）/ 鄉鎮下拉 + 郵遞區號（僅傳統）、虛擬商品隱藏地址
+[STEP:3] @顧客 {specs/features/checkout/checkout-address-fields.feature}
+[DECISION:3a] 購物車內容
+  [BRANCH:3a:全部為虛擬商品] @顧客 {specs/features/checkout/checkout-address-fields.feature}
+  [BRANCH:3a:含實體商品] @顧客 {specs/features/checkout/checkout-address-fields.feature}
+[MERGE:3a]
+
+# 送出訂單：台灣手機格式 ^09\d{8}$ 檢查、虛擬商品免填地址
+[STEP:4] @顧客 {specs/features/checkout/checkout-field-validation.feature}
+[DECISION:4a] 地址國家
+  [BRANCH:4a:台灣] @顧客 {specs/features/checkout/checkout-field-validation.feature}
+  [BRANCH:4a:非台灣] @顧客 {specs/features/checkout/checkout-field-validation.feature}
+[MERGE:4a]
+
+# 訂單轉為處理中（金流付款通知或管理員手動）→ 全虛擬則自動完成
+[STEP:5] @第三方金流 {specs/features/checkout/virtual-order-auto-complete.feature}
+[DECISION:5a] 訂單品項
+  [BRANCH:5a:全部為虛擬商品] @第三方金流 {specs/features/checkout/virtual-order-auto-complete.feature}
+  [BRANCH:5a:含實體商品] @第三方金流 {specs/features/checkout/virtual-order-auto-complete.feature}
+[MERGE:5a]
+[END]

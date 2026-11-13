@@ -9,18 +9,25 @@
  *
  * NOTE：購物車為空時部分項目會自動跳過，這是預期行為。
  */
-import { test, expect } from '@playwright/test'
-import { wpGet, wpPost, type ApiOptions } from '../helpers/api-client.js'
+import { test, expect, type APIRequestContext } from '@playwright/test'
+import { wpGet, wpPost, createApiContext, type ApiOptions } from '../helpers/api-client.js'
 import { getNonce } from '../helpers/admin-setup.js'
 import { BASE_URL, EP, PROVIDERS } from '../fixtures/test-data.js'
 
 test.describe('結帳頁面渲染', () => {
+  // playwright 全域 extraHTTPHeaders 的 X-WP-Nonce: '' 會讓區塊購物車 / 結帳頁內的 Store API 請求 403，
+  // 區塊持續重試 rest-nonce 而永遠不會 networkidle；API 呼叫改由 beforeAll 自建的 context 帶 nonce
+  test.use({ extraHTTPHeaders: {} })
+
   let opts: ApiOptions
+  let ctx: APIRequestContext
   let slpEnabled = false
 
-  test.beforeAll(async ({ request }) => {
+  test.beforeAll(async () => {
     const nonce = getNonce()
-    opts = { request, baseURL: BASE_URL, nonce }
+    // Playwright 禁止在 test 內重用 beforeAll 的 { request } fixture，改自建 context
+    ctx = await createApiContext(BASE_URL)
+    opts = { request: ctx, baseURL: BASE_URL, nonce }
 
     // 確認 SLP Gateway 是否啟用（讀取設定，不要 toggle）
     const res = await wpGet(opts, EP.SETTINGS_SINGLE(PROVIDERS.SLP))
@@ -28,6 +35,10 @@ test.describe('結帳頁面渲染', () => {
       const data = ((res.data as Record<string, unknown>).data ?? res.data) as Record<string, unknown>
       slpEnabled = data.enabled === 'yes'
     }
+  })
+
+  test.afterAll(async () => {
+    await ctx.dispose()
   })
 
   // ─── 頁面可達性（不應 PHP Fatal Error）──────────────────

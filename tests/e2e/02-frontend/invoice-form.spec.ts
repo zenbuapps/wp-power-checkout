@@ -11,8 +11,8 @@
  * 依據：specs/features/invoice/
  * NOTE：外部 Amego API 在測試環境不可用，多數測試接受 status < 600 即可。
  */
-import { test, expect } from '@playwright/test'
-import { wpGet, wpPost, type ApiOptions } from '../helpers/api-client.js'
+import { test, expect, type APIRequestContext } from '@playwright/test'
+import { wpGet, wpPost, createApiContext, type ApiOptions } from '../helpers/api-client.js'
 import { getNonce } from '../helpers/admin-setup.js'
 import {
   BASE_URL,
@@ -25,14 +25,25 @@ import {
 } from '../fixtures/test-data.js'
 
 test.describe('電子發票表單', () => {
+  // playwright 全域 extraHTTPHeaders 的 X-WP-Nonce: '' 會讓區塊結帳頁內的 Store API 請求 403，
+  // 區塊持續重試 rest-nonce 而永遠不會 networkidle；API 呼叫改由 beforeAll 自建的 context 帶 nonce
+  test.use({ extraHTTPHeaders: {} })
+
   let opts: ApiOptions
+  let ctx: APIRequestContext
   let testOrderId: number | undefined
 
-  test.beforeAll(async ({ request }) => {
+  test.beforeAll(async () => {
     const nonce = getNonce()
-    opts = { request, baseURL: BASE_URL, nonce }
+    // Playwright 禁止在 test 內重用 beforeAll 的 { request } fixture，改自建 context
+    ctx = await createApiContext(BASE_URL)
+    opts = { request: ctx, baseURL: BASE_URL, nonce }
     const ids = loadTestIds()
     testOrderId = ids.orderIdForInvoice
+  })
+
+  test.afterAll(async () => {
+    await ctx.dispose()
   })
 
   // ─── Amego 設定確認 ────────────────────────────────────
@@ -51,18 +62,18 @@ test.describe('電子發票表單', () => {
       expect(data).toHaveProperty('tax_rate')
     })
 
-    test('Amego 設定包含 auto_issue 陣列', async () => {
+    test('Amego 設定包含 auto_issue_order_statuses 陣列', async () => {
       const res = await wpGet(opts, EP.SETTINGS_SINGLE(PROVIDERS.AMEGO))
       const data = ((res.data as Record<string, unknown>).data ?? res.data) as Record<string, unknown>
-      expect(data).toHaveProperty('auto_issue')
-      expect(Array.isArray(data.auto_issue)).toBeTruthy()
+      expect(data).toHaveProperty('auto_issue_order_statuses')
+      expect(Array.isArray(data.auto_issue_order_statuses)).toBeTruthy()
     })
 
-    test('Amego 設定包含 auto_cancel 陣列', async () => {
+    test('Amego 設定包含 auto_cancel_order_statuses 陣列', async () => {
       const res = await wpGet(opts, EP.SETTINGS_SINGLE(PROVIDERS.AMEGO))
       const data = ((res.data as Record<string, unknown>).data ?? res.data) as Record<string, unknown>
-      expect(data).toHaveProperty('auto_cancel')
-      expect(Array.isArray(data.auto_cancel)).toBeTruthy()
+      expect(data).toHaveProperty('auto_cancel_order_statuses')
+      expect(Array.isArray(data.auto_cancel_order_statuses)).toBeTruthy()
     })
   })
 

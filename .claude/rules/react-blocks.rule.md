@@ -22,6 +22,7 @@ inc/assets/blocks/
   payuni_upp.tsx                   # Active -- PAYUNi UPP V2 redirect gateway
   payuni_uni_embed.tsx             # Active -- PAYUNi UNi Embed V3 embedded gateway
   paynow.tsx                       # Active -- PayNow Component SDK v2 embedded gateway
+  pc_free_shipping_hint.tsx        # Active -- NOT a payment method: free-shipping hint (registerPlugin + ExperimentalOrderMeta slot fill; data from Store API extension power-checkout.free_shipping_hint)
   types/types.d.ts                 # Shared type declarations
 ```
 
@@ -41,6 +42,10 @@ import { __ } from '@wordpress/i18n'                                 // window.w
 ```
 
 Do NOT add these as npm dependencies -- they are shimmed.
+
+## Enqueuing Block Scripts (ES Module)
+
+Vite emits ESM output (contains `import`). When PHP enqueues a block script with `wp_enqueue_script()`, it **must** also call `Plugin::instance()->add_module_handle($handle)` so it loads as `type="module"`; otherwise the browser reports `Cannot use import statement outside a module`. (Payment methods get this via `BlocksIntegration`; standalone scripts call it in their own `enqueue_block_assets()`: `pc_free_shipping_hint` (`FreeShippingHintService`), `pc_invoice` (`BlocksInvoiceIntegration`), `ecpay_logistics` (`BlocksLogisticsIntegration`).)
 
 ## Payment Method Registration Pattern
 

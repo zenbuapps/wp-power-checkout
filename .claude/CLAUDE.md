@@ -22,6 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **PayNow Logistics** (`paynow_logistics`) — Convenience store pickup (7-11/FAMI/HiLife) + TCAT home delivery (立吉富體系 1); TripleDES DES-EDE3 ECB encryption (JsonOrder base64(3DES(JSON)), apicode ECB+space→plus); PassCode SHA1; status push callback is unsigned → treated as trigger only, status re-fetched via Get_Order_Info (10s throttle); query/print/cancel; amount limits CVS ≤20000 / home ≤100000; idempotent ReNewOrder when existing valid shipment; create_return throws 尚未實作; [GAP: sandbox user_account/apicode pending; prod key/IV to confirm with PayNow]
 - **PayNow Invoice** (`paynow_invoice`) — Taiwan e-invoice B2C/B2B via PayNow (立吉富體系 3); Bearer JWT-Token auth (no symmetric encryption); issue/cancel/allowance (open+void)/query; IInvoiceService + ISupportsAllowance + ISupportsQuery; B2C tax_amount=0 / B2B actual tax; carrier/donation mutual exclusion; zero-tax requires reason; allowance_data uses `allowance_number` key (not ezPay's `allowance_no`); parallel with Amego/ECPay/ezPay, switchable from admin; [GAP: sandbox jwt_token pending application; dev env invoiceapi-dev.paynow.com.tw / prod invoiceapi-prod.paynow.com.tw]
 - **Checkout Fields** — Classic checkout custom fields (including invoice info fields)
+- **Checkout Enhancement** (`checkout_enhancement`) — Virtual provider (no gateway/provider class); 6 independent toggles, all default `no`: TW county/district dropdown (`tw_address`), TW mobile format check (`tw_phone_validation`), last-name-first (`last_name_first`), hide address fields for all-virtual cart (`virtual_hide_address`), auto-complete all-virtual orders (`virtual_auto_complete`), free-shipping hint (`free_shipping_hint`; + text/color settings). Option `woocommerce_checkout_enhancement_settings`; classic + Blocks checkout (support differs per feature, see Checkout Enhancement Flow); coexists with woomp (admin UI warns to enable only one side)
 
 ---
 
@@ -182,8 +183,24 @@ inc/classes/
 │   │   │   ├── DTOs/                      # PaynowInvoiceSettingsDTO, IssueParams (B2C tax_amount=0/B2B actual; carrier/donation mutex; ZeroTax requires reason), IssueResponse, AllowanceParams, AllowanceResponse, QueryParams, QueryResponse
 │   │   │   └── Shared/Enums/              # ECarrierType (5 cases), ETaxType (4 cases), EZeroTaxReason (10 cases)
 │   │   └── Shared/                  # IInvoiceService interface, InvoiceApiService (REST /invoices)
-│   └── Settings/
-│       └── Services/                # WC settings tab, REST /settings CRUD, default address format
+│   ├── Settings/
+│   │   └── Services/                # WC settings tab, REST /settings CRUD (+ `checkout_enhancement` special case), default address format
+│   └── Checkout/                    # Checkout Enhancement (virtual provider id `checkout_enhancement`; not in ProviderUtils container)
+│       ├── ProviderRegister.php     # Registers every service's hooks unconditionally; toggles are checked at runtime inside callbacks
+│       ├── DTOs/
+│       │   ├── CheckoutEnhancementSettingsDTO.php  # Static-only (no wp-utils DTO base): DEFAULTS (10 keys), get_all (defaults merged) / get_stored / is_on / merge_valid (per-key validation)
+│       │   └── FreeShippingStatusDTO.php           # Free-shipping calc result (achieved / diff)
+│       ├── Services/
+│       │   ├── NameOrderService.php                # last_name_first: TW locale key, last_name priority before first_name (`woocommerce_get_country_locale` p20)
+│       │   ├── TwAddressService.php                # tw_address: `woocommerce_states` TW → 22 counties; enqueues classic-tw-address.js (district + postcode linkage, classic only)
+│       │   ├── VirtualCartAddressService.php       # virtual_hide_address: classic unsets billing address fields; Blocks writes TW locale hidden + CSS-hides country (D15); locale cache reset
+│       │   ├── PhoneValidationService.php          # tw_phone_validation: `^09\d{8}$` after stripping spaces/hyphens; classic `$errors`, Blocks `RouteException` 400
+│       │   ├── VirtualOrderAutoCompleteService.php # virtual_auto_complete: queue on →processing, re-check + complete at `shutdown`; filter `power_checkout_virtual_auto_complete_should_complete`
+│       │   └── FreeShippingHintService.php         # free_shipping_hint: classic table row + Store API extension `power-checkout.free_shipping_hint` + Blocks script enqueue
+│       └── Shared/Helpers/
+│           ├── CartInspector.php                   # is_all_virtual_cart/order (all items is_virtual; mixed = physical), is_classic_checkout / is_block_checkout
+│           ├── FreeShippingCalculator.php          # Same algorithm as WC free_shipping method; returns FreeShippingStatusDTO|null
+│           └── TwAdminDivision.php                 # Static TW data: 22 counties (內政部用字「臺」) / 371 districts / 3-digit postcode
 └── Shared/
     ├── Utils/ProviderUtils.php      # Provider container + WC options CRUD (central to the system)
     ├── Utils/OrderUtils.php         # HPOS-aware order utilities
@@ -247,6 +264,7 @@ Frontend access: always use `utils/env.ts`, never read `window` directly.
 - Active test suite: `tests/Integration/` — namespace `Tests\Integration\`, base class `Tests\Integration\TestCase extends WP_UnitTestCase`, bootstrap `tests/bootstrap.php`
 - Config: `phpunit.xml.dist` — **group whitelist**: only `smoke` / `happy` / `error` / `edge` / `security` groups are collected; tests must be annotated with at least one group to run
 - Additional test categories used: `integration`, `invoice`, `<provider>` (e.g. `ezpay`)
+- Checkout Enhancement: `tests/Integration/Checkout/` (+ `tests/Integration/Settings/CheckoutEnhancementSettings*Test.php`); base class `Tests\Integration\Checkout\CheckoutTestCase` (cart session, products, shipping zones, classic validation/order creation, Store API checkout, logger capture); class-level `@group checkout`. **S1**: Store API works under `WP_UnitTestCase` — Blocks cases send real orders via `rest_do_request` (no Reflection workaround). Harness pitfalls: physical carts need `create_free_shipping_zone()` first (otherwise `needs_shipping()` is false); payable orders need `enable_bacs_gateway()`; `WC_Checkout::$fields` / `WC()->countries` singleton caches are cleared by the harness
 - API mode: controlled by `API_MODE` env var (`mock` / `sandbox` / `prod`)
 - Pure-logic offline verification (no WP bootstrap): `tests/offline/ezpay-pure-harness.php` — used when LocalWP DB constraints prevent `WP_UnitTestCase` from running locally
 - Legacy directory `inc/tests/` exists but is **not** referenced by `phpunit.xml.dist`; treat as inactive
@@ -261,6 +279,7 @@ Frontend access: always use `utils/env.ts`, never read `window` directly.
 | `power-checkout/v1` | GET | `/settings` | Nonce |
 | `power-checkout/v1` | GET/POST | `/settings/{id}` | Nonce |
 | `power-checkout/v1` | POST | `/settings/{id}/toggle` | Nonce |
+| `power-checkout/v1` | GET/POST | `/settings/checkout_enhancement` | Nonce — special case inside `/settings/{id}` (see Checkout Enhancement Flow): GET fills defaults, POST validates per key |
 | `power-checkout/v1` | POST | `/refund` | Nonce |
 | `power-checkout/v1` | POST | `/refund/manual` | Nonce |
 | `power-checkout/v1/invoices` | POST | `/issue/{order_id}` | Nonce |
@@ -581,6 +600,59 @@ Environment: dev `https://invoiceapi-dev.paynow.com.tw` / prod `https://invoicea
 
 ---
 
+## Checkout Enhancement Flow (checkout_enhancement)
+
+Domain `Domains/Checkout/`; virtual provider id `checkout_enhancement` (no gateway class, not in `ProviderUtils::$container`); option `woocommerce_checkout_enhancement_settings`; admin page = Vue route `/checkout` (sidebar「結帳」). All hooks are registered unconditionally by `Checkout\ProviderRegister`; each callback checks `CheckoutEnhancementSettingsDTO::is_on($key)` at runtime and is never-throw (`\Throwable` → `Plugin::logger()`, return original value).
+
+### Settings REST (special case in `SettingApiService`)
+
+- Reuses `GET/POST /power-checkout/v1/settings/{provider_id}`; branch detected by `is_checkout_enhancement_route()`. **All** `/settings/{provider_id}` callbacks (GET / POST / toggle) resolve the target via `route_provider_id()` = URL params only (`get_url_params()`), never `$request['provider_id']` (JSON body / query string outrank URL params and could redirect writes to another `woocommerce_{x}_settings`); POST also drops `provider_id` from the saved params
+- GET: `get_all()` = `DEFAULTS` merged with stored values (corrupt/missing option → all defaults)
+- POST: `merge_valid()` validates per key — toggles `yes`/`no`, colors `#RRGGBB`, texts non-empty after sanitize (`free_shipping_text_left` must contain `{price}`); an invalid key keeps its stored value, valid keys are still saved; unknown keys and `provider_id` are never written
+- DTO deliberately does not extend wp-utils `DTO`/`BaseSettingsDTO` (required_properties typo issue)
+
+### Classic vs Blocks support
+
+| Feature (toggle) | Classic | Blocks |
+|---|---|---|
+| County dropdown (`tw_address`) | Yes (`woocommerce_states` TW) | Yes (same filter) |
+| District dropdown + postcode auto-fill (`tw_address`) | Yes (`classic-tw-address.js`, jQuery) | **No** |
+| Last name first (`last_name_first`) | Yes | Yes (TW locale priority) |
+| Mobile format check (`tw_phone_validation`) | Yes | Yes (server-side) |
+| Hide address for all-virtual cart (`virtual_hide_address`) | Yes | Yes (evaluated at page load; removing physical items mid-page does not re-hide) |
+| Auto-complete virtual orders (`virtual_auto_complete`) | Order status hook, checkout-agnostic | Same |
+| Free-shipping hint (`free_shipping_hint`) | Yes (cart totals + review-order table row) | Yes (Store API extension + slot fill) |
+
+Existing TW display format (`DefaultSetting::modify_tw_address_formats`) stays always-on; there is no toggle for it. Name order / hidden fields apply only when country = TW (D3); "virtual" = **all** items `is_virtual()` (mixed cart = physical).
+
+### Virtual cart address hiding (S2 / D15)
+
+- Classic: `woocommerce_checkout_fields` (p1000) unsets billing `country/state/city/postcode/address_1/address_2`
+- Blocks: `woocommerce_get_country_locale` (p1000) sets `hidden=true, required=false` on `state/city/postcode/address_1/address_2` **under the explicit `TW` key** — WC's default locale array has no TW (looping existing keys does nothing) and the `default` key is overwritten by WC after the filter
+- Blocks **country must not be `hidden` in locale**: it empties the country value, un-hides the other fields and blocks the order. Hidden by CSS instead (`print_block_country_css` on `wp_head`: only on block checkout + toggle on + all-virtual cart); country stays in the DOM with value TW
+- Locale cache: `WC()->countries->locale` is cached per request, so `reset_country_locale()` runs at `woocommerce_cart_loaded_from_session` (p1) and before Store API order validation (`woocommerce_store_api_checkout_update_order_from_request` p1) so the cart-dependent filter is re-evaluated
+
+### Phone validation
+
+- Rule: strip spaces/hyphens, then `^09\d{8}$`; input value is never rewritten; empty values skipped (required is WC's job); only when country (shipping, else billing, else store base country) = TW
+- Classic: `woocommerce_after_checkout_validation` adds to `$errors` (all invalid fields reported); shipping phone read from `$_POST['shipping_phone']` **only when `ship_to_different_address`** is checked (WC classic has no shipping_phone in posted data)
+- Blocks: `woocommerce_store_api_checkout_update_order_from_request` throws `RouteException` (HTTP 400, code `power_checkout_invalid_phone`) — only the **first** invalid field is reported
+
+### Virtual order auto-complete (R1)
+
+- `woocommerce_order_status_changed` (p20): `to === processing` + toggle on → order id queued (de-duplicated by key), `shutdown` hook added once; any path to processing triggers (webhook, admin manual change)
+- `flush_queue()` at `shutdown`: re-reads the order and completes only if **still processing** and all items virtual (and filter `power_checkout_virtual_auto_complete_should_complete` allows) → `completed`
+- Why deferred: PAYUNi / PayNow / NewebPay call `payment_complete()` then `update_status('processing')`, firing the hook twice; completing inline would send two emails. The 4 invoice providers already skip when an invoice exists, so only one invoice is issued
+
+### Free-shipping hint
+
+- `FreeShippingCalculator` follows WC `free_shipping` method semantics: reads the enabled `free_shipping` methods of the first package's shipping zone; `min_amount` read from the raw option (empty/non-numeric → not a candidate); base = displayed subtotal minus discount (+ discount tax when prices include tax) **only if `ignore_discounts` ≠ yes**, rounded to store decimals; `requires=coupon` skipped, `both` only with a free-shipping coupon, `either` with coupon = achieved; multiple candidates → smallest positive diff; null when cart empty / no shipping / no candidate
+- Classic: `woocommerce_cart_totals_before_shipping` + `woocommerce_review_order_before_shipping` print a `<tr class="pc-free-shipping-hint">` (colors from settings, `{price}` replaced)
+- Blocks: Store API cart extension, namespace `power-checkout`, key `free_shipping_hint` (`null` or `{achieved, diff, text, bg_color, text_color}`), registered on `woocommerce_blocks_loaded`; frontend `inc/assets/blocks/pc_free_shipping_hint.tsx` renders via `registerPlugin` + `ExperimentalOrderMeta` slot fill (covers both Cart and Checkout blocks; text is `decodeEntities`-ed, no `dangerouslySetInnerHTML`)
+- Block script enqueued on `wp_enqueue_scripts` p20 only when toggle on + page has cart/checkout block + build file exists; must be registered as an ES module via `Plugin::instance()->add_module_handle($handle)`
+
+---
+
 ## Order Meta Keys
 
 | Key | Purpose |
@@ -661,12 +733,21 @@ Environment: dev `https://invoiceapi-dev.paynow.com.tw` / prod `https://invoicea
 | `before_woocommerce_init` | Declare HPOS + Blocks compatibility |
 | `wc_payment_gateways_initialized` | Populate ProviderUtils::$container |
 | `woocommerce_order_status_{status}` | Auto issue/void invoices |
-| `woocommerce_checkout_fields` | Classic checkout invoice fields |
+| `woocommerce_checkout_fields` | Classic checkout invoice fields; (p1000) strip billing address fields for all-virtual cart (`virtual_hide_address`) |
+| `woocommerce_get_country_locale` | Checkout Enhancement: `NameOrderService` (p20, TW last/first name order) + `VirtualCartAddressService` (p1000, TW hidden address fields); always write the explicit `TW` key |
+| `woocommerce_states` | Checkout Enhancement: TW → 22 counties dropdown (`tw_address`) |
+| `woocommerce_cart_loaded_from_session` / `woocommerce_store_api_checkout_update_order_from_request` (p1) | Reset `WC()->countries->locale` cache so cart-dependent locale filters re-run |
+| `woocommerce_after_checkout_validation` | Classic TW mobile format check |
+| `woocommerce_store_api_checkout_update_order_from_request` (p10) | Blocks TW mobile format check (throws `RouteException` 400) |
+| `woocommerce_order_status_changed` (p20) + `shutdown` | Queue →processing orders; flush at `shutdown` and auto-complete all-virtual orders |
+| `woocommerce_cart_totals_before_shipping` / `woocommerce_review_order_before_shipping` | Classic free-shipping hint row |
+| `woocommerce_blocks_loaded` | Register Store API cart extension `power-checkout.free_shipping_hint` |
+| `wp_head` (p1000) | Print CSS hiding the Blocks country field for all-virtual carts |
 | `woocommerce_shipping_methods` | Register WC_EcpayLogisticsShipping + WC_PaynowLogisticsShipping (classic checkout shipping methods) |
 | `woocommerce_checkout_create_order` | Write logistics sub_type + payment_scenario meta from checkout |
 | `rest_api_init` | Register logistics status-callback + selection-callback endpoints |
 | `admin_enqueue_scripts` | Load Vue app bundle (admin pages) |
-| `wp_enqueue_scripts` | Load Vue app bundle (frontend checkout for invoice form) |
+| `wp_enqueue_scripts` | Load Vue app bundle (frontend checkout for invoice form); `classic-tw-address.js` (classic checkout, `tw_address`); `pc_free_shipping_hint` block script (p20, ES module) |
 
 ---
 

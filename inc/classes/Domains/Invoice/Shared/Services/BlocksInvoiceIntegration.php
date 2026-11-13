@@ -117,6 +117,8 @@ final class BlocksInvoiceIntegration {
 			Plugin::$version,
 			true
 		);
+		// Vite 產出 ESM（含 import），須以 type="module" 載入，否則瀏覽器報 Cannot use import statement outside a module
+		Plugin::instance()->add_module_handle( self::SCRIPT_HANDLE );
 	}
 
 	/**
