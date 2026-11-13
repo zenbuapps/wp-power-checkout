@@ -168,8 +168,9 @@ test.describe('傳統結帳 — 台灣縣市鄉鎮下拉', () => {
     await pickTaipeiXinyi(page, 'shipping')
     await expect(page.locator('#shipping_postcode')).toHaveValue('110', { timeout: 10_000 })
 
-    // 帳單欄位不受運送欄位影響
-    await expect(page.locator('select#billing_city')).toHaveCount(0)
+    // 帳單欄位不受運送欄位影響：帳單郵遞區號沒有被運送地址的選擇帶入
+    // （開發站商店國家為 TW，帳單 city 本來就會是下拉，故不以 select#billing_city 數量判斷）
+    await expect(page.locator('#billing_postcode')).not.toHaveValue('110')
   })
 
   test('運送地址：切到 US 後還原為文字輸入', async ({ page }) => {
