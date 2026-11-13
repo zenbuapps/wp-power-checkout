@@ -28,6 +28,7 @@ final class Bootstrap {
 		Domains\Invoice\ProviderRegister::register_hooks();
 		Domains\Receipt\ProviderRegister::register_hooks();
 		Domains\Logistics\ProviderRegister::register_hooks();
+		Domains\Checkout\ProviderRegister::register_hooks();
 
 		\add_action( 'before_woocommerce_init', [ __CLASS__, 'declare_compatibility' ] );
 		\add_action('admin_head', [ __CLASS__, 'custom_css' ]);
