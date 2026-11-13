@@ -43,6 +43,35 @@ final class CartInspector {
 	}
 
 	/**
+	 * 訂單是否「全為虛擬商品」
+	 *
+	 * 條件：至少 1 個商品品項、每個品項對應的商品都存在且 is_virtual()。
+	 * 無商品品項（例如只有運費）、任一商品已刪除、含實體商品 → false（偏安全，不自動完成）。
+	 *
+	 * @param \WC_Order $order 訂單
+	 * @return bool 是否全為虛擬商品
+	 */
+	public static function is_all_virtual_order( \WC_Order $order ): bool {
+		$items = $order->get_items( 'line_item' );
+		if ( [] === $items ) {
+			return false;
+		}
+
+		foreach ( $items as $item ) {
+			if ( !$item instanceof \WC_Order_Item_Product ) {
+				return false;
+			}
+
+			$product = $item->get_product();
+			if ( !$product instanceof \WC_Product || !$product->is_virtual() ) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
 	 * 目前請求是否為「傳統結帳頁」（非區塊結帳）
 	 *
 	 * 邏輯同 WC_EcpayLogisticsShipping::is_classic_checkout（本領域另寫一份，避免跨領域依賴 private 方法）。
