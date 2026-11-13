@@ -9,10 +9,10 @@
  * ★ R1 鐵律（貨態 callback 所有路徑，含例外）：
  *   一律回 HTTP 200，避免 PayNow 重送風暴；任何 \Throwable catch 後仍回 200。
  *
- * 安全清單（permission __return_true，認證上限為內部弱驗證；woomp 無簽章證據）：
- *   - 選店回呼：缺 storeid / storename → 回錯「選店回呼缺少門市資訊」，不寫 meta。
- *   - 貨態通知：缺 orderno / 反查不到訂單 → 不寫 meta（仍回 200）。
- *   - 冪等：以「{OrderNo}:{LogisticCode}」組合碼防重（重送命中跳過）。
+ * 安全清單（permission __return_true；PayNow 物流回呼本身沒有簽章可驗）：
+ *   - 選店回呼：returnUrl 編入 orderid + cid（order_key），回呼時兩者都必須帶回且 hash_equals 相符才寫門市 meta（防 IDOR）。
+ *   - 貨態通知：推送內容一律不信任，只當「觸發」；以 Get_Order_Info 主動查詢 PayNow 的結果寫回貨態 / COD 收款旗標。
+ *   - 節流：同一訂單 10 秒內只查一次（防偽造推送灌爆 PayNow API）。
  *
  * @see specs/open-issue/paynow-logistics-invoice-implementation-plan.md §A-Cycle 2 步驟 9 / §R1
  * @see inc/classes/Domains/Logistics/Ecpay/Http/LogisticsCallback.php（鏡像）
@@ -34,6 +34,12 @@ final class LogisticsCallback extends ApiBase {
 
 	/** @var string Namespace power-checkout/paynow */
 	protected $namespace = 'power-checkout/paynow';
+
+	/** @var string 貨態主動查詢節流 transient 前綴（+ order_id） */
+	private const SYNC_THROTTLE_PREFIX = 'pc_paynow_logistics_sync_';
+
+	/** @var int 貨態主動查詢節流秒數（同一訂單此時間內只查一次 PayNow） */
+	private const SYNC_THROTTLE_SECONDS = 10;
 
 	/**
 	 * APIs
@@ -164,7 +170,17 @@ final class LogisticsCallback extends ApiBase {
 	}
 
 	/**
-	 * 貨態推送處理（解析 payload → orderno 反查 → 冪等 → 更新 meta → COD 標記）
+	 * 貨態推送處理（推播只當「觸發」，貨態以後端主動查詢 PayNow 為準）
+	 *
+	 * PayNow 物流貨態推送沒有任何簽章 / 驗證碼可供驗證來源，任何人都能偽造 POST。
+	 * 因此推送內容（PayNowLogisticCode / Detail_Status_Description / paymentno）一律不信任、不寫入：
+	 *  1. 以 orderno 反查訂單；查無 → 結束。
+	 *  2. 尚未建立物流單（無 LogisticNumber）→ 結束（真實推送只會發生在建單之後）。
+	 *  3. 節流：同一訂單 {@see self::SYNC_THROTTLE_SECONDS} 秒內只查一次（防偽造推送灌爆 PayNow API）。
+	 *  4. 以 Get_Order_Info 主動查詢（帶商店 apicode，偽造者無法冒充回應）→ query_shipment() 寫回
+	 *     status / delivery_status / logistic_code，COD 取貨完成才標記 collection_paid。
+	 *  5. 冪等：以「查詢結果」的 {OrderNo}:{LogisticCode} 防重複加 order note（不再以推送值判斷，
+	 *     避免攻擊者預先把某貨態碼標成已處理，讓真實推送被吞掉）。
 	 *
 	 * @param \WP_REST_Request $request 請求
 	 * @return void
@@ -175,17 +191,13 @@ final class LogisticsCallback extends ApiBase {
 			(array) $request->get_body_params()
 		);
 
-		$order_no      = (string) ( $params['orderno'] ?? '' );
-		$logistic_code = (string) ( $params['PayNowLogisticCode'] ?? '' );
-		$description   = (string) ( $params['Detail_Status_Description'] ?? '' );
-		$payment_no    = (string) ( $params['paymentno'] ?? '' );
+		$order_no = (string) ( $params['orderno'] ?? '' );
 
 		// 缺 orderno → 不處理（仍回 200）
 		if ('' === \trim( $order_no )) {
 			return;
 		}
 
-		// 以 orderno（PCN{order_id}）反查訂單（R4）
 		$order = PaynowLogisticsMetaKeys::get_order_by_order_no( $order_no );
 		if (!$order instanceof \WC_Order) {
 			Plugin::logger(
@@ -198,44 +210,45 @@ final class LogisticsCallback extends ApiBase {
 
 		$meta = new PaynowLogisticsMetaKeys( $order );
 
-		// 冪等：已處理過該（OrderNo + LogisticCode）→ 跳過
-		if ($meta->is_processed( $order_no, $logistic_code )) {
+		// 尚未建立物流單 → 無從查詢，也不可能是真實推送
+		if ('' === \trim( $meta->get_ref() )) {
 			Plugin::logger(
-				'PayNow 物流貨態 callback 重複推送（冪等略過）',
-				'info',
+				'PayNow 物流貨態 callback：訂單尚無物流單，略過（疑似偽造）',
+				'warning',
 				[
-					'orderno'       => $order_no,
-					'logistic_code' => $logistic_code,
+					'orderno'  => $order_no,
+					'order_id' => $order->get_id(),
 				]
 			);
 			return;
 		}
 
-		// 更新貨態 meta
-		if ('' !== $logistic_code) {
-			$meta->update_logistic_code( $logistic_code );
+		// 節流：同一訂單短時間內只查一次
+		$throttle_key = self::SYNC_THROTTLE_PREFIX . $order->get_id();
+		if (false !== \get_transient( $throttle_key )) {
+			return;
 		}
-		$meta->update_delivery_status( '' !== $description ? $description : $logistic_code );
-		if ('' !== $payment_no) {
-			$meta->update_payment_no( $payment_no );
-		}
+		\set_transient( $throttle_key, 1, self::SYNC_THROTTLE_SECONDS );
 
-		// 記已處理碼（冪等防重）
-		$meta->mark_processed( $order_no, $logistic_code );
+		// 以後端主動查詢結果為準（query_shipment 內寫回貨態 meta + COD collection_paid）
+		$result        = PaynowLogisticsProvider::instance()->query_shipment( $order );
+		$logistic_code = (string) ( $result['logistic_code'] ?? '' );
+		$delivery      = (string) ( $result['delivery_status'] ?? '' );
 
-		// COD + 取貨完成貨態 → 標記 collection_paid=yes
-		if ($this->is_cod_order( $order ) && $this->is_pickup_completed( $logistic_code, $description )) {
-			$meta->update_collection_paid( 'yes' );
+		// 冪等：同一（OrderNo + 查詢到的貨態碼）只加一次 note
+		$dedup_code = '' !== $logistic_code ? $logistic_code : $delivery;
+		if ($meta->is_processed( $order_no, $dedup_code )) {
+			return;
 		}
+		$meta->mark_processed( $order_no, $dedup_code );
 
 		PaynowLogisticsProvider::logger(
-			\sprintf( '📦 PayNow 物流貨態更新：%s（%s）', $logistic_code, $description ),
+			\sprintf( '📦 PayNow 物流貨態更新（主動查詢確認）：%s（%s）', $logistic_code, $delivery ),
 			'info',
 			[
 				'orderno'       => $order_no,
 				'logistic_code' => $logistic_code,
-				'description'   => $description,
-				'payment_no'    => $payment_no,
+				'delivery'      => $delivery,
 			],
 			0,
 			$order
@@ -245,34 +258,6 @@ final class LogisticsCallback extends ApiBase {
 	// endregion
 
 	// region helpers
-
-	/**
-	 * 是否為取貨完成貨態（買家已取件 8000，或描述含取貨 / 取件完成字樣）
-	 *
-	 * @param string $logistic_code 貨態碼
-	 * @param string $description    貨態描述
-	 * @return bool
-	 */
-	private function is_pickup_completed( string $logistic_code, string $description ): bool {
-		if ('8000' === $logistic_code) {
-			return true;
-		}
-		if ('PICKUP_DONE' === \strtoupper( $logistic_code )) {
-			return true;
-		}
-		return \str_contains( $description, '取貨完成' )
-		|| \str_contains( $description, '取件' );
-	}
-
-	/**
-	 * 是否為 COD（貨到付款）訂單
-	 *
-	 * @param \WC_Order $order 訂單
-	 * @return bool
-	 */
-	private function is_cod_order( \WC_Order $order ): bool {
-		return 'cod' === $order->get_payment_method();
-	}
 
 	/** @return string 選店回呼 URL（returnUrl，Form POST） */
 	public static function get_selection_callback_url(): string {

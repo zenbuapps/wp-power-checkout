@@ -15,8 +15,7 @@
  * 裁決（照此寫斷言）：
  *   - 缺少 storeid → throw／回錯「選店回呼缺少門市資訊」
  *   - 成功解析 → 寫入 _pc_paynow_logistics_store_id / _store_name / _store_addr
- *   - cid 反查訂單（cid = 購物車 hash，woomp 實證）
- *   - 來源驗證弱驗證（`permission __return_true`，內部 orderno/cid 存在性驗證）
+ *   - orderid + cid（order_key）雙重 hash_equals 比對才認定訂單（防 IDOR）
  *
  * REST endpoint：
  *   POST /wp-json/power-checkout/paynow/logistics/selection-callback（permission __return_true）
@@ -186,7 +185,7 @@ final class PaynowLogisticsSelectionCallbackTest extends TestCase {
 			'storeid'      => self::TEST_STORE_ID,
 			'storename'    => self::TEST_STORE_NAME,
 			'storeaddress' => self::TEST_STORE_ADDR,
-			'cid'          => self::TEST_CID,
+			'cid'          => $order->get_order_key(),
 			'orderid'      => (string) $order->get_id(),
 		];
 
@@ -212,7 +211,7 @@ final class PaynowLogisticsSelectionCallbackTest extends TestCase {
 	}
 
 	/**
-	 * cid 反查到對應訂單
+	 * orderid + cid（order_key）相符 → 寫入對應訂單
 	 *
 	 * @group happy
 	 */
@@ -222,13 +221,13 @@ final class PaynowLogisticsSelectionCallbackTest extends TestCase {
 		$meta_keys = new PaynowLogisticsMetaKeys( $order );
 		$meta_keys->update_order_no( 'PCN' . $order_id );
 
-		// cid 對應訂單 ID（woomp 實作：cid = cart_hash，此處以 orderid 模擬）
+		// returnUrl 編入 orderid + cid=order_key，回呼時原樣帶回
 		$raw = [
 			'storeid'      => self::TEST_STORE_ID,
 			'storename'    => self::TEST_STORE_NAME,
 			'storeaddress' => self::TEST_STORE_ADDR,
 			'orderid'      => (string) $order_id,
-			'cid'          => self::TEST_CID,
+			'cid'          => $order->get_order_key(),
 		];
 
 		$this->lastError = null;
@@ -296,7 +295,7 @@ final class PaynowLogisticsSelectionCallbackTest extends TestCase {
 				'storename'    => self::TEST_STORE_NAME,
 				'storeaddress' => self::TEST_STORE_ADDR,
 				'orderid'      => (string) $order->get_id(),
-				'cid'          => self::TEST_CID,
+				'cid'          => $order->get_order_key(),
 			]
 		);
 
@@ -368,6 +367,128 @@ final class PaynowLogisticsSelectionCallbackTest extends TestCase {
 			// 若回 success 但找不到訂單，屬設計缺陷（此測試讓 Green 時修正）
 			$this->assertNotEquals( 'success', $data['code'], '找不到訂單時不應回 success' );
 		}
+	}
+
+	// endregion
+
+	// =====================================================================
+	// region: 安全性 — IDOR（orderid 可列舉，必須比對 order_key）
+	// =====================================================================
+
+	/**
+	 * 建立已選好門市的受害者訂單
+	 *
+	 * @return \WC_Order
+	 */
+	private function create_victim_order_with_store(): \WC_Order {
+		$order = $this->create_wc_order( [ 'status' => 'processing' ] );
+		$meta  = new PaynowLogisticsMetaKeys( $order );
+		$meta->update_store_id( 'VICTIM_STORE' );
+		$meta->update_store_name( '受害者原門市' );
+		$meta->update_store_addr( '受害者原地址' );
+		$order->save();
+		return $order;
+	}
+
+	/**
+	 * 斷言受害者訂單的門市未被改寫
+	 *
+	 * @param int $order_id 訂單 ID
+	 */
+	private function assert_store_untouched( int $order_id ): void {
+		$fresh = \wc_get_order( $order_id );
+		$this->assertInstanceOf( \WC_Order::class, $fresh );
+		$meta = new PaynowLogisticsMetaKeys( $fresh );
+		$this->assertSame( 'VICTIM_STORE', $meta->get_store_id(), '門市不應被偽造回呼改寫' );
+		$this->assertSame( '受害者原門市', $meta->get_store_name() );
+	}
+
+	/**
+	 * 送出攻擊者選店回呼
+	 *
+	 * @param array<string, string> $binding orderid / cid 綁定參數
+	 * @return \WP_REST_Response
+	 */
+	private function send_attacker_selection( array $binding ): \WP_REST_Response {
+		return $this->callback->handle_selection_callback(
+			$this->build_selection_request(
+				\array_merge(
+					[
+						'storeid'      => 'ATTACKER_STORE',
+						'storename'    => '攻擊者門市',
+						'storeaddress' => '攻擊者地址',
+					],
+					$binding
+				)
+			)
+		);
+	}
+
+	/**
+	 * 只帶 orderid（不帶 cid）→ 拒絕，不改寫門市
+	 *
+	 * @group security
+	 */
+	public function test_orderid_without_cid_is_rejected(): void {
+		$order    = $this->create_victim_order_with_store();
+		$response = $this->send_attacker_selection( [ 'orderid' => (string) $order->get_id() ] );
+
+		$data = (array) $response->get_data();
+		$this->assertSame( 'order_not_found', $data['code'] ?? null );
+		$this->assert_store_untouched( $order->get_id() );
+	}
+
+	/**
+	 * orderid 正確但 cid 錯誤 → 拒絕，不改寫門市
+	 *
+	 * @group security
+	 */
+	public function test_orderid_with_wrong_cid_is_rejected(): void {
+		$order    = $this->create_victim_order_with_store();
+		$response = $this->send_attacker_selection(
+			[
+				'orderid' => (string) $order->get_id(),
+				'cid'     => 'wc_order_forged_key',
+			]
+		);
+
+		$data = (array) $response->get_data();
+		$this->assertSame( 'order_not_found', $data['code'] ?? null );
+		$this->assert_store_untouched( $order->get_id() );
+	}
+
+	/**
+	 * 攻擊者用「自己訂單的 cid」搭配受害者 orderid → 拒絕
+	 *
+	 * @group security
+	 */
+	public function test_cid_of_another_order_is_rejected(): void {
+		$victim   = $this->create_victim_order_with_store();
+		$attacker = $this->create_wc_order( [ 'status' => 'pending' ] );
+		$response = $this->send_attacker_selection(
+			[
+				'orderid' => (string) $victim->get_id(),
+				'cid'     => $attacker->get_order_key(),
+			]
+		);
+
+		$data = (array) $response->get_data();
+		$this->assertSame( 'order_not_found', $data['code'] ?? null );
+		$this->assert_store_untouched( $victim->get_id() );
+	}
+
+	/**
+	 * 只帶 cid（不帶 orderid）→ 拒絕（returnUrl 一定同時帶兩者）
+	 *
+	 * @group security
+	 */
+	public function test_cid_without_orderid_is_rejected(): void {
+		$order    = $this->create_victim_order_with_store();
+		$response = $this->send_attacker_selection( [ 'cid' => $order->get_order_key() ] );
+
+		$data = (array) $response->get_data();
+		$this->assertSame( 'order_not_found', $data['code'] ?? null );
+		$this->assert_store_untouched( $order->get_id() );
 	}
 
 	// endregion

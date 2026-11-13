@@ -14,10 +14,10 @@
  *   handle_status_callback() 解析推送 payload：
  *   - 推送欄位：orderno / PayNowLogisticCode / Detail_Status_Description / paymentno / StoreDate / StoreTime
  *   - 以 orderno 走 PaynowLogisticsMetaKeys::get_order_by_order_no() 反查訂單（R4）
- *   - 冪等：以 "{OrderNo}:{LogisticCode}" 為 key，已處理則跳過
- *   - 更新 meta（logistic_code / delivery_status / payment_no 等）
+ *   - 推送內容不可信（無簽章）：只當觸發，以 Get_Order_Info 主動查詢結果寫回；冪等以查詢到的貨態碼為 key
+ *   - 節流：同一訂單 10 秒內只查一次
  *   - 恆回 HTTP 200（含 \Throwable 路徑）
- *   - COD + 取貨完成貨態 → collection_paid=yes
+ *   - COD + 查詢結果為取貨完成 → collection_paid=yes（偽造推送無效）
  *
  * R4 裁決：反查走 PaynowLogisticsMetaKeys（不依賴 shared LogisticsMetaKeys）
  *
@@ -127,99 +127,105 @@ final class PaynowLogisticsStatusCallbackTest extends TestCase {
 		];
 	}
 
-	// =====================================================================
-	// region: 基礎 — 推送解析
-	// =====================================================================
-
 	/**
-	 * 合法推送 payload → 200 + 寫入貨態 meta
+	 * 建立已建物流單（有 LogisticNumber）的訂單
 	 *
-	 * @group happy
+	 * @param array<string, mixed> $args create_wc_order 參數
+	 * @return array{0: \WC_Order, 1: string} [訂單, orderno]
 	 */
-	public function test_valid_payload_updates_meta_and_returns_200(): void {
-		$order     = $this->create_wc_order( [ 'status' => 'processing' ] );
+	private function create_shipped_order( array $args = [ 'status' => 'processing' ] ): array {
+		$order     = $this->create_wc_order( $args );
 		$order_no  = 'PCN' . $order->get_id();
 		$meta_keys = new PaynowLogisticsMetaKeys( $order );
 		$meta_keys->update_order_no( $order_no );
-		$meta_keys->update_ref( 'LN_STATUS_001' );
+		$meta_keys->update_ref( 'LN_' . $order->get_id() );
+		$order->save();
+		return [ $order, $order_no ];
+	}
 
-		$logistic_code = '3000';
-		$payload       = $this->build_standard_payload( $order_no, $logistic_code, '物流配送中' );
-		$request       = $this->build_status_request( $payload );
+	/**
+	 * 重讀訂單的物流 meta
+	 *
+	 * @param int $order_id 訂單 ID
+	 * @return PaynowLogisticsMetaKeys
+	 */
+	private function fresh_meta( int $order_id ): PaynowLogisticsMetaKeys {
+		$fresh = \wc_get_order( $order_id );
+		$this->assertInstanceOf( \WC_Order::class, $fresh );
+		return new PaynowLogisticsMetaKeys( $fresh );
+	}
 
-		$response = $this->callback->handle_status_callback( $request );
+	/**
+	 * 清除節流 transient（模擬節流時間已過）
+	 *
+	 * @param int $order_id 訂單 ID
+	 */
+	private function clear_throttle( int $order_id ): void {
+		\delete_transient( 'pc_paynow_logistics_sync_' . $order_id );
+	}
 
-		// ★ 恆回 200
-		$this->assertInstanceOf( \WP_REST_Response::class, $response );
+	// =====================================================================
+	// region: 推播只當觸發 — 貨態以主動查詢結果為準
+	// =====================================================================
+
+	/**
+	 * 合法推送 → 200 + 以主動查詢（mock Get_Order_Info 回 0001）結果寫入貨態 meta
+	 *
+	 * @group happy
+	 */
+	public function test_push_triggers_query_and_writes_queried_status(): void {
+		[ $order, $order_no ] = $this->create_shipped_order();
+
+		$response = $this->callback->handle_status_callback(
+			$this->build_status_request( $this->build_standard_payload( $order_no, '3000', '物流配送中' ) )
+		);
+
 		$this->assertSame( 200, $response->get_status(), '貨態通知應恆回 HTTP 200' );
 
-		// 重讀訂單驗 meta
-		$fresh_order = \wc_get_order( $order->get_id() );
-		$this->assertInstanceOf( \WC_Order::class, $fresh_order );
-		$fresh_meta = new PaynowLogisticsMetaKeys( $fresh_order );
-
-		$this->assertSame( $logistic_code, $fresh_meta->get_logistic_code(), 'logistic_code 應寫入推送值' );
-		$this->assertNotEmpty( $fresh_meta->get_delivery_status(), 'delivery_status 應寫入' );
+		$meta = $this->fresh_meta( $order->get_id() );
+		$this->assertSame( '0001', $meta->get_logistic_code(), 'logistic_code 應為主動查詢結果，而非推送值 3000' );
+		$this->assertSame( '處理中（MOCK）', $meta->get_delivery_status(), 'delivery_status 應為主動查詢結果' );
+		$this->assertTrue( $meta->is_processed( $order_no, '0001' ), '應以查詢到的貨態碼標記已處理' );
 	}
 
 	/**
-	 * 推送 payload 包含 paymentno → 寫入 payment_no meta
+	 * 推送帶的 paymentno / 描述不被信任、不寫入
 	 *
-	 * @group happy
+	 * @group security
 	 */
-	public function test_valid_payload_with_paymentno_writes_payment_no_meta(): void {
+	public function test_push_fields_are_not_trusted(): void {
+		[ $order, $order_no ] = $this->create_shipped_order();
+
+		$payload              = $this->build_standard_payload( $order_no, '9999', '偽造描述' );
+		$payload['paymentno'] = 'FORGED_PAYMENT_NO';
+		$this->callback->handle_status_callback( $this->build_status_request( $payload ) );
+
+		$meta = $this->fresh_meta( $order->get_id() );
+		$this->assertNotSame( 'FORGED_PAYMENT_NO', $meta->get_payment_no(), '推送的 paymentno 不應寫入' );
+		$this->assertNotSame( '9999', $meta->get_logistic_code(), '推送的貨態碼不應寫入' );
+		$this->assertNotSame( '偽造描述', $meta->get_delivery_status(), '推送的描述不應寫入' );
+	}
+
+	/**
+	 * 訂單尚未建立物流單（無 LogisticNumber）→ 不查詢、不寫 meta
+	 *
+	 * @group security
+	 */
+	public function test_push_for_order_without_shipment_is_ignored(): void {
 		$order     = $this->create_wc_order( [ 'status' => 'processing' ] );
 		$order_no  = 'PCN' . $order->get_id();
 		$meta_keys = new PaynowLogisticsMetaKeys( $order );
 		$meta_keys->update_order_no( $order_no );
-		$meta_keys->update_ref( 'LN_STATUS_002' );
+		$order->save();
 
-		$payload              = $this->build_standard_payload( $order_no );
-		$payload['paymentno'] = 'PAYNO_SPECIFIC_001';
-		$request              = $this->build_status_request( $payload );
-
-		$response = $this->callback->handle_status_callback( $request );
+		$response = $this->callback->handle_status_callback(
+			$this->build_status_request( $this->build_standard_payload( $order_no, '8000', '取貨完成' ) )
+		);
 
 		$this->assertSame( 200, $response->get_status() );
-
-		$fresh_order = \wc_get_order( $order->get_id() );
-		$this->assertInstanceOf( \WC_Order::class, $fresh_order );
-		$fresh_meta = new PaynowLogisticsMetaKeys( $fresh_order );
-		$this->assertSame( 'PAYNO_SPECIFIC_001', $fresh_meta->get_payment_no(), 'paymentno 應寫入 payment_no meta' );
-	}
-
-	// endregion
-
-	// =====================================================================
-	// region: R4 — 以 orderno 反查（PaynowLogisticsMetaKeys 專用）
-	// =====================================================================
-
-	/**
-	 * 以 orderno（PCN{order_id}）反查訂單後更新 meta
-	 *
-	 * @group happy
-	 */
-	public function test_callback_uses_order_no_to_find_order(): void {
-		$order     = $this->create_wc_order( [ 'status' => 'processing' ] );
-		$order_no  = 'PCN' . $order->get_id();
-		$meta_keys = new PaynowLogisticsMetaKeys( $order );
-		$meta_keys->update_order_no( $order_no );
-		$meta_keys->update_ref( 'LN_R4_001' );
-
-		$payload = $this->build_standard_payload( $order_no, '5000', '已到店' );
-		$request = $this->build_status_request( $payload );
-
-		$response = $this->callback->handle_status_callback( $request );
-
-		$this->assertSame( 200, $response->get_status() );
-
-		// 確認正確訂單的 meta 被更新
-		$found_order = PaynowLogisticsMetaKeys::get_order_by_order_no( $order_no );
-		$this->assertInstanceOf( \WC_Order::class, $found_order );
-		$this->assertSame( $order->get_id(), $found_order->get_id(), '應以 orderno 找到正確訂單' );
-
-		$found_meta = new PaynowLogisticsMetaKeys( $found_order );
-		$this->assertSame( '5000', $found_meta->get_logistic_code() );
+		$meta = $this->fresh_meta( $order->get_id() );
+		$this->assertEmpty( $meta->get_logistic_code(), '無物流單時不應寫入貨態' );
+		$this->assertEmpty( $meta->get_delivery_status() );
 	}
 
 	/**
@@ -228,12 +234,10 @@ final class PaynowLogisticsStatusCallbackTest extends TestCase {
 	 * @group security
 	 */
 	public function test_callback_returns_200_when_order_not_found(): void {
-		$payload = $this->build_standard_payload( 'PCN9999999', '3000', '偽造推送' );
-		$request = $this->build_status_request( $payload );
+		$response = $this->callback->handle_status_callback(
+			$this->build_status_request( $this->build_standard_payload( 'PCN9999999', '3000', '偽造推送' ) )
+		);
 
-		$response = $this->callback->handle_status_callback( $request );
-
-		// ★ 恆回 200，即使找不到訂單
 		$this->assertInstanceOf( \WP_REST_Response::class, $response );
 		$this->assertSame( 200, $response->get_status(), '找不到訂單時應恆回 200（不拋例外）' );
 	}
@@ -241,84 +245,90 @@ final class PaynowLogisticsStatusCallbackTest extends TestCase {
 	// endregion
 
 	// =====================================================================
-	// region: 冪等防重
+	// region: 節流 + 冪等
 	// =====================================================================
 
 	/**
-	 * 重複推送同一（orderno + LogisticCode）→ 第二次冪等跳過，不重複寫入
+	 * 節流：同一訂單節流時間內的第二次推送不再查詢
+	 *
+	 * 第一次查到 0001；第二次推送前把 mock 切成「取貨完成」，因節流不查詢 → 貨態維持 0001。
 	 *
 	 * @group edge
+	 * @group security
 	 */
-	public function test_callback_is_idempotent_on_duplicate_push(): void {
-		$order     = $this->create_wc_order( [ 'status' => 'processing' ] );
-		$order_no  = 'PCN' . $order->get_id();
-		$meta_keys = new PaynowLogisticsMetaKeys( $order );
-		$meta_keys->update_order_no( $order_no );
-		$meta_keys->update_ref( 'LN_IDEM_001' );
+	public function test_second_push_within_throttle_window_does_not_query(): void {
+		[ $order, $order_no ] = $this->create_shipped_order( [ 'status' => 'processing', 'payment_method' => 'cod' ] );
 
-		$payload = $this->build_standard_payload( $order_no, '3000', '第一次推送' );
-		$request = $this->build_status_request( $payload );
+		$this->callback->handle_status_callback( $this->build_status_request( $this->build_standard_payload( $order_no ) ) );
 
-		// 第一次推送
-		$response1 = $this->callback->handle_status_callback( $request );
-		$this->assertSame( 200, $response1->get_status() );
+		\putenv( 'PAYNOW_LOGISTICS_MOCK_QUERY_RESPONSE=PICKUP_COMPLETE' );
+		try {
+			$this->callback->handle_status_callback(
+				$this->build_status_request( $this->build_standard_payload( $order_no, '8000', '取貨完成' ) )
+			);
+		} finally {
+			\putenv( 'PAYNOW_LOGISTICS_MOCK_QUERY_RESPONSE' );
+		}
 
-		// 第一次後的 delivery_status
-		$after_first = \wc_get_order( $order->get_id() );
-		$this->assertInstanceOf( \WC_Order::class, $after_first );
-		$meta_after_first   = new PaynowLogisticsMetaKeys( $after_first );
-		$status_after_first = $meta_after_first->get_delivery_status();
-
-		// 第二次相同 payload 推送（模擬 PayNow 重送）
-		$payload2  = $this->build_standard_payload( $order_no, '3000', '第二次重送（應被忽略）' );
-		$request2  = $this->build_status_request( $payload2 );
-		$response2 = $this->callback->handle_status_callback( $request2 );
-		$this->assertSame( 200, $response2->get_status() );
-
-		// delivery_status 不應被第二次覆寫成不同值
-		$after_second = \wc_get_order( $order->get_id() );
-		$this->assertInstanceOf( \WC_Order::class, $after_second );
-		$meta_after_second = new PaynowLogisticsMetaKeys( $after_second );
-		$this->assertSame(
-			$status_after_first,
-			$meta_after_second->get_delivery_status(),
-			'冪等：第二次相同推送不應覆寫已有的 delivery_status'
-		);
-
-		// 驗冪等 key 已標記
-		$this->assertTrue(
-			$meta_after_second->is_processed( $order_no, '3000' ),
-			"冪等 key {$order_no}:3000 應已標記為已處理"
-		);
+		$meta = $this->fresh_meta( $order->get_id() );
+		$this->assertSame( '0001', $meta->get_logistic_code(), '節流期間不應再次查詢' );
+		$this->assertNotSame( 'yes', $meta->get_collection_paid() );
 	}
 
 	/**
-	 * 相同訂單不同貨態碼 → 兩次都應寫入（非冪等重複）
+	 * 節流時間過後，下一次推送會重新查詢並寫入新貨態
 	 *
 	 * @group edge
 	 */
-	public function test_callback_processes_different_logistic_codes_separately(): void {
-		$order     = $this->create_wc_order( [ 'status' => 'processing' ] );
-		$order_no  = 'PCN' . $order->get_id();
-		$meta_keys = new PaynowLogisticsMetaKeys( $order );
-		$meta_keys->update_order_no( $order_no );
-		$meta_keys->update_ref( 'LN_IDEM_002' );
+	public function test_push_after_throttle_window_queries_again(): void {
+		[ $order, $order_no ] = $this->create_shipped_order();
 
-		// 第一次：貨態 3000
-		$request1  = $this->build_status_request( $this->build_standard_payload( $order_no, '3000', '配送中' ) );
-		$response1 = $this->callback->handle_status_callback( $request1 );
-		$this->assertSame( 200, $response1->get_status() );
+		$this->callback->handle_status_callback( $this->build_status_request( $this->build_standard_payload( $order_no ) ) );
+		$this->clear_throttle( $order->get_id() );
 
-		// 第二次：貨態 5000（不同碼）
-		$request2  = $this->build_status_request( $this->build_standard_payload( $order_no, '5000', '已到店' ) );
-		$response2 = $this->callback->handle_status_callback( $request2 );
-		$this->assertSame( 200, $response2->get_status() );
+		\putenv( 'PAYNOW_LOGISTICS_MOCK_QUERY_RESPONSE=PICKUP_COMPLETE' );
+		try {
+			$this->callback->handle_status_callback(
+				$this->build_status_request( $this->build_standard_payload( $order_no, '8000', '取貨完成' ) )
+			);
+		} finally {
+			\putenv( 'PAYNOW_LOGISTICS_MOCK_QUERY_RESPONSE' );
+		}
 
-		// 最終 logistic_code 應為 5000
-		$fresh_order = \wc_get_order( $order->get_id() );
-		$this->assertInstanceOf( \WC_Order::class, $fresh_order );
-		$fresh_meta = new PaynowLogisticsMetaKeys( $fresh_order );
-		$this->assertSame( '5000', $fresh_meta->get_logistic_code(), '最後一次非重複推送應更新 logistic_code' );
+		$meta = $this->fresh_meta( $order->get_id() );
+		$this->assertSame( '8000', $meta->get_logistic_code(), '節流過後應以新的查詢結果更新' );
+		$this->assertTrue( $meta->is_processed( $order_no, '0001' ) );
+		$this->assertTrue( $meta->is_processed( $order_no, '8000' ) );
+	}
+
+	/**
+	 * 攻擊者預先「標記」某貨態碼為已處理，不影響真實貨態寫入
+	 *
+	 * 舊實作以推送值做冪等，攻擊者可先送偽造的 8000 讓真實的 8000 推送被吞掉。
+	 *
+	 * @group security
+	 */
+	public function test_forged_push_cannot_poison_idempotency(): void {
+		[ $order, $order_no ] = $this->create_shipped_order( [ 'status' => 'processing', 'payment_method' => 'cod' ] );
+
+		// 偽造推送 8000（實際查詢仍是 0001）
+		$this->callback->handle_status_callback(
+			$this->build_status_request( $this->build_standard_payload( $order_no, '8000', '取貨完成' ) )
+		);
+		$this->assertFalse( $this->fresh_meta( $order->get_id() )->is_processed( $order_no, '8000' ) );
+
+		// 真的取貨完成後 PayNow 推送 → 正常寫入
+		$this->clear_throttle( $order->get_id() );
+		\putenv( 'PAYNOW_LOGISTICS_MOCK_QUERY_RESPONSE=PICKUP_COMPLETE' );
+		try {
+			$this->callback->handle_status_callback(
+				$this->build_status_request( $this->build_standard_payload( $order_no, '8000', '取貨完成' ) )
+			);
+		} finally {
+			\putenv( 'PAYNOW_LOGISTICS_MOCK_QUERY_RESPONSE' );
+		}
+
+		$this->assertSame( 'yes', $this->fresh_meta( $order->get_id() )->get_collection_paid() );
 	}
 
 	// endregion
@@ -328,37 +338,40 @@ final class PaynowLogisticsStatusCallbackTest extends TestCase {
 	// =====================================================================
 
 	/**
-	 * COD 訂單收到取貨完成貨態 → collection_paid=yes
+	 * 偽造「取貨完成」推送，但 PayNow 查詢結果不是取貨完成 → 不標記 collection_paid
+	 *
+	 * @group security
+	 */
+	public function test_forged_pickup_complete_does_not_set_collection_paid(): void {
+		[ $order, $order_no ] = $this->create_shipped_order( [ 'status' => 'processing', 'payment_method' => 'cod' ] );
+
+		$response = $this->callback->handle_status_callback(
+			$this->build_status_request( $this->build_standard_payload( $order_no, '8000', '取貨完成' ) )
+		);
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertNotSame( 'yes', $this->fresh_meta( $order->get_id() )->get_collection_paid(), '偽造取貨完成不應標記已收款' );
+	}
+
+	/**
+	 * COD 訂單 + PayNow 查詢結果為取貨完成 → collection_paid=yes
 	 *
 	 * @group happy
 	 */
 	public function test_cod_pickup_complete_sets_collection_paid(): void {
-		$order     = $this->create_wc_order(
-			[
-				'status'         => 'processing',
-				'payment_method' => 'cod',
-			]
-		);
-		$order_no  = 'PCN' . $order->get_id();
-		$meta_keys = new PaynowLogisticsMetaKeys( $order );
-		$meta_keys->update_order_no( $order_no );
-		$meta_keys->update_ref( 'LN_COD_CB_001' );
+		[ $order, $order_no ] = $this->create_shipped_order( [ 'status' => 'processing', 'payment_method' => 'cod' ] );
 
-		// 取貨完成貨態（依 woomp 反推，具體碼 Green 階段確定）
-		// 此測試預期 Provider 能識別「取貨完成」並標記 collection_paid
-		$payload             = $this->build_standard_payload( $order_no, 'PICKUP_DONE', '取貨完成' );
-		$payload['cod_flag'] = '1'; // 標記 COD（Green 時依實作調整）
-		$request             = $this->build_status_request( $payload );
-
-		$response = $this->callback->handle_status_callback( $request );
+		\putenv( 'PAYNOW_LOGISTICS_MOCK_QUERY_RESPONSE=PICKUP_COMPLETE' );
+		try {
+			$response = $this->callback->handle_status_callback(
+				$this->build_status_request( $this->build_standard_payload( $order_no, '8000', '取貨完成' ) )
+			);
+		} finally {
+			\putenv( 'PAYNOW_LOGISTICS_MOCK_QUERY_RESPONSE' );
+		}
 
 		$this->assertSame( 200, $response->get_status() );
-
-		// 重讀驗 collection_paid
-		$fresh_order = \wc_get_order( $order->get_id() );
-		$this->assertInstanceOf( \WC_Order::class, $fresh_order );
-		$fresh_meta = new PaynowLogisticsMetaKeys( $fresh_order );
-		$this->assertSame( 'yes', $fresh_meta->get_collection_paid(), 'COD 取貨完成應標記 collection_paid=yes' );
+		$this->assertSame( 'yes', $this->fresh_meta( $order->get_id() )->get_collection_paid(), 'COD 取貨完成應標記 collection_paid=yes' );
 	}
 
 	// endregion

@@ -180,7 +180,7 @@ final class PaynowLogisticsProvider extends BaseService implements ILogisticsPro
 	/**
 	 * 解析選店回呼（returnUrl Form POST）
 	 *
-	 * 解析門市資訊（storeid / storename / storeaddress）→ 以 cid / orderid 反查訂單 → 寫 store meta。
+	 * 解析門市資訊（storeid / storename / storeaddress）→ 以 orderid + cid（order_key）驗證訂單 → 寫 store meta。
 	 *
 	 * @param array<string, mixed> $raw PayNow 選店回呼原始資料
 	 *
@@ -592,8 +592,9 @@ final class PaynowLogisticsProvider extends BaseService implements ILogisticsPro
 	 */
 	private function resolve_query_response( \WC_Order $order ): array {
 		// PAYNOW_LOGISTICS_MOCK_QUERY_RESPONSE=PICKUP_COMPLETE → 模擬取貨完成貨態
+		// 僅 mock 模式生效（正式環境不可被環境變數偽造成取貨完成）
 		$raw = \str_replace( ' ', '', (string) ( \getenv( 'PAYNOW_LOGISTICS_MOCK_QUERY_RESPONSE' ) ?: '' ) );
-		if ('PICKUP_COMPLETE' === \strtoupper( $raw )) {
+		if (self::is_mock() && 'PICKUP_COMPLETE' === \strtoupper( $raw )) {
 			return [
 				'Status'             => PaynowLogisticsStatus::Active->value,
 				'Delivery_Status'    => '買家已取件',
@@ -794,34 +795,36 @@ final class PaynowLogisticsProvider extends BaseService implements ILogisticsPro
 	}
 
 	/**
-	 * 由選店回呼反查訂單（orderid 優先 → cid → order_key）
+	 * 由選店回呼反查訂單（orderid + cid=order_key 雙重比對，防 IDOR）
 	 *
 	 * @param array<string, mixed> $raw 選店回呼原始資料
 	 * @return \WC_Order|null
 	 */
 	private function resolve_order_from_selection( array $raw ): ?\WC_Order {
-		// 優先以 orderid 直接反查
+		// 安全（防 IDOR）：returnUrl 由 build_selection_return_url() 編入 orderid + cid（order_key）。
+		// 回呼端點是公開的，必須「orderid 對應的訂單」+「cid 與該訂單 order_key timing-safe 相符」
+		// 兩者同時成立才認定訂單；只帶 orderid（可列舉）或 cid 不符 → 一律拒絕，不寫門市 meta。
 		$order_id = (int) ( $raw['orderid'] ?? 0 );
-		if ($order_id > 0) {
-			$order = \wc_get_order( $order_id );
-			if ($order instanceof \WC_Order) {
-				return $order;
-			}
+		$cid      = \trim( (string) ( $raw['cid'] ?? '' ) );
+		if ($order_id <= 0 || '' === $cid) {
+			return null;
 		}
 
-		// 次以 cid（order_key）反查
-		$cid = (string) ( $raw['cid'] ?? '' );
-		if ('' !== \trim( $cid )) {
-			$found_id = \wc_get_order_id_by_order_key( $cid );
-			if ($found_id > 0) {
-				$order = \wc_get_order( $found_id );
-				if ($order instanceof \WC_Order) {
-					return $order;
-				}
-			}
+		$order = \wc_get_order( $order_id );
+		if (!$order instanceof \WC_Order) {
+			return null;
 		}
 
-		return null;
+		if (!\hash_equals( $order->get_order_key(), $cid )) {
+			self::logger(
+				'PayNow 物流選店回呼 order_key 不符（疑似偽造）',
+				'warning',
+				[ 'order_id' => $order_id ]
+			);
+			return null;
+		}
+
+		return $order;
 	}
 
 	/**
