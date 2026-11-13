@@ -45,7 +45,7 @@ Do NOT add these as npm dependencies -- they are shimmed.
 
 ## Enqueuing Block Scripts (ES Module)
 
-Vite emits ESM output (contains `import`). When PHP enqueues a block script with `wp_enqueue_script()`, it **must** also call `Plugin::instance()->add_module_handle($handle)` so it loads as `type="module"`; otherwise the browser reports `Cannot use import statement outside a module`. (Payment methods get this via `BlocksIntegration`; standalone scripts such as `pc_free_shipping_hint` call it in `FreeShippingHintService::enqueue_block_assets()`.)
+Vite emits ESM output (contains `import`). When PHP enqueues a block script with `wp_enqueue_script()`, it **must** also call `Plugin::instance()->add_module_handle($handle)` so it loads as `type="module"`; otherwise the browser reports `Cannot use import statement outside a module`. (Payment methods get this via `BlocksIntegration`; standalone scripts call it in their own `enqueue_block_assets()`: `pc_free_shipping_hint` (`FreeShippingHintService`), `pc_invoice` (`BlocksInvoiceIntegration`), `ecpay_logistics` (`BlocksLogisticsIntegration`).)
 
 ## Payment Method Registration Pattern
 
