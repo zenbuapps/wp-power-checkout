@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Checkout;
 
 use J7\PowerCheckout\Domains\Checkout\Services\NameOrderService;
+use J7\PowerCheckout\Domains\Checkout\Services\PhoneValidationService;
 use J7\PowerCheckout\Domains\Checkout\Services\TwAddressService;
 use J7\PowerCheckout\Domains\Checkout\Services\VirtualCartAddressService;
 
@@ -27,6 +28,7 @@ final class ProviderRegister {
 		NameOrderService::register_hooks();
 		TwAddressService::register_hooks();
 		VirtualCartAddressService::register_hooks();
+		PhoneValidationService::register_hooks();
 		// 後續階段於此接上其餘結帳強化 service 的 register_hooks()
 	}
 }

@@ -7,7 +7,9 @@
  *   設為 hidden=true、required=false（D15：WC 預設 locale 沒有 TW；default key 會被 WC 覆寫，不依賴）
  *   country 不可用 locale 隱藏（會清空並擋單），改於區塊結帳頁輸出 CSS 隱藏
  *
- * 所有 hook priority 1000：晚於 F2 縣市下拉等設定，確保隱藏最後套用（R4）。
+ * 所有欄位 hook priority 1000：晚於 F2 縣市下拉等設定，確保隱藏最後套用（R4）。
+ * locale 快取重設（R3 坑 2）：woocommerce_cart_loaded_from_session 與
+ * woocommerce_store_api_checkout_update_order_from_request（priority 1，早於送單驗證）清空 WC()->countries->locale。
  */
 
 declare(strict_types=1);
@@ -26,6 +28,9 @@ final class VirtualCartAddressService {
 
 	/** @var int hook priority（晚於其他欄位調整，確保隱藏最後套用） */
 	private const PRIORITY = 1000;
+
+	/** @var int locale 快取重設 priority（早於送單驗證 / 其他監聽者） */
+	private const LOCALE_RESET_PRIORITY = 1;
 
 	/** @var string 區塊結帳 locale 套用的國家（D15：必須明確寫入 TW key） */
 	private const BLOCK_COUNTRY = 'TW';
@@ -48,6 +53,28 @@ final class VirtualCartAddressService {
 		\add_filter( 'woocommerce_checkout_fields', [ __CLASS__, 'filter_checkout_fields' ], self::PRIORITY );
 		\add_filter( 'woocommerce_get_country_locale', [ __CLASS__, 'filter_country_locale' ], self::PRIORITY );
 		\add_action( 'wp_head', [ __CLASS__, 'print_block_country_css' ], self::PRIORITY );
+		// R3 坑 2：WC_Countries::$locale 會快取，若早於購物車載入就算過會是「非全虛擬」版本 → 依已載入的購物車重算
+		\add_action( 'woocommerce_cart_loaded_from_session', [ __CLASS__, 'reset_country_locale' ], self::LOCALE_RESET_PRIORITY );
+		\add_action( 'woocommerce_store_api_checkout_update_order_from_request', [ __CLASS__, 'reset_country_locale' ], self::LOCALE_RESET_PRIORITY );
+	}
+
+	/**
+	 * 重設 WC()->countries 的 locale 快取，讓之後的欄位顯示 / 送單驗證依已載入的購物車重算
+	 *
+	 * 不判斷開關：重設只會讓 WC 下次重新計算（含本類別的 filter），開關關閉時結果與原本相同。
+	 *
+	 * @return void
+	 */
+	public static function reset_country_locale(): void {
+		try {
+			if ( !\function_exists( 'WC' ) ) {
+				return;
+			}
+
+			\WC()->countries->locale = [];
+		} catch ( \Throwable $e ) {
+			Plugin::logger( "VirtualCartAddressService::reset_country_locale 失敗：{$e->getMessage()}", 'error' );
+		}
 	}
 
 	/**
