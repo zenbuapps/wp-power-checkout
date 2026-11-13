@@ -19,7 +19,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **PAYUNi UPP** (`payuni_upp`) — Redirect-based payment (UNiPaypage V2.0); AES-256-GCM + `hex(base64(cipher):::base64(tag))` + SHA256 HashInfo; supports credit card (one-time/installment), ATM, CVS, icash Pay, LINE Pay, JKoPay, Apple Pay, Google Pay; single NotifyURL endpoint; credit card API refund/capture/void_auth; query trade
 - **PAYUNi UNi Embed** (`payuni_uni_embed`) — Embedded payment (UNi Embed V3, iframe 站內付); AES-256-GCM (reuses PayuniCrypto); two-phase: token_get (`/api/iframe/token_get`) then merchant_trade (`/api/iframe/merchant_trade`); 3DS support; credit card only; single NotifyURL endpoint; credit card API refund/capture/void_auth; buyer token (credit_hash/credit_life) stored but never card number/CVC; parallel with payuni_upp
 - **PayNow** (`paynow`) — Embedded payment (立吉富體系 1, Component SDK v2 iframe 站內付); REST PaymentIntent + HMAC-SHA256 Webhook; supports credit card (one-time/installment), ATM, convenience store (ibon/FamiPort), LINE Pay, Apple Pay (excludes ApplePayDeferred); single NotifyURL endpoint; credit card/ATM API refund; query payment intent + refund query admin actions; capture/void_auth no-op (no corresponding endpoint); offline payment two-phase (pending → processing on payment); [GAP: sandbox PublicKey/PrivateKey pending application]
-- **PayNow Logistics** (`paynow_logistics`) — Convenience store pickup (7-11/FAMI/HiLife) + TCAT home delivery (立吉富體系 1); TripleDES DES-EDE3 ECB encryption (JsonOrder base64(3DES(JSON)), apicode ECB+space→plus); PassCode SHA1; status push callback (orderno+LogisticCode+Description+paymentno) with idempotency; query/print/cancel; amount limits CVS ≤20000 / home ≤100000; idempotent ReNewOrder when existing valid shipment; create_return throws 尚未實作; [GAP: sandbox user_account/apicode pending; prod key/IV to confirm with PayNow]
+- **PayNow Logistics** (`paynow_logistics`) — Convenience store pickup (7-11/FAMI/HiLife) + TCAT home delivery (立吉富體系 1); TripleDES DES-EDE3 ECB encryption (JsonOrder base64(3DES(JSON)), apicode ECB+space→plus); PassCode SHA1; status push callback is unsigned → treated as trigger only, status re-fetched via Get_Order_Info (10s throttle); query/print/cancel; amount limits CVS ≤20000 / home ≤100000; idempotent ReNewOrder when existing valid shipment; create_return throws 尚未實作; [GAP: sandbox user_account/apicode pending; prod key/IV to confirm with PayNow]
 - **PayNow Invoice** (`paynow_invoice`) — Taiwan e-invoice B2C/B2B via PayNow (立吉富體系 3); Bearer JWT-Token auth (no symmetric encryption); issue/cancel/allowance (open+void)/query; IInvoiceService + ISupportsAllowance + ISupportsQuery; B2C tax_amount=0 / B2B actual tax; carrier/donation mutual exclusion; zero-tax requires reason; allowance_data uses `allowance_number` key (not ezPay's `allowance_no`); parallel with Amego/ECPay/ezPay, switchable from admin; [GAP: sandbox jwt_token pending application; dev env invoiceapi-dev.paynow.com.tw / prod invoiceapi-prod.paynow.com.tw]
 - **Checkout Fields** — Classic checkout custom fields (including invoice info fields)
 
@@ -155,7 +155,7 @@ inc/classes/
 │   │   │   ├── Services/PaynowLogisticsProvider.php  # implements ILogisticsProvider; SEVEN→01/FAMI→03/HILIFE→05/TCAT→06; CVS ≤20000 / home ≤100000; idempotent ReNewOrder
 │   │   │   ├── Services/WC_PaynowLogisticsShipping.php  # extends WC_Shipping_Method (per-service rates)
 │   │   │   ├── Http/LogisticsApiClient.php  # Add_Order/ReNewOrder/CancelOrder/Get_Order_Info/print (DELETE for cancel; SEVEN GET /api/Order711; TCAT POST PrintBlackCatLabel)
-│   │   │   ├── Http/LogisticsCallback.php   # power-checkout/paynow: logistics/selection-callback + logistics/status-callback (orderno反查 + idempotency; always HTTP 200)
+│   │   │   ├── Http/LogisticsCallback.php   # power-checkout/paynow: logistics/selection-callback + logistics/status-callback (selection: orderid+order_key hash_equals; status: push untrusted → Get_Order_Info query; always HTTP 200)
 │   │   │   ├── DTOs/                        # PaynowLogisticsSettingsDTO (test: testlogistic.paynow.com.tw / prod: logistic.paynow.com.tw), CreateShipmentParams
 │   │   │   └── Shared/                      # Helpers (TripleDesCrypto [R2: ECB不是CBC], PassCodeService [SHA1], PaynowLogisticsMetaKeys [前綴_pc_paynow_logistics_], ItemName), Enums (PaynowLogisticService, PaynowDeliverMode, PaynowLogisticsStatus)
 │   │   └── Shared/
@@ -282,8 +282,8 @@ Frontend access: always use `utils/env.ts`, never read `window` directly.
 | `power-checkout/payuni` | POST | `/uni-embed/create-payment` | order_key hash_equals (in body) |
 | `power-checkout/payuni` | POST | `/uni-embed/notify` | AES-256-GCM + HashInfo SHA256 (verified inside; always HTTP 200) |
 | `power-checkout/paynow` | POST | `/notify` | HMAC-SHA256 raw body (`X-Payment-Center-Hmac-Sha256`, verified inside; always HTTP 200) |
-| `power-checkout/paynow` | POST | `/logistics/selection-callback` | open (returnUrl, Form POST; orderno 反查; always HTTP 200) |
-| `power-checkout/paynow` | POST | `/logistics/status-callback` | open (Form POST; orderno+LogisticCode idempotency; always HTTP 200) |
+| `power-checkout/paynow` | POST | `/logistics/selection-callback` | returnUrl carries `orderid` + `cid`=order_key; both required + `hash_equals` (anti-IDOR) |
+| `power-checkout/paynow` | POST | `/logistics/status-callback` | open; push untrusted → server-side Get_Order_Info query is source of truth (10s throttle; always HTTP 200) |
 
 Nonce auth requires `X-WP-Nonce` header (`wp_create_nonce('wp_rest')`).
 ECPay callbacks use `permission_callback: __return_true`; auth is verified inside callback.
@@ -508,7 +508,7 @@ PAYUNi logistics and block checkout are deferred.
 ### Store selection (convenience store — SEVEN/FAMI/HILIFE)
 
 1. Frontend calls `POST /logistics/{order_id}/store-selection` with `sub_type` + `payment_scenario` → `get_store_selection()` encrypts `apicode` (TripleDES ECB + space→plus), builds form-POST to `{api_url}/Member/Order/Choselogistics`, returns `redirect_target` HTML
-2. Customer selects store → PayNow POSTs store data to `/wp-json/power-checkout/paynow/logistics/selection-callback` (returnUrl) → `parse_store_selection()` writes `_pc_paynow_logistics_store_*` + `_pc_paynow_logistics_order_no` meta
+2. Customer selects store → PayNow POSTs store data to `/wp-json/power-checkout/paynow/logistics/selection-callback` (returnUrl, carries `orderid` + `cid`=order_key) → `parse_store_selection()` requires both and `hash_equals(order_key, cid)`, then writes `_pc_paynow_logistics_store_*` + `_pc_paynow_logistics_order_no` meta
 3. Admin calls `POST /logistics/{order_id}/create-shipment` → validates amount limit (CVS ≤20000 / home ≤100000) → if existing valid shipment (status≠1) → ReNewOrder; otherwise Add_Order (`JsonOrder=base64(TripleDES(JSON))`) → writes `_pc_paynow_logistics_ref` (LogisticNumber) + paymentno + validationno
 
 ### Home delivery (TCAT)
@@ -525,13 +525,12 @@ Two distinct modes; **not interchangeable**:
 ### Status callback (貨態推送 — always HTTP 200)
 
 PayNow POSTs to `/wp-json/power-checkout/paynow/logistics/status-callback` (Form POST, `permission_callback: __return_true`):
-- Parse `orderno` / `PayNowLogisticCode` / `Detail_Status_Description` / `paymentno`
-- Lookup order by `_pc_paynow_logistics_order_no` (OrderNo = `$order->get_order_number()`)
-- Idempotency: `"{OrderNo}:{LogisticCode}"` composite key in `_pc_paynow_logistics_processed_status`
-- COD + pickup-complete (LogisticCode=8000 or description contains 取貨完成) → `_pc_paynow_logistics_collection_paid=yes`
+- **Push is a trigger only — its content is never trusted** (PayNow logistics push has no signature; anyone can forge it). Only `orderno` is read
+- Lookup order by `_pc_paynow_logistics_order_no` (OrderNo = `$order->get_order_number()`); no `_pc_paynow_logistics_ref` (shipment not created) → ignore
+- Throttle: transient `pc_paynow_logistics_sync_{order_id}`, one query per order per 10s (forged pushes can't flood PayNow API)
+- Source of truth: `query_shipment()` (GET /api/Orderapi/Get_Order_Info, authenticated with merchant apicode) writes status / delivery_status / logistic_code; COD + **queried** pickup-complete (8000 / 取貨完成) → `_pc_paynow_logistics_collection_paid=yes`
+- Idempotency (order note dedup only): `"{OrderNo}:{queried LogisticCode}"` in `_pc_paynow_logistics_processed_status` — keyed on the queried code, never the pushed one (a forged push must not be able to pre-mark a code)
 - All paths (including `\Throwable`) always return HTTP 200
-
-`query_shipment()` (GET /api/Orderapi/Get_Order_Info) is retained as supplemental reconciliation; webhook is primary.
 
 ### Operations
 
