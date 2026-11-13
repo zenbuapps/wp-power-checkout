@@ -90,7 +90,12 @@ final class FreeShippingHintTest extends CheckoutTestCase {
 		$this->set_checkout_settings( array_merge( [ 'free_shipping_hint' => 'yes' ], $settings ) );
 
 		$methods = array_merge(
-			[ [ 'id' => 'flat_rate', 'settings' => [ 'cost' => '100' ] ] ],
+			[
+				[
+					'id'       => 'flat_rate',
+					'settings' => [ 'cost' => '100' ],
+				],
+			],
 			$fs_methods ?? [ $this->free_shipping_method() ]
 		);
 		$this->create_free_shipping_zone( $methods );
@@ -270,9 +275,9 @@ final class FreeShippingHintTest extends CheckoutTestCase {
 	public static function provide_position(): array {
 		return [
 			'傳統 購物車頁' => [ '傳統', '購物車頁' ],
-			'傳統 結帳頁'   => [ '傳統', '結帳頁' ],
+			'傳統 結帳頁'  => [ '傳統', '結帳頁' ],
 			'區塊 購物車頁' => [ '區塊', '購物車頁' ],
-			'區塊 結帳頁'   => [ '區塊', '結帳頁' ],
+			'區塊 結帳頁'  => [ '區塊', '結帳頁' ],
 		];
 	}
 
@@ -372,10 +377,10 @@ final class FreeShippingHintTest extends CheckoutTestCase {
 	public static function provide_diff_cases(): array {
 		return [
 			'850 無折扣 no'         => [ 850, 0, 'no', '再買 150 元即可享免運' ],
-			'850 折扣100 no'        => [ 850, 100, 'no', '再買 250 元即可享免運' ],
-			'850 折扣100 yes'       => [ 850, 100, 'yes', '再買 150 元即可享免運' ],
-			'1000 無折扣 no（差額0）' => [ 1000, 0, 'no', '已享免運' ],
-			'1100 折扣200 no'       => [ 1100, 200, 'no', '再買 100 元即可享免運' ],
+			'850 折扣100 no'       => [ 850, 100, 'no', '再買 250 元即可享免運' ],
+			'850 折扣100 yes'      => [ 850, 100, 'yes', '再買 150 元即可享免運' ],
+			'1000 無折扣 no（差額0）'   => [ 1000, 0, 'no', '已享免運' ],
+			'1100 折扣200 no'      => [ 1100, 200, 'no', '再買 100 元即可享免運' ],
 			'1100 折扣200 yes（負數）' => [ 1100, 200, 'yes', '已享免運' ],
 			'250 無折扣 no'         => [ 250, 0, 'no', '再買 750 元即可享免運' ],
 		];
@@ -426,11 +431,11 @@ final class FreeShippingHintTest extends CheckoutTestCase {
 	 */
 	public static function provide_requires_cases(): array {
 		return [
-			'both 未套用優惠券'     => [ 'both', false, null ],
-			'both 已套用免運券'     => [ 'both', true, '再買 150 元即可享免運' ],
-			'coupon 未套用優惠券'   => [ 'coupon', false, null ],
-			'either 已套用免運券'   => [ 'either', true, '已享免運' ],
-			'either 未套用優惠券'   => [ 'either', false, '再買 150 元即可享免運' ],
+			'both 未套用優惠券'   => [ 'both', false, null ],
+			'both 已套用免運券'   => [ 'both', true, '再買 150 元即可享免運' ],
+			'coupon 未套用優惠券' => [ 'coupon', false, null ],
+			'either 已套用免運券' => [ 'either', true, '已享免運' ],
+			'either 未套用優惠券' => [ 'either', false, '再買 150 元即可享免運' ],
 		];
 	}
 
@@ -555,7 +560,7 @@ final class FreeShippingHintTest extends CheckoutTestCase {
 		return [
 			'全虛擬購物車' => [ '全虛擬購物車' ],
 			'無免運費方式' => [ '無免運費方式' ],
-			'購物車為空'   => [ '購物車為空' ],
+			'購物車為空'  => [ '購物車為空' ],
 		];
 	}
 
@@ -669,8 +674,8 @@ final class FreeShippingHintTest extends CheckoutTestCase {
 	 */
 	public static function provide_malicious_text(): array {
 		return [
-			'b 標籤'      => [ '<b>免運</b>', '<b>' ],
-			'script 標籤' => [ '<script>alert(1)</script>', '<script' ],
+			'b 標籤'        => [ '<b>免運</b>', '<b>' ],
+			'script 標籤'   => [ '<script>alert(1)</script>', '<script' ],
 			'img onerror' => [ '<img src=x onerror=alert(1)>', '<img' ],
 		];
 	}
@@ -713,8 +718,8 @@ final class FreeShippingHintTest extends CheckoutTestCase {
 	public static function provide_malicious_color(): array {
 		return [
 			'跳出屬性注入事件' => [ 'red" onmouseover="alert(1)' ],
-			'關閉標籤注入'     => [ '#fff"></td><script>alert(1)</script>' ],
-			'單引號跳出'       => [ "red' onmouseover='alert(1)" ],
+			'關閉標籤注入'   => [ '#fff"></td><script>alert(1)</script>' ],
+			'單引號跳出'    => [ "red' onmouseover='alert(1)" ],
 		];
 	}
 }

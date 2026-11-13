@@ -70,7 +70,14 @@ final class CheckoutFieldValidationTest extends CheckoutTestCase {
 		}
 
 		if ( $has_physical ) {
-			$this->create_free_shipping_zone( [ [ 'id' => 'flat_rate', 'settings' => [ 'cost' => '100' ] ] ] );
+			$this->create_free_shipping_zone(
+				[
+					[
+						'id'       => 'flat_rate',
+						'settings' => [ 'cost' => '100' ],
+					],
+				]
+				);
 		}
 		$this->enable_bacs_gateway();
 		$this->init_cart_session();
@@ -108,18 +115,18 @@ final class CheckoutFieldValidationTest extends CheckoutTestCase {
 	 */
 	private function address( string $country, array $overrides = [] ): array {
 		$base = 'US' === $country
-			? [
-				'address_1' => '1 Market St',
-				'city'      => 'San Francisco',
-				'state'     => 'CA',
-				'postcode'  => '94105',
-			]
-			: [
-				'address_1' => '中正路1號',
-				'city'      => '臺北市',
-				'state'     => '臺北市',
-				'postcode'  => '100',
-			];
+		? [
+			'address_1' => '1 Market St',
+			'city'      => 'San Francisco',
+			'state'     => 'CA',
+			'postcode'  => '94105',
+		]
+		: [
+			'address_1' => '中正路1號',
+			'city'      => '臺北市',
+			'state'     => '臺北市',
+			'postcode'  => '100',
+		];
 
 		return array_merge(
 			[
@@ -324,7 +331,7 @@ final class CheckoutFieldValidationTest extends CheckoutTestCase {
 	 *
 	 * @param string $phone 帳單電話
 	 */
-	public function test_傳統結帳帳單電話合法時訂單建立成功(string $phone): void {
+	public function test_傳統結帳帳單電話合法時訂單建立成功( string $phone ): void {
 		$this->set_checkout_settings( [ 'tw_phone_validation' => 'yes' ] );
 		$this->setup_cart( [ self::PHYSICAL ] );
 
@@ -340,7 +347,7 @@ final class CheckoutFieldValidationTest extends CheckoutTestCase {
 	 */
 	public static function 傳統帳單電話通過提供者(): array {
 		return [
-			'純數字'   => [ '0912345678' ],
+			'純數字'  => [ '0912345678' ],
 			'空白分隔' => [ '0912 345 678' ],
 		];
 	}
@@ -386,7 +393,7 @@ final class CheckoutFieldValidationTest extends CheckoutTestCase {
 	 *
 	 * @param string $phone 帳單電話
 	 */
-	public function test_傳統結帳帳單電話不合法時訂單建立失敗(string $phone): void {
+	public function test_傳統結帳帳單電話不合法時訂單建立失敗( string $phone ): void {
 		$this->set_checkout_settings( [ 'tw_phone_validation' => 'yes' ] );
 		$this->setup_cart( [ self::PHYSICAL ] );
 
@@ -400,9 +407,9 @@ final class CheckoutFieldValidationTest extends CheckoutTestCase {
 	 */
 	public static function 傳統帳單電話失敗提供者(): array {
 		return [
-			'市話'        => [ '0223456789' ],
-			'9 碼'        => [ '091234567' ],
-			'國碼 +886'   => [ '+886912345678' ],
+			'市話'      => [ '0223456789' ],
+			'9 碼'     => [ '091234567' ],
+			'國碼 +886' => [ '+886912345678' ],
 		];
 	}
 
@@ -431,7 +438,7 @@ final class CheckoutFieldValidationTest extends CheckoutTestCase {
 	 *
 	 * @param string $shipping_phone 運送電話
 	 */
-	public function test_運送電話未填或合法時訂單建立成功(string $shipping_phone): void {
+	public function test_運送電話未填或合法時訂單建立成功( string $shipping_phone ): void {
 		$this->set_checkout_settings( [ 'tw_phone_validation' => 'yes' ] );
 		$this->setup_cart( [ self::PHYSICAL ] );
 
@@ -447,8 +454,8 @@ final class CheckoutFieldValidationTest extends CheckoutTestCase {
 	 */
 	public static function 運送電話通過提供者(): array {
 		return [
-			'未填'       => [ '' ],
-			'合法手機'   => [ '0987654321' ],
+			'未填'   => [ '' ],
+			'合法手機' => [ '0987654321' ],
 		];
 	}
 
@@ -477,12 +484,18 @@ final class CheckoutFieldValidationTest extends CheckoutTestCase {
 	 * @param string $shipping_country 運送國家（空字串 = 未填運送地址）
 	 * @param string $billing_country  帳單國家
 	 */
-	public function test_非台灣地址不檢查電話(string $shipping_country, string $billing_country): void {
+	public function test_非台灣地址不檢查電話( string $shipping_country, string $billing_country ): void {
 		$this->set_checkout_settings( [ 'tw_phone_validation' => 'yes' ] );
 		$this->setup_cart( [ self::PHYSICAL ] );
 
 		$shipping = '' === $shipping_country ? null : [ 'country' => $shipping_country ];
-		$post     = $this->classic_post( [ 'country' => $billing_country, 'phone' => '+1 415 555 0100' ], $shipping );
+		$post     = $this->classic_post(
+			[
+				'country' => $billing_country,
+				'phone'   => '+1 415 555 0100',
+			],
+			$shipping
+			);
 
 		$errors = $this->classic_validate( $post );
 
@@ -496,7 +509,7 @@ final class CheckoutFieldValidationTest extends CheckoutTestCase {
 	public static function 非台灣地址通過提供者(): array {
 		return [
 			'運送 US、帳單 TW' => [ 'US', 'TW' ],
-			'運送未填、帳單 US' => [ '', 'US' ],
+			'運送未填、帳單 US'  => [ '', 'US' ],
 		];
 	}
 
@@ -510,7 +523,13 @@ final class CheckoutFieldValidationTest extends CheckoutTestCase {
 		$this->setup_cart( [ self::PHYSICAL ] );
 
 		$errors = $this->classic_validate(
-			$this->classic_post( [ 'country' => 'US', 'phone' => '+1 415 555 0100' ], [ 'country' => 'TW' ] )
+			$this->classic_post(
+				[
+					'country' => 'US',
+					'phone'   => '+1 415 555 0100',
+				],
+				[ 'country' => 'TW' ]
+				)
 		);
 
 		$this->assert_classic_phone_error( $errors, '帳單電話' );
@@ -547,7 +566,7 @@ final class CheckoutFieldValidationTest extends CheckoutTestCase {
 	 *
 	 * @param string $checkout_type 結帳型態（傳統 / 區塊）
 	 */
-	public function test_全虛擬購物車未填地址仍可建立訂單(string $checkout_type): void {
+	public function test_全虛擬購物車未填地址仍可建立訂單( string $checkout_type ): void {
 		$this->set_checkout_settings( [ 'virtual_hide_address' => 'yes' ] );
 		$this->setup_cart( [ self::VIRTUAL, [ '電子書B', 300.0, true ] ] );
 

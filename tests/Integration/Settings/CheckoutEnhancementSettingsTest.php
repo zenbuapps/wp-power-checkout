@@ -247,10 +247,10 @@ final class CheckoutEnhancementSettingsTest extends TestCase {
 	 */
 	public static function 不合法值例子(): array {
 		return [
-			'開關值為 true（非 yes/no）'  => [ 'tw_address', 'no', 'true' ],
+			'開關值為 true（非 yes/no）' => [ 'tw_address', 'no', 'true' ],
 			'背景色碼為顏色名稱 red'       => [ 'free_shipping_bg_color', '#d36f6f', 'red' ],
-			'文字色碼為 3 碼 #fff'         => [ 'free_shipping_text_color', '#ffffff', '#fff' ],
-			'未達門檻文案缺少 {price}'     => [ 'free_shipping_text_left', '再買 {price} 元即可享免運', '快達免運了' ],
+			'文字色碼為 3 碼 #fff'      => [ 'free_shipping_text_color', '#ffffff', '#fff' ],
+			'未達門檻文案缺少 {price}'    => [ 'free_shipping_text_left', '再買 {price} 元即可享免運', '快達免運了' ],
 		];
 	}
 
@@ -368,7 +368,7 @@ final class CheckoutEnhancementSettingsTest extends TestCase {
 	public static function 文案空字串例子(): array {
 		return [
 			'已達門檻文案為空字串'             => [ 'free_shipping_text_achieved', '已享免運', '' ],
-			'已達門檻文案僅空白'               => [ 'free_shipping_text_achieved', '已享免運', '   ' ],
+			'已達門檻文案僅空白'              => [ 'free_shipping_text_achieved', '已享免運', '   ' ],
 			'已達門檻文案僅 HTML 標籤（消毒後為空）' => [ 'free_shipping_text_achieved', '已享免運', '<b></b>' ],
 			'未達門檻文案為空字串'             => [ 'free_shipping_text_left', '再買 {price} 元即可享免運', '' ],
 		];

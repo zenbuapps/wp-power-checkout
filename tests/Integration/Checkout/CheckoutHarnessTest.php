@@ -22,7 +22,14 @@ final class CheckoutHarnessTest extends CheckoutTestCase {
 	 */
 	public function test_能建立購物車並加入商品(): void {
 		// needs_shipping() 要求全站至少有一個啟用的運送方式
-		$this->create_free_shipping_zone( [ [ 'id' => 'flat_rate', 'settings' => [ 'cost' => '100' ] ] ] );
+		$this->create_free_shipping_zone(
+			[
+				[
+					'id'       => 'flat_rate',
+					'settings' => [ 'cost' => '100' ],
+				],
+			]
+			);
 		$this->init_cart_session();
 		$product = $this->create_product( '實體商品', 500.0, false );
 		$this->add_to_cart( [ [ $product, 2 ] ] );
@@ -38,7 +45,14 @@ final class CheckoutHarnessTest extends CheckoutTestCase {
 	public function test_虛擬商品購物車不需運送(): void {
 		$this->init_cart_session();
 		$product = $this->create_product( '虛擬商品', 100.0, true );
-		$this->add_to_cart( [ [ 'product' => $product, 'qty' => 1 ] ] );
+		$this->add_to_cart(
+			[
+				[
+					'product' => $product,
+					'qty'     => 1,
+				],
+			]
+			);
 
 		$this->assertFalse( \WC()->cart->needs_shipping() );
 		$this->assertTrue( $product->is_virtual() );
@@ -78,8 +92,17 @@ final class CheckoutHarnessTest extends CheckoutTestCase {
 	public function test_create_free_shipping_zone_建立運送區域與方式(): void {
 		$zone = $this->create_free_shipping_zone(
 			[
-				[ 'id' => 'flat_rate', 'settings' => [ 'cost' => '100' ] ],
-				[ 'id' => 'free_shipping', 'settings' => [ 'requires' => 'min_amount', 'min_amount' => '1000' ] ],
+				[
+					'id'       => 'flat_rate',
+					'settings' => [ 'cost' => '100' ],
+				],
+				[
+					'id'       => 'free_shipping',
+					'settings' => [
+						'requires'   => 'min_amount',
+						'min_amount' => '1000',
+					],
+				],
 			]
 		);
 

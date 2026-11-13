@@ -49,7 +49,7 @@ final class PhoneValidationServiceTest extends TestCase {
 	 *
 	 * @param string $phone 輸入電話
 	 */
-	public function test_合法手機格式(string $phone): void {
+	public function test_合法手機格式( string $phone ): void {
 		$this->assertTrue(
 			PhoneValidationService::is_valid_tw_mobile( $phone ),
 			sprintf( '"%s" 去除空白與連字號後應為 09 開頭 10 碼，應合法', $phone )
@@ -61,14 +61,14 @@ final class PhoneValidationServiceTest extends TestCase {
 	 */
 	public static function 合法手機提供者(): array {
 		return [
-			'純數字'           => [ '0912345678' ],
-			'連字號分隔'       => [ '0912-345-678' ],
-			'空白分隔'         => [ '0912 345 678' ],
+			'純數字'      => [ '0912345678' ],
+			'連字號分隔'    => [ '0912-345-678' ],
+			'空白分隔'     => [ '0912 345 678' ],
 			'連字號與空白混用' => [ '0912-345 678' ],
-			'連字號位置不同'   => [ '09-12345678' ],
-			'前後有空白'       => [ '  0912345678  ' ],
-			'09 開頭最小值'    => [ '0900000000' ],
-			'09 開頭最大值'    => [ '0999999999' ],
+			'連字號位置不同'  => [ '09-12345678' ],
+			'前後有空白'    => [ '  0912345678  ' ],
+			'09 開頭最小值' => [ '0900000000' ],
+			'09 開頭最大值' => [ '0999999999' ],
 		];
 	}
 
@@ -80,7 +80,7 @@ final class PhoneValidationServiceTest extends TestCase {
 	 *
 	 * @param string $phone 輸入電話
 	 */
-	public function test_不合法電話格式(string $phone): void {
+	public function test_不合法電話格式( string $phone ): void {
 		$this->assertFalse(
 			PhoneValidationService::is_valid_tw_mobile( $phone ),
 			sprintf( '"%s" 不是 09 開頭 10 碼手機，應不合法', $phone )
@@ -92,24 +92,24 @@ final class PhoneValidationServiceTest extends TestCase {
 	 */
 	public static function 不合法電話提供者(): array {
 		return [
-			'空字串'               => [ '' ],
-			'只有空白'             => [ '   ' ],
-			'只有連字號'           => [ '---' ],
-			'市話 02'              => [ '0223456789' ],
-			'市話含連字號'         => [ '02-2345-6789' ],
-			'9 碼（位數不足）'     => [ '091234567' ],
-			'11 碼（位數過多）'    => [ '09123456789' ],
-			'連字號後 11 碼'       => [ '0912-345-6789' ],
-			'國碼 +886'            => [ '+886912345678' ],
-			'國碼 886 無加號'      => [ '886912345678' ],
-			'去 0 的手機 9 開頭'   => [ '912345678' ],
-			'08 開頭 10 碼'        => [ '0812345678' ],
-			'10 開頭'              => [ '1012345678' ],
-			'含英文字母'           => [ '09123abcde' ],
-			'含括號'               => [ '(0912)345678' ],
-			'含小數點'             => [ '0912.345.678' ],
-			'含 emoji'             => [ '0912345678😀' ],
-			'中文數字'             => [ '零九一二三四五六七八' ],
+			'空字串'          => [ '' ],
+			'只有空白'         => [ '   ' ],
+			'只有連字號'        => [ '---' ],
+			'市話 02'        => [ '0223456789' ],
+			'市話含連字號'       => [ '02-2345-6789' ],
+			'9 碼（位數不足）'    => [ '091234567' ],
+			'11 碼（位數過多）'   => [ '09123456789' ],
+			'連字號後 11 碼'    => [ '0912-345-6789' ],
+			'國碼 +886'      => [ '+886912345678' ],
+			'國碼 886 無加號'   => [ '886912345678' ],
+			'去 0 的手機 9 開頭' => [ '912345678' ],
+			'08 開頭 10 碼'   => [ '0812345678' ],
+			'10 開頭'        => [ '1012345678' ],
+			'含英文字母'        => [ '09123abcde' ],
+			'含括號'          => [ '(0912)345678' ],
+			'含小數點'         => [ '0912.345.678' ],
+			'含 emoji'      => [ '0912345678😀' ],
+			'中文數字'         => [ '零九一二三四五六七八' ],
 		];
 	}
 
@@ -121,7 +121,7 @@ final class PhoneValidationServiceTest extends TestCase {
 	 *
 	 * @param string $phone 輸入電話
 	 */
-	public function test_夾帶惡意字串一律不合法(string $phone): void {
+	public function test_夾帶惡意字串一律不合法( string $phone ): void {
 		$this->assertFalse(
 			PhoneValidationService::is_valid_tw_mobile( $phone ),
 			sprintf( '夾帶惡意字串的 "%s" 應不合法', $phone )
@@ -135,8 +135,8 @@ final class PhoneValidationServiceTest extends TestCase {
 		return [
 			'script 標籤尾隨'  => [ '0912345678<script>' ],
 			'完整 script 標籤' => [ '0912345678<script>alert(1)</script>' ],
-			'SQL 注入'         => [ "0912345678' OR '1'='1" ],
-			'NUL 位元組'       => [ "0912345678\0" ],
+			'SQL 注入'       => [ "0912345678' OR '1'='1" ],
+			'NUL 位元組'      => [ "0912345678\0" ],
 		];
 	}
 }

@@ -354,8 +354,10 @@ abstract class CheckoutTestCase extends TestCase {
 			$defaults['ship_to_different_address'] = '1';
 		}
 
+		// phpcs:disable WordPress.Security.NonceVerification.Missing -- 測試模擬結帳表單送出
 		$_POST    = array_merge( $defaults, $post );
 		$_REQUEST = $_POST;
+		// phpcs:enable WordPress.Security.NonceVerification.Missing
 
 		$this->reset_checkout_fields_cache();
 

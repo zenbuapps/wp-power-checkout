@@ -73,7 +73,14 @@ final class CheckoutAddressFieldsTest extends CheckoutTestCase {
 	private function setup_cart_with( array $items ): void {
 		foreach ( $items as $item ) {
 			if ( ! $item[2] ) {
-				$this->create_free_shipping_zone( [ [ 'id' => 'flat_rate', 'settings' => [ 'cost' => '100' ] ] ] );
+				$this->create_free_shipping_zone(
+					[
+						[
+							'id'       => 'flat_rate',
+							'settings' => [ 'cost' => '100' ],
+						],
+					]
+					);
 				break;
 			}
 		}
@@ -139,7 +146,7 @@ final class CheckoutAddressFieldsTest extends CheckoutTestCase {
 
 		$this->go_to( (string) \get_permalink( $page_id ) );
 
-		$GLOBALS['post'] = \get_post( $page_id );
+		$GLOBALS['post'] = \get_post( $page_id ); // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- 測試模擬目前頁面
 		\setup_postdata( $GLOBALS['post'] );
 	}
 
@@ -164,8 +171,10 @@ final class CheckoutAddressFieldsTest extends CheckoutTestCase {
 
 	/** 清空前台 scripts / styles 佇列 */
 	private function reset_frontend_assets(): void {
+		// phpcs:disable WordPress.WP.GlobalVariablesOverride.Prohibited -- 測試重置前台資源佇列
 		$GLOBALS['wp_scripts'] = null;
 		$GLOBALS['wp_styles']  = null;
+		// phpcs:enable WordPress.WP.GlobalVariablesOverride.Prohibited
 	}
 
 	/**
@@ -533,10 +542,10 @@ final class CheckoutAddressFieldsTest extends CheckoutTestCase {
 	 */
 	public static function provide_virtual_hide_rows(): array {
 		return [
-			'傳統 全虛擬'     => [ '傳統', '電子書B', true, true, true ],
-			'區塊 全虛擬'     => [ '區塊', '電子書B', true, true, true ],
-			'傳統 含實體'     => [ '傳統', '帆布袋C', false, false, false ],
-			'區塊 含實體'     => [ '區塊', '帆布袋C', false, false, false ],
+			'傳統 全虛擬'   => [ '傳統', '電子書B', true, true, true ],
+			'區塊 全虛擬'   => [ '區塊', '電子書B', true, true, true ],
+			'傳統 含實體'   => [ '傳統', '帆布袋C', false, false, false ],
+			'區塊 含實體'   => [ '區塊', '帆布袋C', false, false, false ],
 			'傳統 可下載實體' => [ '傳統', '原聲帶CD', false, true, false ],
 		];
 	}
@@ -578,7 +587,7 @@ final class CheckoutAddressFieldsTest extends CheckoutTestCase {
 	 */
 	public static function provide_country_css_rows(): array {
 		return [
-			'區塊 yes 全虛擬 輸出'   => [ '區塊', 'yes', true, true ],
+			'區塊 yes 全虛擬 輸出'  => [ '區塊', 'yes', true, true ],
 			'區塊 yes 含實體 不輸出' => [ '區塊', 'yes', false, false ],
 			'區塊 no 全虛擬 不輸出'  => [ '區塊', 'no', true, false ],
 			'傳統 yes 全虛擬 不輸出' => [ '傳統', 'yes', true, false ],
@@ -662,7 +671,7 @@ final class CheckoutAddressFieldsTest extends CheckoutTestCase {
 
 		$contents = [];
 		if ( $with_virtual ) {
-			$product                                   = $this->create_product( '線上課程A', 1200.0, true );
+			$product = $this->create_product( '線上課程A', 1200.0, true );
 			$this->add_to_cart( [ [ $product, 1 ] ] );
 			$contents = \WC()->cart->get_cart_contents();
 		}
@@ -686,7 +695,7 @@ final class CheckoutAddressFieldsTest extends CheckoutTestCase {
 	 */
 	public static function provide_deleted_product_carts(): array {
 		return [
-			'只有已刪除商品'   => [ false ],
+			'只有已刪除商品'      => [ false ],
 			'虛擬商品 + 已刪除商品' => [ true ],
 		];
 	}

@@ -101,7 +101,7 @@ final class VirtualOrderAutoCompleteTest extends CheckoutTestCase {
 	public static function 轉處理中來源提供者(): array {
 		return [
 			'金流付款通知（等待付款 → 付款成功）' => [ 'pending', 'payment' ],
-			'管理員手動改狀態（保留 → 處理中）'   => [ 'on-hold', 'admin' ],
+			'管理員手動改狀態（保留 → 處理中）'  => [ 'on-hold', 'admin' ],
 		];
 	}
 
@@ -112,10 +112,10 @@ final class VirtualOrderAutoCompleteTest extends CheckoutTestCase {
 	 */
 	public static function 不處理情境提供者(): array {
 		return [
-			'含實體商品'       => [ 'physical', 'payment' ],
-			'商品已被刪除'     => [ 'deleted', 'gateway' ],
-			'混合訂單'         => [ 'mixed', 'payment' ],
-			'只有運費品項'     => [ 'no_items', 'admin' ],
+			'含實體商品'  => [ 'physical', 'payment' ],
+			'商品已被刪除' => [ 'deleted', 'gateway' ],
+			'混合訂單'   => [ 'mixed', 'payment' ],
+			'只有運費品項' => [ 'no_items', 'admin' ],
 		];
 	}
 

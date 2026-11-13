@@ -68,6 +68,10 @@
     <exclude-pattern>*/node_modules/*</exclude-pattern>
     <exclude-pattern>*/vendor/*</exclude-pattern>
     <exclude-pattern>*/vendor_prefixed/*</exclude-pattern>
+    <!-- 非原始碼目錄：PHPStan 快取（.tmp，單檔可達數十 MB，會讓 tokenizer 用光記憶體）、打包產物、Claude skills 範例 -->
+    <exclude-pattern>*/.tmp/*</exclude-pattern>
+    <exclude-pattern>*/release/*</exclude-pattern>
+    <exclude-pattern>*/.claude/*</exclude-pattern>
     <rule ref="Generic.WhiteSpace.ScopeIndent">
         <properties>
             <property name="indent" value="4"/>

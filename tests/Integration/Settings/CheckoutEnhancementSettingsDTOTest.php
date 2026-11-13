@@ -186,16 +186,16 @@ final class CheckoutEnhancementSettingsDTOTest extends TestCase {
 	 */
 	public static function 不合法開關值(): array {
 		return [
-			'字串 true'   => [ 'true' ],
-			'字串 1'      => [ '1' ],
-			'大寫 YES'    => [ 'YES' ],
-			'大寫 No'     => [ 'No' ],
+			'字串 true' => [ 'true' ],
+			'字串 1'    => [ '1' ],
+			'大寫 YES'  => [ 'YES' ],
+			'大寫 No'   => [ 'No' ],
 			'前後空白'    => [ ' yes ' ],
-			'空字串'      => [ '' ],
-			'布林 true'   => [ true ],
-			'整數 1'      => [ 1 ],
-			'null'        => [ null ],
-			'陣列'        => [ [ 'yes' ] ],
+			'空字串'     => [ '' ],
+			'布林 true' => [ true ],
+			'整數 1'    => [ 1 ],
+			'null'    => [ null ],
+			'陣列'      => [ [ 'yes' ] ],
 		];
 	}
 
@@ -227,10 +227,10 @@ final class CheckoutEnhancementSettingsDTOTest extends TestCase {
 	 */
 	public static function 合法色碼(): array {
 		return [
-			'bg 小寫'         => [ 'free_shipping_bg_color', '#aabbcc' ],
-			'bg 大寫'         => [ 'free_shipping_bg_color', '#AABBCC' ],
+			'bg 小寫'      => [ 'free_shipping_bg_color', '#aabbcc' ],
+			'bg 大寫'      => [ 'free_shipping_bg_color', '#AABBCC' ],
 			'text 數字混字母' => [ 'free_shipping_text_color', '#012abc' ],
-			'text 全黑'       => [ 'free_shipping_text_color', '#000000' ],
+			'text 全黑'    => [ 'free_shipping_text_color', '#000000' ],
 		];
 	}
 
@@ -251,14 +251,14 @@ final class CheckoutEnhancementSettingsDTOTest extends TestCase {
 	public static function 不合法色碼(): array {
 		return [
 			'顏色名稱'         => [ 'red' ],
-			'3 碼簡寫'         => [ '#fff' ],
-			'缺少井字號'       => [ 'aabbcc' ],
-			'非十六進位字元'   => [ '#gggggg' ],
+			'3 碼簡寫'        => [ '#fff' ],
+			'缺少井字號'        => [ 'aabbcc' ],
+			'非十六進位字元'      => [ '#gggggg' ],
 			'8 碼（含 alpha）' => [ '#aabbccdd' ],
 			'前後空白'         => [ ' #aabbcc' ],
-			'空字串'           => [ '' ],
-			'整數'             => [ 123456 ],
-			'null'             => [ null ],
+			'空字串'          => [ '' ],
+			'整數'           => [ 123456 ],
+			'null'         => [ null ],
 		];
 	}
 
@@ -313,13 +313,13 @@ final class CheckoutEnhancementSettingsDTOTest extends TestCase {
 	 */
 	public static function 不合法未達門檻文案(): array {
 		return [
-			'缺少 {price}'         => [ '快達免運了' ],
-			'price 少了大括號'     => [ '再買 price 元' ],
-			'大寫 {PRICE}'         => [ '再買 {PRICE} 元' ],
-			'單層括號不完整'       => [ '再買 {price 元' ],
-			'非字串（整數）'       => [ 123 ],
-			'非字串（陣列）'       => [ [ '{price}' ] ],
-			'null'                 => [ null ],
+			'缺少 {price}'  => [ '快達免運了' ],
+			'price 少了大括號' => [ '再買 price 元' ],
+			'大寫 {PRICE}'  => [ '再買 {PRICE} 元' ],
+			'單層括號不完整'     => [ '再買 {price 元' ],
+			'非字串（整數）'     => [ 123 ],
+			'非字串（陣列）'     => [ [ '{price}' ] ],
+			'null'        => [ null ],
 		];
 	}
 
@@ -348,7 +348,7 @@ final class CheckoutEnhancementSettingsDTOTest extends TestCase {
 			'free_shipping_text_achieved' => '免運囉',
 		];
 
-		$merged = CheckoutEnhancementSettingsDTO::merge_valid(
+		$merged    = CheckoutEnhancementSettingsDTO::merge_valid(
 			[
 				'free_shipping_text_left'     => '',
 				'free_shipping_text_achieved' => '',
@@ -417,11 +417,11 @@ final class CheckoutEnhancementSettingsDTOTest extends TestCase {
 			'free_shipping_hint'  => 'no',
 		];
 
-		$merged = CheckoutEnhancementSettingsDTO::merge_valid(
+		$merged    = CheckoutEnhancementSettingsDTO::merge_valid(
 			[
 				'tw_phone_validation'    => 'yes',
-				'free_shipping_hint'    => 'yes',
-				'tw_address'            => 'true',
+				'free_shipping_hint'     => 'yes',
+				'tw_address'             => 'true',
 				'free_shipping_bg_color' => 'red',
 			],
 			$stored
@@ -444,10 +444,10 @@ final class CheckoutEnhancementSettingsDTOTest extends TestCase {
 
 		$merged = CheckoutEnhancementSettingsDTO::merge_valid(
 			[
-				'tw_address'               => 'maybe',
-				'free_shipping_bg_color'   => 'red',
-				'free_shipping_text_left'  => '沒有佔位符',
-				'unknown_key'              => 'x',
+				'tw_address'              => 'maybe',
+				'free_shipping_bg_color'  => 'red',
+				'free_shipping_text_left' => '沒有佔位符',
+				'unknown_key'             => 'x',
 			],
 			$stored
 		);
