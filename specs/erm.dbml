@@ -1,5 +1,6 @@
 // Power Checkout — Entity Relationship Model
-// Version: 1.4.0 | Date: 2026-06-18
+// Version: 1.5.0 | Date: 2026-11-13
+// 1.5.0: 新增 Checkout domain 結帳體驗強化設定表 wp_options_checkout_enhancement_settings + enum yes_no、wc_free_shipping_requires（無新 order meta）
 // 1.4.0: 新增 normalized_error_code enum（einvoice 導入：正規化錯誤碼，發票 + 金流共用，10 值）
 //        為「回傳值」值域（\WP_Error $code），非持久化狀態 — 不新增資料表、不新增 order meta key
 //        單一事實來源 inc/classes/Shared/Errors/ErrorCode.php，HTTP 映射見各 note
@@ -163,6 +164,23 @@ Enum normalized_error_code {
   NETWORK [note: '連線失敗（發票 + 金流共用：API 連線失敗/逾時/無回應）→ HTTP 502']
   PROVIDER [note: 'provider 回未分類錯誤碼（發票 + 金流共用：映射表未涵蓋，保留 raw_code 供 debug）→ HTTP 502']
   UNKNOWN [note: '未預期 \Throwable（發票 + 金流共用：never-throw 鐵律下 driver 例外一律歸此）→ HTTP 500']
+}
+
+
+// ==================== 結帳體驗強化（Checkout domain，1.5.0）====================
+// WC free_shipping 運送方式 requires 值域（門檻來源唯讀參照，非 PC 持久化；用於差多少免運計算）
+Enum wc_free_shipping_requires {
+  none [note: 'requires 為空字串（無條件免運）→ 不視為門檻，不列入差額計算']
+  coupon [note: '僅需免運優惠券 → 不顯示提示']
+  min_amount [note: '達最低金額 → 顯示差額']
+  either [note: '優惠券或最低金額 → 已套用免運券視為已達，否則顯示差額']
+  both [note: '優惠券且最低金額 → 僅已套用免運券時顯示差額']
+}
+
+// 設定開關值域
+Enum yes_no {
+  yes
+  no
 }
 
 // ==================== WooCommerce 核心資料表（參考用）====================
@@ -363,6 +381,27 @@ Table wp_options_ecpay_logistics_settings {
   '''
 }
 
+Table wp_options_checkout_enhancement_settings {
+  option_name varchar [pk, note: 'woocommerce_checkout_enhancement_settings（虛擬 provider id = checkout_enhancement）']
+  last_name_first yes_no [not null, default: 'no', note: '姓在前名在後（僅 TW locale；傳統+區塊）']
+  tw_address yes_no [not null, default: 'no', note: '台灣縣市下拉（傳統+區塊）+ 鄉鎮下拉/郵遞區號帶入（僅傳統）']
+  tw_phone_validation yes_no [not null, default: 'no', note: '台灣手機格式 ^09\d{8}$（去空白/連字號後；傳統+區塊）']
+  virtual_hide_address yes_no [not null, default: 'no', note: '全虛擬購物車隱藏帳單地址（傳統+區塊）']
+  virtual_auto_complete yes_no [not null, default: 'no', note: '全虛擬訂單轉處理中後自動完成']
+  free_shipping_hint yes_no [not null, default: 'no', note: '差多少免運提示（購物車+結帳；傳統+區塊）']
+  free_shipping_text_left varchar [not null, default: '再買 {price} 元即可享免運', note: '未達門檻文案，必須含 {price}']
+  free_shipping_text_achieved varchar [not null, default: '已享免運', note: '已達門檻文案']
+  free_shipping_bg_color varchar [not null, default: '#d36f6f', note: '#RRGGBB']
+  free_shipping_text_color varchar [not null, default: '#ffffff', note: '#RRGGBB']
+
+  Note: '''
+    結帳體驗強化設定（Domains/Checkout，DTO：CheckoutEnhancementSettingsDTO）
+    重用 GET/POST /settings/{provider_id}（provider_id=checkout_enhancement），寫入時 wp_parse_args 合併、不合法鍵維持原值
+    不新增 order meta key；自動完成僅寫 order note「Power Checkout：全虛擬商品訂單，自動完成」
+    TW 縣市（woocommerce_states['TW']）key=label=中文全名 22 筆；鄉鎮郵遞區號對照為程式內常數（非 DB）
+    對應 .feature: settings/checkout-enhancement-settings、checkout/*.feature
+  '''
+}
 Table wp_options_global_settings {
   option_name varchar [pk, note: 'power_checkout_settings']
   value json [note: '全域設定（目前保留未使用）']
