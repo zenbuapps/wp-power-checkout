@@ -24,7 +24,7 @@
         "P0": "done",
         "P1": "done",
         "P2": "done",
-        "P3": "pending",
+        "P3": "done",
         "P4": "pending",
         "P5": "pending",
         "P6": "pending",
@@ -32,7 +32,7 @@
         "P8": "pending",
         "P9": "pending"
     },
-    "last_commit": "05b1754",
+    "last_commit": "ebef2e4",
     "P0_result": {
         "tests": 2397,
         "assertions": 7885,
@@ -92,6 +92,28 @@
             "f4c5fe7",
             "a0677b0",
             "05b1754"
+        ]
+    },
+    "P3_result": {
+        "tests": 2569,
+        "assertions": 8641,
+        "failures": "baseline 4 only",
+        "new_tests": 58,
+        "red": "88 tests / 55 errors + 3 failures (Class Linepay\\* not found) — .tmp/gate/P3-red-Payment.log",
+        "green_filter": "LinepayDirect|ProviderMetaContract → OK (88 tests, 437 assertions)",
+        "phpstan_errors": [
+            "RedirectSettingsDTO.php:148 (baseline)"
+        ],
+        "phpcs": "new PHP files 0 errors (1 warning: base64_encode in LinepaySignature, required by algorithm); ProviderRegister error count == master",
+        "frontend": "pnpm build OK; pnpm build:blocks OK (linepay.js); changed-file eslint 0 errors (1 warning no-explicit-any, same as paynow.tsx)",
+        "sandbox_probe": ".env.local LINEPAY_SANDBOX_CHANNEL_ID (10 digits) / SECRET (32 hex) are real values; POST /v4/payments/request → 0000, raw transactionId bare 19-digit number decoded as string(19), paymentUrl.web host sandbox-web-pay.line.me (+app present, locale appended); GET check → 0000 reserved transaction; GET details (unconfirmed) → 1150",
+        "legacy_linepaytest": "3 baseline LinePayTest failures test SLP StatusManager (SLP-collected LINE Pay), failing since f71d7ce (#18) currency/amount guards (order currency USD / total 0 vs 100000 cents); unrelated to direct linepay gateway, not modified",
+        "credential_scan_note": "Red scan hit = skill authentication.md §3 public cross-check vector secret; feat scan hits = LinepayMetaKeys *_KEY meta key names",
+        "commits": [
+            "d5edfb4",
+            "a263722",
+            "81552dd",
+            "ebef2e4"
         ]
     }
 }
