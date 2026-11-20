@@ -114,11 +114,12 @@ final class LinepayDirectGatewayTest extends TestCase {
 		$this->assertSame( 1000, $body['amount'] );
 		$this->assertSame( 'TWD', $body['currency'] );
 		$confirm = (string) $body['redirectUrls']['confirmUrl'];
-		$this->assertStringContainsString( 'power-checkout/linepay/confirm', $confirm );
+		// 測試站為 plain permalink（?rest_route=%2F...）→ 解碼後比對路由
+		$this->assertStringContainsString( 'power-checkout/linepay/confirm', \rawurldecode( $confirm ) );
 		$this->assertStringContainsString( 'key=' . $order->get_order_key(), $confirm );
 		$this->assertStringContainsString( 'order_id=' . $order->get_id(), $confirm );
 		$this->assertStringNotContainsString( 'transactionId', $confirm, '不可自行預放 transactionId' );
-		$this->assertStringContainsString( 'power-checkout/linepay/cancel', (string) $body['redirectUrls']['cancelUrl'] );
+		$this->assertStringContainsString( 'power-checkout/linepay/cancel', \rawurldecode( (string) $body['redirectUrls']['cancelUrl'] ) );
 		$this->assertLessThanOrEqual( 500, \strlen( $confirm ) );
 
 		$headers = $req['headers'];
