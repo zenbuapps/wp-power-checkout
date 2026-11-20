@@ -8,6 +8,7 @@
  *   - payuni_logistics：cancel_shipment 一律拋「不支援直接取消」→ can_cancel=false
  *   - paynow_logistics：create_return 一律拋「尚未實作」→ can_return=false
  *   - tcat_logistics（P4）：只做宅配（ASM-6）；選店 / 取消拋 UNSUPPORTED → has_cvs_map / can_cancel=false
+ *   - hct_logistics（P5）：純宅配；選店拋 UNSUPPORTED → has_cvs_map=false，其餘（含 TransDataCancel 取消）皆 true
  *
  * 執行：
  *   vendor/bin/phpunit tests/Integration/Logistics/ --filter LogisticsProviderMetaContract --no-coverage
@@ -18,6 +19,7 @@ declare( strict_types=1 );
 namespace Tests\Integration\Logistics;
 
 use J7\PowerCheckout\Domains\Logistics\Ecpay\Services\EcpayLogisticsProvider;
+use J7\PowerCheckout\Domains\Logistics\Hct\Services\HctLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Paynow\Services\PaynowLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Payuni\Services\PayuniLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Shared\DTOs\LogisticsProviderMetaDTO;
@@ -95,6 +97,18 @@ final class LogisticsProviderMetaContractTest extends TestCase {
 				'can_print'           => true,
 				'can_return'          => true,
 				'can_cancel'          => false,
+			],
+		],
+		'hct_logistics'    => [
+			'class'   => HctLogisticsProvider::class,
+			'methods' => [ 'HOME' ],
+			'caps'    => [
+				'can_create_shipment' => true,
+				'can_query_shipment'  => true,
+				'has_cvs_map'         => false,
+				'can_print'           => true,
+				'can_return'          => true,
+				'can_cancel'          => true,
 			],
 		],
 	];
