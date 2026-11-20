@@ -6,7 +6,9 @@
  * - 一律註冊（不需任何物流已啟用）：設定頁儲存憑證後、啟用前即可測試
  * - provider 依 Logistics\ProviderRegister 註冊表實例化（不經已啟用容器）
  * - 回應：成功 200 {code: success, data}；未知 provider 404；未實作 ISupportsConnectionTest 501 UNSUPPORTED；
- *   失敗帶 error_code / raw_code（VALIDATION 422，其餘 502），訊息為 provider 原始錯誤（admin 才看得到，不含憑證）
+ *   失敗帶 error_code / raw_code（VALIDATION 422，其餘 424 Failed Dependency），訊息為 provider 原始錯誤（admin 才看得到，不含憑證）
+ * - 失敗不回 5xx：站點常掛在 Cloudflare 等 CDN / 反向代理後，origin 的 502 本文會被改寫成 CDN 錯誤頁，
+ *   設定頁就看不到「帳號或密碼錯誤」等診斷訊息（P8 live 驗收實測）
  */
 
 declare(strict_types=1);
@@ -23,6 +25,9 @@ use J7\WpUtils\Traits\SingletonTrait;
 /** 物流測試連線 Api Service */
 final class LogisticsPingApiService extends ApiBase {
 	use SingletonTrait;
+
+	/** @var int provider 端失敗（AUTH / NETWORK / PROVIDER…）的 HTTP 狀態：424 Failed Dependency（不用 5xx，避免 CDN 改寫本文） */
+	public const PROVIDER_FAILURE_STATUS = 424;
 
 	/** @var string REST API namespace */
 	protected $namespace = 'power-checkout/v1';
@@ -86,7 +91,7 @@ final class LogisticsPingApiService extends ApiBase {
 					'raw_code'   => $raw_code,
 				]
 			);
-			return self::error( $e->getMessage(), ErrorCode::VALIDATION === $error_code ? 422 : 502, $error_code, $raw_code );
+			return self::error( $e->getMessage(), ErrorCode::VALIDATION === $error_code ? 422 : self::PROVIDER_FAILURE_STATUS, $error_code, $raw_code );
 		}
 	}
 
