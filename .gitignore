@@ -41,3 +41,9 @@ phpunit.xml
 # Runtime artifacts
 .claude/scheduled_tasks.lock
 .playwright-cli/.wp-env.override.json
+
+# Secrets / scratch / acceptance recordings
+.env.*
+!.env.example
+.tmp/
+tests/e2e/acceptance-videos/
