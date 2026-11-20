@@ -34,13 +34,13 @@ final class SfRegionTest extends TestCase {
 	 */
 	public function postcode_cases(): array {
 		return [
-			'臺北市中正區 3 碼'   => [ '100', 'Taipei City', 'Zhongzheng District' ],
-			'臺北市中正區 5 碼'   => [ '10048', 'Taipei City', 'Zhongzheng District' ],
-			'臺中市西屯區 5 碼'   => [ '40743', 'Taichung City', 'Xitun District' ],
-			'臺中市大雅區'      => [ '428', 'Taichung City', 'Daya District' ],
-			'高雄市前鎮區 6 碼'   => [ '806001', 'Kaohsiung City', 'Qianzhen District' ],
+			'臺北市中正區 3 碼' => [ '100', 'Taipei City', 'Zhongzheng District' ],
+			'臺北市中正區 5 碼' => [ '10048', 'Taipei City', 'Zhongzheng District' ],
+			'臺中市西屯區 5 碼' => [ '40743', 'Taichung City', 'Xitun District' ],
+			'臺中市大雅區'     => [ '428', 'Taichung City', 'Daya District' ],
+			'高雄市前鎮區 6 碼' => [ '806001', 'Kaohsiung City', 'Qianzhen District' ],
 			'臺北市大安區（撇號）' => [ '106', 'Taipei City', "Da'an District" ],
-			'花蓮縣吉安鄉'      => [ '973', 'Hualien County', "Ji'an Township" ],
+			'花蓮縣吉安鄉'     => [ '973', 'Hualien County', "Ji'an Township" ],
 		];
 	}
 

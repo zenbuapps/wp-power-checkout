@@ -91,14 +91,14 @@ final class SfExpressSettingsDTOTest extends TestCase {
 	 */
 	public function invalid_cases(): array {
 		return [
-			'mode 值域'      => [ [ 'mode' => 'sandbox' ] ],
-			'enabled 值域'   => [ [ 'enabled' => 'true' ] ],
-			'AES 金鑰長度'     => [ [ 'encoding_aes_key' => 'too-short' ] ],
-			'寄件類型'         => [ [ 'sender_cargo_type' => '3' ] ],
-			'統編位數'         => [ [ 'sender_tax_id' => '1234' ] ],
-			'寄件郵遞區號'       => [ [ 'sender_postcode' => '1004' ] ],
-			'產品碼格式'        => [ [ 'product_code' => 'INT 0005' ] ],
-			'非字串'          => [ [ 'app_key' => [ 'x' ] ] ],
+			'mode 值域'    => [ [ 'mode' => 'sandbox' ] ],
+			'enabled 值域' => [ [ 'enabled' => 'true' ] ],
+			'AES 金鑰長度'   => [ [ 'encoding_aes_key' => 'too-short' ] ],
+			'寄件類型'       => [ [ 'sender_cargo_type' => '3' ] ],
+			'統編位數'       => [ [ 'sender_tax_id' => '1234' ] ],
+			'寄件郵遞區號'     => [ [ 'sender_postcode' => '1004' ] ],
+			'產品碼格式'      => [ [ 'product_code' => 'INT 0005' ] ],
+			'非字串'        => [ [ 'app_key' => [ 'x' ] ] ],
 		];
 	}
 

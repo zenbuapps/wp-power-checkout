@@ -94,6 +94,7 @@ final class SfExpressProviderTest extends TestCase {
 	 * @group happy
 	 */
 	public function test_建單成功(): void {
+		\update_option( 'woocommerce_weight_unit', 'kg' );
 		$this->fake_sf( 'IUOP_CREATE_ORDER', 'create_ok' );
 		$order = $this->make_sf_order(
 			[

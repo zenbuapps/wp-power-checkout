@@ -43,18 +43,18 @@ final class SfExpressOpcodeMapperTest extends TestCase {
 			'31 到達'           => [ '31', '', ShippingState::IN_TRANSIT ],
 			'44 派送中'          => [ '44', '', ShippingState::IN_TRANSIT ],
 			'634 港澳台二程派件'     => [ '634', '', ShippingState::IN_TRANSIT ],
-			'70 問題件不判 failed'  => [ '70', '', ShippingState::IN_TRANSIT ],
-			'EXCHECKIN'        => [ 'EXCHECKIN', '', ShippingState::IN_TRANSIT ],
+			'70 問題件不判 failed' => [ '70', '', ShippingState::IN_TRANSIT ],
+			'EXCHECKIN'       => [ 'EXCHECKIN', '', ShippingState::IN_TRANSIT ],
 			'130 到達代理點'       => [ '130', '', ShippingState::ARRIVED ],
-			'G07'              => [ 'G07', '', ShippingState::ARRIVED ],
+			'G07'             => [ 'G07', '', ShippingState::ARRIVED ],
 			'80 已簽收'          => [ '80', '', ShippingState::DELIVERED ],
-			'8000'             => [ '8000', '', ShippingState::DELIVERED ],
+			'8000'            => [ '8000', '', ShippingState::DELIVERED ],
 			'631 退回'          => [ '631', '', ShippingState::RETURNED ],
-			'G99'              => [ 'G99', '', ShippingState::RETURNED ],
+			'G99'             => [ 'G99', '', ShippingState::RETURNED ],
 			'99 + 2 返回'       => [ '99', '2', ShippingState::RETURNED ],
 			'99 + 46 簽收後退回'   => [ '99', '46', ShippingState::RETURNED ],
 			'99 + 1 轉寄'       => [ '99', '1', ShippingState::IN_TRANSIT ],
-			'99 無 otherInfo'   => [ '99', '', ShippingState::IN_TRANSIT ],
+			'99 無 otherInfo'  => [ '99', '', ShippingState::IN_TRANSIT ],
 			'前後空白'            => [ ' 80 ', '', ShippingState::DELIVERED ],
 			'未知碼'             => [ '12345', '', null ],
 			'空字串'             => [ '', '', null ],
@@ -135,6 +135,15 @@ final class SfExpressOpcodeMapperTest extends TestCase {
 		$this->assertNotNull( $latest );
 		$this->assertSame( '80', $latest['opCode'] );
 		$this->assertNull( SfOpcodeMapper::pick_latest( [] ) );
-		$this->assertNull( SfOpcodeMapper::pick_latest( [ [ 'opCode' => '12345', 'localTm' => '2026-11-21 09:30:00' ] ] ) );
+		$this->assertNull(
+			SfOpcodeMapper::pick_latest(
+			[
+				[
+					'opCode'  => '12345',
+					'localTm' => '2026-11-21 09:30:00',
+				],
+			]
+			)
+			);
 	}
 }

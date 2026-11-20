@@ -171,7 +171,7 @@ final class SfExpressApiClientTest extends TestCase {
 	 * @group error
 	 */
 	public function test_平台層錯誤分類(): void {
-		$this->fake_sf( 'IUOP_QUERY_TRACK', [ 'envelope' => 'envelope_signature_invalid' ], [ 'envelope' => 'envelope_busy' ] );
+		$this->fake_sf( 'IUOP_QUERY_TRACK', [ 'envelope' => 'envelope_signature_invalid' ], [ 'envelope' => 'envelope_body_format_incorrect' ], [ 'envelope' => 'envelope_busy' ] );
 
 		try {
 			$this->client()->dispatch( 'IUOP_QUERY_TRACK', [] );
@@ -179,6 +179,16 @@ final class SfExpressApiClientTest extends TestCase {
 		} catch ( SfExpressException $e ) {
 			$this->assertSame( ErrorCode::SIGNATURE, $e->error_code );
 			$this->assertSame( '2001', $e->raw_code );
+		}
+
+		// 2026-11-21 實打：AES 金鑰錯（順豐解不開 body）→ 505 The format of the request body is incorrect
+		try {
+			$this->client()->dispatch( 'IUOP_QUERY_TRACK', [] );
+			$this->fail( '應拋例外' );
+		} catch ( SfExpressException $e ) {
+			$this->assertSame( ErrorCode::SIGNATURE, $e->error_code );
+			$this->assertSame( '505', $e->raw_code );
+			$this->assertStringContainsString( 'AES', $e->getMessage() );
 		}
 
 		try {

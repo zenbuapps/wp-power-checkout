@@ -74,7 +74,14 @@ final class SfCryptoTest extends TestCase {
 	 */
 	public function test_加解密往返_含中文(): void {
 		$crypto = $this->demo();
-		$plain  = (string) \wp_json_encode( [ 'customerCode' => 'X', 'contact' => '王小明', 'address' => '臺中市大雅區中清路三段513號' ], JSON_UNESCAPED_UNICODE );
+		$plain  = (string) \wp_json_encode(
+			[
+				'customerCode' => 'X',
+				'contact'      => '王小明',
+				'address'      => '臺中市大雅區中清路三段513號',
+			],
+			JSON_UNESCAPED_UNICODE
+			);
 
 		$a = $crypto->encrypt( $plain );
 		$b = $crypto->encrypt( $plain );
@@ -150,9 +157,11 @@ final class SfCryptoTest extends TestCase {
 	 * @group security
 	 */
 	public function test_篡改密文解密失敗(): void {
-		$raw      = (string) \base64_decode( self::CIPHER_A, true );
-		$raw[40]  = \chr( \ord( $raw[40] ) ^ 0x01 );
-		$tampered = \base64_encode( $raw );
+		// 竄改倒數第二個 block（CBC：該 block 明文整塊亂掉 → 落在 appKey 尾碼區，必被偵測）
+		$raw           = (string) \base64_decode( self::CIPHER_A, true );
+		$index         = \strlen( $raw ) - 20;
+		$raw[ $index ] = \chr( \ord( $raw[ $index ] ) ^ 0x01 );
+		$tampered      = \base64_encode( $raw );
 
 		try {
 			$this->demo()->decrypt( $tampered );

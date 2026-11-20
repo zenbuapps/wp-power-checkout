@@ -92,7 +92,12 @@ final class WC_SfExpressShippingTest extends TestCase {
 	public function test_固定運費rate(): void {
 		$method = $this->make_method( [ 'cost' => '180' ] );
 
-		$method->calculate_shipping( [ 'destination' => [ 'country' => 'TW' ] ] );
+		$method->calculate_shipping(
+			[
+				'destination' => [ 'country' => 'TW' ],
+				'contents'    => [],
+			]
+		);
 		$rate = \reset( $method->rates );
 
 		$this->assertCount( 1, $method->rates );
@@ -106,12 +111,22 @@ final class WC_SfExpressShippingTest extends TestCase {
 	 */
 	public function test_未啟用或非台灣不產rate(): void {
 		$abroad = $this->make_method();
-		$abroad->calculate_shipping( [ 'destination' => [ 'country' => 'JP' ] ] );
+		$abroad->calculate_shipping(
+			[
+				'destination' => [ 'country' => 'JP' ],
+				'contents'    => [],
+			]
+		);
 		$this->assertCount( 0, $abroad->rates );
 
 		ProviderUtils::update_option( SfExpressProvider::ID, 'enabled', 'no' );
 		$disabled = $this->make_method();
-		$disabled->calculate_shipping( [ 'destination' => [ 'country' => 'TW' ] ] );
+		$disabled->calculate_shipping(
+			[
+				'destination' => [ 'country' => 'TW' ],
+				'contents'    => [],
+			]
+		);
 		$this->assertCount( 0, $disabled->rates );
 	}
 
