@@ -21,7 +21,9 @@ use J7\PowerCheckout\Plugin;
  * 執行時**先查付款請求狀態**再決定（未認證就 confirm 會 1169 且整筆作廢，不可拿 confirm 當探針）：
  *  - 0110 已認證未 confirm → confirm（金額取自我方快照）
  *  - 0123 已完成 → 查明細 CAPTURE → 認列（不再 confirm）
- *  - 0000 尚未認證 / 0121 取消逾時 / 0122 失敗 → 只留 note，不改狀態（不自動取消）
+ *  - 0000 尚未認證 → 自動補單：依同一 filter 延遲重新排程（pending_round +1），直到付款請求失效
+ *    （請求時間起約 20 分鐘 `REQUEST_EXPIRY`）或達 `MAX_PENDING_ROUNDS` 為止，停止時留 note；後台手動查詢：只留 note
+ *  - 0121 取消逾時 / 0122 失敗 → 只留 note，不改狀態（不自動取消）、不再排程
  *  - 查詢失敗 → 重排 1 次（+600 秒，attempt=2），仍失敗 → note 放棄
  *  - 訂單已非待付款 / 非 LINE Pay / 無 transactionId → no-op（不打 API）
  *
@@ -41,12 +43,18 @@ final class LinepayReconcileJob {
 	/** @var int 失敗重排延遲秒數 */
 	public const RETRY_DELAY = 600;
 
-	/** @var int 最多執行次數（含首次） */
+	/** @var int 付款請求有效期（秒；LINE Pay 約 20 分鐘失效） */
+	public const REQUEST_EXPIRY = 1200;
+
+	/** @var int 「尚未認證」最多重新排程輪次（防無限迴圈；無請求時間 meta 的舊訂單也會停） */
+	public const MAX_PENDING_ROUNDS = 10;
+
+	/** @var int 查詢失敗最多執行次數（含首次） */
 	private const MAX_ATTEMPTS = 2;
 
 	/** Register hooks @return void */
 	public static function register_hooks(): void {
-		\add_action( self::HOOK, [ __CLASS__, 'run' ], 10, 2 );
+		\add_action( self::HOOK, [ __CLASS__, 'run' ], 10, 3 );
 	}
 
 	/**
@@ -63,25 +71,31 @@ final class LinepayReconcileJob {
 
 		$args = [ 'order_id' => $order_id ];
 		\as_unschedule_all_actions( self::HOOK, $args, self::GROUP );
-		$delay = (int) \apply_filters( 'power_checkout_linepay_reconcile_delay', self::DEFAULT_DELAY, $order_id );
-		\as_schedule_single_action( \time() + \max( 60, $delay ), self::HOOK, $args, self::GROUP );
+		\as_schedule_single_action( \time() + self::delay( $order_id ), self::HOOK, $args, self::GROUP );
 	}
 
 	/**
 	 * Action Scheduler callback（never-throw）
 	 *
-	 * @param int $order_id 訂單 ID
-	 * @param int $attempt  第幾次執行
+	 * @param int $order_id      訂單 ID
+	 * @param int $attempt       查詢失敗重試的第幾次執行
+	 * @param int $pending_round 「尚未認證」已重新排程的輪次
 	 * @return void
 	 */
-	public static function run( int $order_id, int $attempt = 1 ): void {
+	public static function run( int $order_id, int $attempt = 1, int $pending_round = 0 ): void {
 		$order = \wc_get_order( $order_id );
 		if ( ! $order instanceof \WC_Order || ! self::should_reconcile( $order ) ) {
 			return;
 		}
 
+		$source = \__( '自動補單', 'power_checkout' );
 		try {
-			self::reconcile( $order, \__( '自動補單', 'power_checkout' ) );
+			[ $code, $result ] = self::check_and_settle( $order, $source );
+			if ( LinepayReturnCode::SUCCESS->value === $code ) {
+				self::handle_not_authenticated( $order, $pending_round );
+			} elseif ( null === $result ) {
+				self::add_status_note( $order, $source, $code );
+			}
 		} catch ( \Throwable $e ) {
 			Plugin::logger(
 				'LINE Pay 自動補單失敗',
@@ -130,7 +144,7 @@ final class LinepayReconcileJob {
 	}
 
 	/**
-	 * 查付款請求狀態後依結果認列
+	 * 查付款請求狀態後依結果認列（後台手動查詢用：未認列的狀態一律留 note）
 	 *
 	 * @param \WC_Order $order  訂單
 	 * @param string    $source 來源（order note 用）
@@ -138,38 +152,114 @@ final class LinepayReconcileJob {
 	 * @throws LinepayApiException 查詢 / confirm 傳輸失敗或狀態碼無法辨識
 	 */
 	public static function reconcile( \WC_Order $order, string $source ): ?LinepayConfirmResult {
+		[ $code, $result ] = self::check_and_settle( $order, $source );
+		if ( null === $result ) {
+			self::add_status_note( $order, $source, $code );
+		}
+		return $result;
+	}
+
+	/**
+	 * 查付款請求狀態；已認證 → confirm、已完成 → 查明細認列，其餘不動作
+	 *
+	 * @param \WC_Order $order  訂單
+	 * @param string    $source 來源（order note 用）
+	 * @return array{0: string, 1: LinepayConfirmResult|null} [returnCode, 認列結果（未認列為 null）]
+	 * @throws LinepayApiException 查詢 / confirm 傳輸失敗或狀態碼無法辨識
+	 */
+	private static function check_and_settle( \WC_Order $order, string $source ): array {
 		$client  = new LinepayApiClient( LinepaySettingsDTO::instance() );
 		$manager = new StatusManager( $order, $client );
 		$tx      = ( new LinepayMetaKeys( $order ) )->get_transaction_id();
 		$check   = $client->check_request_status( $tx );
 		$code    = LinepayApiClient::return_code( $check );
 
-		switch ( LinepayReturnCode::tryFrom( $code ) ) {
-			case LinepayReturnCode::AUTHENTICATED:
-				return $manager->confirm( $source );
-			case LinepayReturnCode::COMPLETED:
-				return $manager->settle_from_details( $source );
-			case LinepayReturnCode::SUCCESS:
-			case LinepayReturnCode::CANCELLED:
-			case LinepayReturnCode::FAILED:
-				$order->add_order_note(
-					\sprintf(
-						/* translators: 1: 來源 2: returnCode 3: 訊息 4: transactionId */
-						\__( 'LINE Pay %1$s：付款請求狀態 %2$s（%3$s），訂單狀態未變更。transactionId %4$s', 'power_checkout' ),
-						$source,
-						$code,
-						self::status_label( $code ),
-						$tx
-					)
-				);
-				return null;
-			default:
-				throw new LinepayApiException(
-					"LINE Pay 查詢付款請求狀態失敗：{$code} " . LinepayApiClient::return_message( $check ),
-					LinepayReturnCode::error_code_for( $code ),
-					$code
-				);
+		return match ( LinepayReturnCode::tryFrom( $code ) ) {
+			LinepayReturnCode::AUTHENTICATED => [ $code, $manager->confirm( $source ) ],
+			LinepayReturnCode::COMPLETED => [ $code, $manager->settle_from_details( $source ) ],
+			LinepayReturnCode::SUCCESS,
+			LinepayReturnCode::CANCELLED,
+			LinepayReturnCode::FAILED => [ $code, null ],
+			default => throw new LinepayApiException(
+				"LINE Pay 查詢付款請求狀態失敗：{$code} " . LinepayApiClient::return_message( $check ),
+				LinepayReturnCode::error_code_for( $code ),
+				$code
+			),
+		};
+	}
+
+	/**
+	 * 自動補單遇「顧客尚未認證」：付款請求仍有效且未達輪次上限 → 重新排程；否則留 note 停止
+	 *
+	 * @param \WC_Order $order         訂單
+	 * @param int       $pending_round 已重新排程的輪次
+	 * @return void
+	 */
+	private static function handle_not_authenticated( \WC_Order $order, int $pending_round ): void {
+		$requested_at = ( new LinepayMetaKeys( $order ) )->get_requested_at();
+		$expired      = $requested_at > 0 && ( \time() - $requested_at ) >= self::REQUEST_EXPIRY;
+
+		if ( ! $expired && $pending_round < self::MAX_PENDING_ROUNDS && \function_exists( 'as_schedule_single_action' ) ) {
+			\as_schedule_single_action(
+				\time() + self::delay( $order->get_id() ),
+				self::HOOK,
+				[
+					'order_id'      => $order->get_id(),
+					'attempt'       => 1,
+					'pending_round' => $pending_round + 1,
+				],
+				self::GROUP
+			);
+			Plugin::logger(
+				'LINE Pay 自動補單：顧客尚未認證，已重新排程',
+				'info',
+				[
+					'order_id'      => $order->get_id(),
+					'pending_round' => $pending_round + 1,
+				]
+			);
+			return;
 		}
+
+		$order->add_order_note(
+			\sprintf(
+				/* translators: 1: 原因 2: transactionId */
+				\__( 'LINE Pay 自動補單：顧客始終未完成認證（%1$s），停止自動補單，訂單狀態未變更。transactionId %2$s', 'power_checkout' ),
+				$expired ? \__( '付款請求已失效', 'power_checkout' ) : \__( '已達最大查詢次數', 'power_checkout' ),
+				( new LinepayMetaKeys( $order ) )->get_transaction_id()
+			)
+		);
+	}
+
+	/**
+	 * 未認列狀態的 order note
+	 *
+	 * @param \WC_Order $order  訂單
+	 * @param string    $source 來源
+	 * @param string    $code   returnCode
+	 * @return void
+	 */
+	private static function add_status_note( \WC_Order $order, string $source, string $code ): void {
+		$order->add_order_note(
+			\sprintf(
+				/* translators: 1: 來源 2: returnCode 3: 訊息 4: transactionId */
+				\__( 'LINE Pay %1$s：付款請求狀態 %2$s（%3$s），訂單狀態未變更。transactionId %4$s', 'power_checkout' ),
+				$source,
+				$code,
+				self::status_label( $code ),
+				( new LinepayMetaKeys( $order ) )->get_transaction_id()
+			)
+		);
+	}
+
+	/**
+	 * 補單延遲秒數（filter `power_checkout_linepay_reconcile_delay`，下限 60 秒）
+	 *
+	 * @param int $order_id 訂單 ID
+	 * @return int
+	 */
+	private static function delay( int $order_id ): int {
+		return \max( 60, (int) \apply_filters( 'power_checkout_linepay_reconcile_delay', self::DEFAULT_DELAY, $order_id ) );
 	}
 
 	/**

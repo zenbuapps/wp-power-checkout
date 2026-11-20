@@ -5,7 +5,8 @@
  * 顧客認證後關掉瀏覽器 → confirmUrl 永遠不會被呼叫（R3）。補單一律「先查付款請求狀態」再決定：
  *  - 0110（已認證未 confirm）→ confirm → processing
  *  - 0123（已完成）→ 查明細 CAPTURE → processing（不再 confirm）
- *  - 0121 / 0122 → note，不改狀態（不自動取消）
+ *  - 0000（尚未認證）→ 依 filter 延遲重新排程，直到付款請求失效（約 20 分鐘）或達最大輪次
+ *  - 0121 / 0122 → note，不改狀態（不自動取消）、不再排程
  *  - 查詢失敗 → 重排 1 次（+600 秒，attempt=2）；第 2 次仍失敗 → note 放棄
  *  - 訂單已非待付款 → no-op（不打 API）
  * ⚠️ 不可拿 confirm 當探針：未認證就 confirm 會 1169 且整筆作廢。
@@ -20,6 +21,7 @@ namespace Tests\Integration\Payment;
 
 use J7\PowerCheckout\Domains\Payment\Linepay\Managers\LinepayReconcileJob;
 use J7\PowerCheckout\Domains\Payment\Linepay\Services\LinepayGateway;
+use J7\PowerCheckout\Domains\Payment\Linepay\Shared\Helpers\LinepayMetaKeys;
 use Tests\Integration\Payment\Doubles\LinepayDirectTestTrait;
 use Tests\Integration\TestCase;
 
@@ -125,6 +127,136 @@ final class LinepayDirectReconcileTest extends TestCase {
 		$this->assertSame( 'pending', \wc_get_order( $order->get_id() )->get_status() );
 		$this->assertSame( [], $this->linepay_requests( 'confirm' ) );
 		$this->assertStringContainsString( '0121', \implode( "\n", $this->linepay_order_notes( $order ) ) );
+	}
+
+	/**
+	 * Edge：check 0000（顧客尚未認證）→ 不 confirm、不改狀態，依 filter 延遲重新排程（pending_round=1）
+	 *
+	 * @group edge
+	 */
+	public function test_尚未認證時重新排程補單(): void {
+		$order = $this->make_linepay_order( 1000.0, 'pending', true );
+		$this->fake_linepay( 'check', $this->linepay_fixture( 'check_0000' ) );
+
+		$before = \time();
+		\do_action( LinepayReconcileJob::HOOK, $order->get_id() );
+
+		$next = \as_next_scheduled_action( LinepayReconcileJob::HOOK, $this->pending_args( $order, 1 ), LinepayReconcileJob::GROUP );
+		$this->assertIsInt( $next );
+		$this->assertEqualsWithDelta( $before + LinepayReconcileJob::DEFAULT_DELAY, $next, 60 );
+		$this->assertSame( [], $this->linepay_requests( 'confirm' ) );
+		$this->assertSame( 'pending', \wc_get_order( $order->get_id() )->get_status() );
+	}
+
+	/**
+	 * Edge：重新排程沿用 filter `power_checkout_linepay_reconcile_delay` 的延遲，且 pending_round 遞增
+	 *
+	 * @group edge
+	 */
+	public function test_尚未認證重新排程沿用filter延遲並遞增輪次(): void {
+		$order = $this->make_linepay_order( 1000.0, 'pending', true );
+		$this->fake_linepay( 'check', $this->linepay_fixture( 'check_0000' ) );
+		$delay = static fn(): int => 120;
+		\add_filter( 'power_checkout_linepay_reconcile_delay', $delay );
+
+		$before = \time();
+		\do_action( LinepayReconcileJob::HOOK, $order->get_id(), 1, 2 );
+		\remove_filter( 'power_checkout_linepay_reconcile_delay', $delay );
+
+		$next = \as_next_scheduled_action( LinepayReconcileJob::HOOK, $this->pending_args( $order, 3 ), LinepayReconcileJob::GROUP );
+		$this->assertIsInt( $next );
+		$this->assertEqualsWithDelta( $before + 120, $next, 30 );
+	}
+
+	/**
+	 * Edge：付款請求已超過約 20 分鐘仍未認證 → 不再排程，留「停止自動補單」note
+	 *
+	 * @group edge
+	 */
+	public function test_付款請求失效後停止重新排程(): void {
+		$order = $this->make_linepay_order( 1000.0, 'pending', true );
+		$order->update_meta_data( LinepayMetaKeys::REQUESTED_AT_KEY, (string) ( \time() - LinepayReconcileJob::REQUEST_EXPIRY - 60 ) );
+		$order->save();
+		$this->fake_linepay( 'check', $this->linepay_fixture( 'check_0000' ) );
+
+		\do_action( LinepayReconcileJob::HOOK, $order->get_id(), 1, 3 );
+
+		$this->assertFalse( \as_next_scheduled_action( LinepayReconcileJob::HOOK ) );
+		$this->assertStringContainsString( '停止自動補單', \implode( "\n", $this->linepay_order_notes( $order ) ) );
+		$this->assertSame( 'pending', \wc_get_order( $order->get_id() )->get_status() );
+	}
+
+	/**
+	 * Edge：達最大重新排程次數 → 不再排程（防無限迴圈；無請求時間 meta 的舊訂單也會停）
+	 *
+	 * @group edge
+	 */
+	public function test_達最大次數停止重新排程(): void {
+		$order = $this->make_linepay_order( 1000.0, 'pending', true );
+		$order->delete_meta_data( LinepayMetaKeys::REQUESTED_AT_KEY );
+		$order->save();
+		$this->fake_linepay( 'check', $this->linepay_fixture( 'check_0000' ) );
+
+		\do_action( LinepayReconcileJob::HOOK, $order->get_id(), 1, LinepayReconcileJob::MAX_PENDING_ROUNDS );
+
+		$this->assertFalse( \as_next_scheduled_action( LinepayReconcileJob::HOOK ) );
+		$this->assertStringContainsString( '停止自動補單', \implode( "\n", $this->linepay_order_notes( $order ) ) );
+	}
+
+	/**
+	 * Edge：付款請求寫入請求時間 meta（失效判斷依據）
+	 *
+	 * @group edge
+	 */
+	public function test_付款請求寫入請求時間(): void {
+		$before = \time();
+		$order  = $this->make_linepay_order( 1000.0, 'pending', true );
+
+		$this->assertEqualsWithDelta( $before, (int) $order->get_meta( LinepayMetaKeys::REQUESTED_AT_KEY ), 5 );
+	}
+
+	/**
+	 * Edge：0121（取消 / 逾時）→ 不重新排程
+	 *
+	 * @group edge
+	 */
+	public function test_取消或逾時不重新排程(): void {
+		$order = $this->make_linepay_order( 1000.0, 'pending', true );
+		$this->fake_linepay( 'check', $this->linepay_fixture( 'check_0121' ) );
+
+		\do_action( LinepayReconcileJob::HOOK, $order->get_id() );
+
+		$this->assertFalse( \as_next_scheduled_action( LinepayReconcileJob::HOOK ) );
+	}
+
+	/**
+	 * Edge：後台手動查詢補單遇 0000 → 只留 note，不排程（重新排程只屬於自動補單）
+	 *
+	 * @group edge
+	 */
+	public function test_後台查詢補單尚未認證不排程(): void {
+		$order = $this->make_linepay_order( 1000.0, 'pending', true );
+		$this->fake_linepay( 'check', $this->linepay_fixture( 'check_0000' ) );
+
+		LinepayGateway::handle_query_action( $order );
+
+		$this->assertFalse( \as_next_scheduled_action( LinepayReconcileJob::HOOK ) );
+		$this->assertStringContainsString( '0000', \implode( "\n", $this->linepay_order_notes( $order ) ) );
+	}
+
+	/**
+	 * 未認證重新排程的 AS args
+	 *
+	 * @param \WC_Order $order 訂單
+	 * @param int       $round 第幾輪
+	 * @return array<string, int>
+	 */
+	private function pending_args( \WC_Order $order, int $round ): array {
+		return [
+			'order_id'      => $order->get_id(),
+			'attempt'       => 1,
+			'pending_round' => $round,
+		];
 	}
 
 	/**

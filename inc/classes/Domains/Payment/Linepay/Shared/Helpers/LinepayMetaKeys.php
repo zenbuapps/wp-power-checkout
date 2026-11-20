@@ -16,6 +16,7 @@ namespace J7\PowerCheckout\Domains\Payment\Linepay\Shared\Helpers;
  * | `_pc_linepay_payment_url` | 付款頁 paymentUrl.web |
  * | `_pc_linepay_payment_detail` | confirm 回應 info 或付款明細（認列時寫入） |
  * | `_pc_linepay_refund_detail` | 退款紀錄（refundTransactionId 字串、金額、時間）陣列 |
+ * | `_pc_linepay_requested_at` | 付款請求建立時間（Unix timestamp）；自動補單判斷付款請求是否已失效 |
  */
 final class LinepayMetaKeys {
 
@@ -26,6 +27,7 @@ final class LinepayMetaKeys {
 	public const PAYMENT_URL_KEY    = '_pc_linepay_payment_url';
 	public const PAYMENT_DETAIL_KEY = '_pc_linepay_payment_detail';
 	public const REFUND_DETAIL_KEY  = '_pc_linepay_refund_detail';
+	public const REQUESTED_AT_KEY   = '_pc_linepay_requested_at';
 
 	/**
 	 * Constructor
@@ -61,7 +63,13 @@ final class LinepayMetaKeys {
 		$this->order->update_meta_data( self::TRANSACTION_ID_KEY, $transaction_id );
 		$this->order->update_meta_data( self::CHARGE_AMOUNT_KEY, (string) $amount );
 		$this->order->update_meta_data( self::PAYMENT_URL_KEY, $payment_url );
+		$this->order->update_meta_data( self::REQUESTED_AT_KEY, (string) \time() );
 		$this->order->save();
+	}
+
+	/** @return int 付款請求建立時間（Unix timestamp；舊訂單無此 meta 回 0） */
+	public function get_requested_at(): int {
+		return \max( 0, (int) self::to_string( $this->order->get_meta( self::REQUESTED_AT_KEY ) ) );
 	}
 
 	/** @return string 目前 transactionId（未建立為空字串） */
