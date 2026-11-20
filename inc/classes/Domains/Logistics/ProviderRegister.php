@@ -32,6 +32,9 @@ use J7\PowerCheckout\Domains\Logistics\Payuni\Services\WC_PayuniLogisticsShippin
 use J7\PowerCheckout\Domains\Logistics\Shared\Services\CartLogisticsApiService;
 use J7\PowerCheckout\Domains\Logistics\Shared\Services\LogisticsApiService;
 use J7\PowerCheckout\Domains\Logistics\Shared\Services\LogisticsPingApiService;
+use J7\PowerCheckout\Domains\Logistics\SfExpress\Http\SfTrackPushCallback;
+use J7\PowerCheckout\Domains\Logistics\SfExpress\Services\SfExpressProvider;
+use J7\PowerCheckout\Domains\Logistics\SfExpress\Services\WC_SfExpressShipping;
 use J7\PowerCheckout\Domains\Logistics\Tcat\Services\TcatLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Tcat\Services\WC_TcatLogisticsShipping;
 use J7\PowerCheckout\Shared\DTOs\BaseSettingsDTO;
@@ -40,13 +43,14 @@ use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 /** Loader 載入物流方式 */
 final class ProviderRegister {
 
-	/** @var array<string, string> $logistics_providers [id, class]（綠界 / PAYUNi / PayNow / 黑貓宅急便直串 / 新竹物流並存可切換） */
+	/** @var array<string, string> $logistics_providers [id, class]（綠界 / PAYUNi / PayNow / 黑貓宅急便直串 / 新竹物流 / 順豐並存可切換） */
 	private static array $logistics_providers = [
 		EcpayLogisticsProvider::ID  => EcpayLogisticsProvider::class,
 		PayuniLogisticsProvider::ID => PayuniLogisticsProvider::class,
 		PaynowLogisticsProvider::ID => PaynowLogisticsProvider::class,
 		TcatLogisticsProvider::ID   => TcatLogisticsProvider::class,
 		HctLogisticsProvider::ID    => HctLogisticsProvider::class,
+		SfExpressProvider::ID       => SfExpressProvider::class,
 	];
 
 	/** 註冊 hooks @return void */
@@ -58,6 +62,8 @@ final class ProviderRegister {
 		LogisticsPingApiService::register_hooks();
 		// 新竹物流：設定儲存時同步號段到配號器（不需啟用）
 		HctLogisticsProvider::register_hooks();
+		// 順豐軌跡推送接收端（不需啟用：關掉順豐後在途包裹的貨態仍要更新；未設推送金鑰則整批拒收）
+		SfTrackPushCallback::register_hooks();
 
 		$any_enabled = false;
 		foreach ( self::$logistics_providers as $id => $class_name ) {
@@ -122,6 +128,7 @@ final class ProviderRegister {
 		$methods[ WC_PaynowLogisticsShipping::METHOD_ID ] = WC_PaynowLogisticsShipping::class;
 		$methods[ WC_TcatLogisticsShipping::METHOD_ID ]   = WC_TcatLogisticsShipping::class;
 		$methods[ WC_HctLogisticsShipping::METHOD_ID ]    = WC_HctLogisticsShipping::class;
+		$methods[ WC_SfExpressShipping::METHOD_ID ]       = WC_SfExpressShipping::class;
 		return $methods;
 	}
 
@@ -140,6 +147,7 @@ final class ProviderRegister {
 		WC_PaynowLogisticsShipping::save_checkout_meta( $order, $data );
 		WC_TcatLogisticsShipping::save_checkout_meta( $order, $data );
 		WC_HctLogisticsShipping::save_checkout_meta( $order, $data );
+		WC_SfExpressShipping::save_checkout_meta( $order, $data );
 	}
 
 	/**
