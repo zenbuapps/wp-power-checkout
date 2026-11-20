@@ -52,7 +52,7 @@ final class LogisticsApiService extends ApiBase {
 	 * ⚠️ ECPay / PAYUNi 共用 LogisticsMetaKeys（_pc_logistics_*）；PayNow 用獨立 meta
 	 *   （_pc_paynow_logistics_*），print/cancel/query 委派正常，但貨態 / 選店 callback 反查
 	 *   走 PayNow 自己的 callback class（power-checkout/paynow namespace）。
-	 * 黑貓宅急便直串（tcat_logistics，P4）/ 新竹物流（hct_logistics，P5）/ 順豐（sf_express，P6）用獨立 meta（_pc_{id}_*），排在最後（未指定 provider 時不搶先）。
+	 * 黑貓宅急便直串（tcat_logistics，P4）/ 新竹物流（hct_logistics，P5）/ 順豐（sf_express，P6）/ 嘉里大榮（kerrytj_logistics，P7）用獨立 meta（_pc_{id}_*），排在最後（未指定 provider 時不搶先）。
 	 *
 	 * @var array<int, string>
 	 */
@@ -63,6 +63,7 @@ final class LogisticsApiService extends ApiBase {
 		'tcat_logistics',
 		'hct_logistics',
 		'sf_express',
+		'kerrytj_logistics',
 	];
 
 	/**
@@ -543,7 +544,7 @@ final class LogisticsApiService extends ApiBase {
 	 */
 	private static function pdf_disposition( \WC_Order $order ): string {
 		$ref = '';
-		foreach ( [ '_pc_tcat_logistics_ref', '_pc_logistics_ref' ] as $key ) {
+		foreach ( [ '_pc_tcat_logistics_ref', '_pc_kerrytj_logistics_ref', '_pc_logistics_ref' ] as $key ) {
 			$value = $order->get_meta( $key );
 			if (\is_scalar( $value ) && '' !== (string) $value) {
 				$ref = (string) $value;

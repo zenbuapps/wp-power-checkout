@@ -23,6 +23,9 @@ use J7\PowerCheckout\Domains\Logistics\Ecpay\Services\EcpayLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Ecpay\Services\WC_EcpayLogisticsShipping;
 use J7\PowerCheckout\Domains\Logistics\Hct\Services\HctLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Hct\Services\WC_HctLogisticsShipping;
+use J7\PowerCheckout\Domains\Logistics\Kerrytj\Http\KerrytjAdminApiService;
+use J7\PowerCheckout\Domains\Logistics\Kerrytj\Services\KerrytjLogisticsProvider;
+use J7\PowerCheckout\Domains\Logistics\Kerrytj\Services\WC_KerrytjLogisticsShipping;
 use J7\PowerCheckout\Domains\Logistics\Paynow\Http\LogisticsCallback as PaynowLogisticsCallback;
 use J7\PowerCheckout\Domains\Logistics\Paynow\Services\PaynowLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Paynow\Services\WC_PaynowLogisticsShipping;
@@ -43,7 +46,7 @@ use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 /** Loader 載入物流方式 */
 final class ProviderRegister {
 
-	/** @var array<string, string> $logistics_providers [id, class]（綠界 / PAYUNi / PayNow / 黑貓宅急便直串 / 新竹物流 / 順豐並存可切換） */
+	/** @var array<string, string> $logistics_providers [id, class]（綠界 / PAYUNi / PayNow / 黑貓宅急便直串 / 新竹物流 / 順豐 / 嘉里大榮並存可切換） */
 	private static array $logistics_providers = [
 		EcpayLogisticsProvider::ID  => EcpayLogisticsProvider::class,
 		PayuniLogisticsProvider::ID => PayuniLogisticsProvider::class,
@@ -51,6 +54,7 @@ final class ProviderRegister {
 		TcatLogisticsProvider::ID   => TcatLogisticsProvider::class,
 		HctLogisticsProvider::ID    => HctLogisticsProvider::class,
 		SfExpressProvider::ID       => SfExpressProvider::class,
+		KerrytjLogisticsProvider::ID => KerrytjLogisticsProvider::class,
 	];
 
 	/** 註冊 hooks @return void */
@@ -62,6 +66,8 @@ final class ProviderRegister {
 		LogisticsPingApiService::register_hooks();
 		// 新竹物流：設定儲存時同步號段到配號器（不需啟用）
 		HctLogisticsProvider::register_hooks();
+		// 嘉里大榮：設定儲存時同步常溫 / 低溫號段到配號器（不需啟用）
+		KerrytjLogisticsProvider::register_hooks();
 		// 順豐軌跡推送接收端（不需啟用：關掉順豐後在途包裹的貨態仍要更新；未設推送金鑰則整批拒收）
 		SfTrackPushCallback::register_hooks();
 
@@ -96,6 +102,10 @@ final class ProviderRegister {
 		if (ProviderUtils::is_enabled( PaynowLogisticsProvider::ID )) {
 			PaynowLogisticsCallback::register_hooks();
 		}
+		// 嘉里大榮專屬 admin REST（修改託運資料 / 託運明細 PDF）
+		if (ProviderUtils::is_enabled( KerrytjLogisticsProvider::ID )) {
+			KerrytjAdminApiService::register_hooks();
+		}
 	}
 
 	/**
@@ -129,6 +139,7 @@ final class ProviderRegister {
 		$methods[ WC_TcatLogisticsShipping::METHOD_ID ]   = WC_TcatLogisticsShipping::class;
 		$methods[ WC_HctLogisticsShipping::METHOD_ID ]    = WC_HctLogisticsShipping::class;
 		$methods[ WC_SfExpressShipping::METHOD_ID ]       = WC_SfExpressShipping::class;
+		$methods[ WC_KerrytjLogisticsShipping::METHOD_ID ] = WC_KerrytjLogisticsShipping::class;
 		return $methods;
 	}
 
@@ -148,6 +159,7 @@ final class ProviderRegister {
 		WC_TcatLogisticsShipping::save_checkout_meta( $order, $data );
 		WC_HctLogisticsShipping::save_checkout_meta( $order, $data );
 		WC_SfExpressShipping::save_checkout_meta( $order, $data );
+		WC_KerrytjLogisticsShipping::save_checkout_meta( $order, $data );
 	}
 
 	/**
