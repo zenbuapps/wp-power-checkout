@@ -3,8 +3,9 @@
  *
  * 1. 非 3DS 成功：訪客 classic 結帳 NT$401（沙盒：非 3 的倍數 + 單數 = 成功）→ order-received SDK 收銀台
  *    → keyboard.type 輸入沙盒測試卡 → 確認付款 → 導回 → processing + transaction id → 後台 WC 原生部分退款成功
- * 2. 3DS 放棄後重付：NT$300（3 的倍數 = 3DS 模擬頁）→ 模擬頁選失敗 / 放棄 → 回 order-received
- *    → 再付一次，記錄 SLP 對同一 referenceOrderId 二次建單的回應（被拒或接受皆記錄，不作為失敗條件）
+ * 2. 付款未完成後同一訂單重付（commit 1e227d2 修正驗證）：NT$300 → 第一次 confirm → pay 失敗（3DS 放棄 / 沙盒 PCI 1005）
+ *    → 第二次 confirm 必須 HTTP 200，且兩次送出的 referenceOrderId（`_pc_slp_reference_history`）不同、歷史共兩筆；
+ *    前台不得再出現 500（舊行為：同 referenceOrderId 被 SLP 以 1001 重複下單拒絕 → 500）
  *
  * 結果認列：tunnel 在線時可能收到 webhook；否則 order-received 主動查詢（EmbeddedSyncManager）補單。
  * 依 order note 的來源前綴（Webhook / 導回同步）判斷實際走哪一條並輸出到測試 log。
@@ -29,6 +30,14 @@ import {
 const SANDBOX_CARD = { number: '4147633700198405', expiry: '0330', cvc: '638', holder: 'PC LIVE TEST' }
 
 const GATEWAY_ID = 'shopline_payment_embedded'
+
+/** 每次付款嘗試送出的 referenceOrderId 歷史（EmbeddedReference::HISTORY_META_KEY） */
+const REFERENCE_HISTORY_META = '_pc_slp_reference_history'
+
+/** 將 meta 值正規化為字串陣列 */
+function referenceHistory(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : []
+}
 
 /** 前置：共用導轉式商店憑證（test 模式）+ 啟用嵌入式 + 測試商品 */
 async function prepare(admin: AdminSession, price: number): Promise<number> {
@@ -223,7 +232,7 @@ test.describe('SHOPLINE Payments 嵌入式 live 驗收', () => {
     }
   })
 
-  test('3DS / 付款未完成後重付（記錄同 referenceOrderId 二次建單結果）', async ({ page, browser }) => {
+  test('付款未完成後同一訂單重付：每次嘗試新 referenceOrderId，第二次建立交易 200', async ({ page, browser }) => {
     const admin = await AdminSession.open(browser)
     try {
       const productId = await prepare(admin, 300)
@@ -243,7 +252,11 @@ test.describe('SHOPLINE Payments 嵌入式 live 驗收', () => {
       const first = await submitAndWaitConfirm(page, orderId)
       console.log(`[slp-retry] 第一次 confirm：HTTP ${first.status} ${first.body.slice(0, 160)}`)
       const firstIdentity = String(await admin.getOrderMeta(orderId, '_pc_payment_identity') ?? '')
-      console.log(`[slp-retry] 第一次 tradeOrderId=${firstIdentity}`)
+      const firstHistory = referenceHistory(await admin.getOrderMeta(orderId, REFERENCE_HISTORY_META))
+      console.log(`[slp-retry] 第一次 tradeOrderId=${firstIdentity} referenceOrderId=${firstHistory.at(-1) ?? ''}`)
+      expect(first.status, '第一次建立交易應成功').toBe(200)
+      expect(firstHistory, '第一次送出後歷史應有 1 筆').toHaveLength(1)
+      await caption(page, `第一次建立交易 HTTP ${first.status}，referenceOrderId = ${firstHistory[0]}`)
 
       const outcome = await Promise.race([
         page.waitForURL((url) => !url.toString().startsWith(LIVE_BASE_URL), { timeout: 90_000 }).then(() => '3ds-page'),
@@ -262,34 +275,50 @@ test.describe('SHOPLINE Payments 嵌入式 live 驗收', () => {
         await page.waitForTimeout(3_000)
       }
 
-      // 第二次（同一 WC 訂單 = 同一 referenceOrderId）
-      const containerText = (await page.locator('#pc-slp-embedded-container').innerText().catch(() => '')).trim()
-      const canRetry = await page.locator('#pc-slp-embedded-submit').isVisible().catch(() => false)
-      let retryOutcome: string
-      if (canRetry) {
-        if (outcome === '3ds-page') {
-          await waitForCashier(page)
-          await typeCard(page)
-        }
-        // confirm 有 30 秒防雙擊鎖（EmbeddedGateway::LOCK_TTL）；等鎖過期再送，才能觀察 SLP 對同 referenceOrderId 的反應
-        await caption(page, '等待 35 秒（本站 confirm 防雙擊鎖 30 秒）後送出第二次付款（同一 referenceOrderId）')
-        await page.waitForTimeout(35_000)
-        const second = await submitAndWaitConfirm(page, orderId)
-        const secondIdentity = String(await admin.getOrderMeta(orderId, '_pc_payment_identity') ?? '')
-        retryOutcome = `HTTP ${second.status}；第二次 tradeOrderId=${secondIdentity}（第一次 ${firstIdentity}）；body=${second.body.slice(0, 200)}`
-        await page.waitForTimeout(5_000)
-      } else {
-        retryOutcome = `收銀台未重新渲染（awaiting_confirmation）：${containerText.slice(0, 120)}`
+      // 第二次（同一 WC 訂單；修正後應換新 referenceOrderId）
+      await expect(page.locator('#pc-slp-embedded-submit'), '第一次失敗後收銀台應仍可重付').toBeVisible({ timeout: 60_000 })
+      if (outcome === '3ds-page') {
+        await waitForCashier(page)
+        await typeCard(page)
       }
-      console.log(`[slp-retry] 第二次結果：${retryOutcome}`)
+      // confirm 有 30 秒防雙擊鎖（EmbeddedGateway::LOCK_TTL）；等鎖過期再送
+      await caption(page, '等待 35 秒（本站 confirm 防雙擊鎖 30 秒）後，同一訂單送出第二次付款')
+      await page.waitForTimeout(35_000)
+      const serverErrors: string[] = []
+      page.on('response', (r) => {
+        if (r.url().startsWith(LIVE_BASE_URL) && r.status() >= 500) {
+          serverErrors.push(`${r.status()} ${r.url()}`)
+        }
+      })
+      const second = await submitAndWaitConfirm(page, orderId)
+      const secondIdentity = String(await admin.getOrderMeta(orderId, '_pc_payment_identity') ?? '')
+      const history = referenceHistory(await admin.getOrderMeta(orderId, REFERENCE_HISTORY_META))
+      console.log(`[slp-retry] 第二次 confirm：HTTP ${second.status} ${second.body.slice(0, 160)}`)
+      console.log(`[slp-retry] 第二次 tradeOrderId=${secondIdentity}（第一次 ${firstIdentity}）`)
+      console.log(`[slp-retry] ${REFERENCE_HISTORY_META}=${JSON.stringify(history)}`)
+      await caption(page, `第二次建立交易 HTTP ${second.status}，referenceOrderId = ${history.at(-1) ?? ''}（第一次 ${history[0] ?? ''}）`)
+      await page.waitForTimeout(8_000)
+
       const notes = await admin.getOrderNotes(orderId)
-      console.log(`[slp-retry] order notes：${JSON.stringify(notes.slice(0, 5))}`)
-      test.info().annotations.push({ type: 'retry-outcome', description: retryOutcome })
-      await caption(page, `重付結果：${retryOutcome.slice(0, 110)}`)
+      console.log(`[slp-retry] order notes：${JSON.stringify(notes.slice(0, 6))}`)
+      test.info().annotations.push({ type: 'retry-outcome', description: `HTTP ${second.status} history=${JSON.stringify(history)}` })
+
+      expect(second.status, '第二次建立交易應 HTTP 200（不再 1001 → 500）').toBe(200)
+      expect(second.body).toContain('next_action')
+      expect(history, `${REFERENCE_HISTORY_META} 應有兩筆`).toHaveLength(2)
+      expect(history[1], '第二次 referenceOrderId 應與第一次不同').not.toBe(history[0])
+      for (const ref of history) {
+        expect(ref, 'reference 格式 {order_id}-{attempt}-{hex6}').toMatch(new RegExp(`^${orderId}-[1-9]\\d*-[0-9A-F]{6}$`))
+      }
+      expect(secondIdentity, '第二次應取得新的 tradeOrderId').not.toBe(firstIdentity)
+      expect(notes.some((n) => /code\s+1001\b|重複下單/.test(n)), '不應再出現 1001 重複下單').toBe(false)
+      expect(serverErrors, '前台不應出現 5xx').toEqual([])
+
+      await caption(page, `✅ 同一訂單重付：兩次 referenceOrderId 不同（${history.join(' → ')}），第二次 HTTP 200，無 500`)
       await page.waitForTimeout(4_000)
     } finally {
       await admin.close()
-      await saveAcceptanceVideo(page, 'shopline_payment_embedded-retry')
+      await saveAcceptanceVideo(page, 'shopline_payment_embedded-retry-fixed')
     }
   })
 })
