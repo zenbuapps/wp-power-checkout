@@ -16,6 +16,7 @@ final class ProviderRegister {
 	/** @var array<string, string> $gateway_services [id, class] */
 	private static array $gateway_services = [
 		ShoplinePayment\Services\RedirectGateway::ID      => ShoplinePayment\Services\RedirectGateway::class,
+		ShoplinePayment\Services\EmbeddedGateway::ID      => ShoplinePayment\Services\EmbeddedGateway::class,
 		EcpayAIO\Services\AioRedirectGateway::ID          => EcpayAIO\Services\AioRedirectGateway::class,
 		Ecpg\Services\EcpgGateway::ID                     => Ecpg\Services\EcpgGateway::class,
 		NewebpayMpg\Services\MpgRedirectGateway::ID       => NewebpayMpg\Services\MpgRedirectGateway::class,

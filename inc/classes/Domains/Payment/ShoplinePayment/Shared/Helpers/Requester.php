@@ -26,6 +26,13 @@ final class Requester {
 	/** @var RedirectSettingsDTO 設定 */
 	public RedirectSettingsDTO $settings;
 
+	/**
+	 * @var string 最近一次回應的原始 body
+	 * 供需要「原樣轉傳」的欄位使用（例：內嵌式 nextAction，官方明示不可解析），
+	 * 避免 json_decode(assoc) 再 encode 時把空物件 {} 變成 []
+	 */
+	public string $last_response_body = '';
+
 	/** Constructor */
 	public function __construct(
 		private readonly AbstractPaymentGateway $gateway,
@@ -71,8 +78,10 @@ final class Requester {
 			throw new \Exception( $response->get_error_message() );
 		}
 
+		$this->last_response_body = \wp_remote_retrieve_body( $response );
+
 		/** @var array<string, mixed>|array{code: int, msg: string} $response_body */
-		$response_body = \json_decode( \wp_remote_retrieve_body( $response ), true );
+		$response_body = \json_decode( $this->last_response_body, true );
 		// LOG 記錄
 		$this->gateway->logger(
 				"{$this->gateway->title} {$endpoint} 請求參數 #{$this->order->get_id()}",

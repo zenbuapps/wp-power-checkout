@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Payment\Shared\Services;
 
+use J7\PowerCheckout\Domains\Payment\Shared\Exceptions\DispatchException;
 use J7\PowerCheckout\Domains\Payment\Shared\Interfaces\IEmbeddedPaymentProvider;
 use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Shared\Errors\ErrorCode;
@@ -18,7 +19,8 @@ use J7\WpUtils\Traits\SingletonTrait;
  *  - permission_callback: __return_true（顧客端呼叫）；body order_key 以 hash_equals 驗（防 IDOR）
  *  - 驗證順序：訂單存在（404）→ order_key（403）→ gateway 為 IEmbeddedPaymentProvider（400 UNSUPPORTED）
  *    → needs_payment（409）→ gateway::dispatch()，回傳值原樣放進 data
- *  - dispatch 拋例外 → 500 通用訊息（細節只進 log，不外洩）
+ *  - dispatch 拋 DispatchException → 依其 HTTP 狀態碼 / 錯誤碼 / 通用訊息回應（例：400 驗證、409 重複送出）
+ *  - dispatch 拋其他例外 → 500 通用訊息（細節只進 log，不外洩）
  *
  * 回應 envelope 對齊 PaymentApiService：失敗帶 code / error_code / message / data。
  */
@@ -95,6 +97,9 @@ final class PaymentDispatchApiService extends ApiBase {
 				],
 				200
 			);
+		} catch ( DispatchException $e ) {
+			// gateway 明確標示的可對外業務錯誤（400 驗證 / 409 重複送出等），訊息本身即為通用文字
+			return self::error_response( $e->error_code, $e->getMessage(), $e->http_status );
 		} catch ( \Throwable $e ) {
 			Plugin::logger(
 				'嵌入式金流 dispatch 失敗',
