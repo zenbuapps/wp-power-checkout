@@ -8,6 +8,7 @@
  *    回 next_action（原樣 JSON 字串，R6 不解析），寫 _pc_payment_identity
  *  - 30 秒 transient 鎖防雙擊（409）；API 失敗 / 無 nextAction → 500 通用訊息 + order note、鎖釋放
  *  - pay_session 非字串 / 超過 10KB → 400
+ *  - referenceOrderId 每次嘗試唯一（{order_id}-{attempt}-{6 hex}；P8 fix #1，見 SlpEmbeddedRetryTest）
  *
  * 執行：
  *   vendor/bin/phpunit tests/Integration/Payment/ --filter SlpEmbeddedDispatch --no-coverage
@@ -153,7 +154,8 @@ final class SlpEmbeddedDispatchTest extends TestCase {
 		$body = $this->create_request_body();
 		$this->assertSame( 'SDK', $body['acquirerType'] );
 		$this->assertSame( self::PAY_SESSION, $body['paySession'] );
-		$this->assertSame( (string) $order->get_id(), $body['referenceOrderId'] );
+		// P8 fix #1：每次嘗試唯一 reference（{order_id}-{attempt}-{6 hex}），SLP 拒絕重複 referenceOrderId（1001）
+		$this->assertMatchesRegularExpression( '/^' . $order->get_id() . '-1-[0-9A-F]{6}$/', $body['referenceOrderId'] );
 		$this->assertSame(
 			[
 				'value'    => 100000,
