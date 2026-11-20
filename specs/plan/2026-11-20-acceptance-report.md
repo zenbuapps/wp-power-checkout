@@ -47,6 +47,13 @@
 - 待辦：向 SHOPLINE Payments 確認沙盒商店 3252264968486264832 的 SDK / PCI 權限（或換一組有 SDK 權限的沙盒帳號），解除後重跑 `04-live/slp-embedded.spec.ts` 即可走完 processing + 部分退款（spec 已寫好，refund 段用 WC 原生部分退款 NT$100）。
 - Webhook：tunnel 在線，但沙盒商店的 Webhook URL 設在 SLP 後台（共用公開沙盒帳號，未擅改）→ 本次付款未完成，兩條路徑（webhook / order-received 主動查詢）皆未觸發認列。
 
+### 2.2.1 D1：改用 zenbu-site-2.0 的 SLP 沙盒憑證重驗（2026-11-21）— **仍 1005，兩組皆同**
+- 來源：zenbu-site-2.0 本機 Postgres（docker `zenbu-site-20-postgres-1`）`settings` 表的 `payment.shopline_{merchant_id,client_key,api_key,sign_key,mode}`，唯讀查詢；值只在記憶體比對，未輸出、未落地、未修改 zenbu DB。`mode = sandbox`。
+- 比對結果（只比相等，不顯示值）：zenbu 的 merchantId / clientKey / apiKey / signKey 與本 repo `.env` 的 `SHOPLINE_SANDBOX_*` **完全相同**——也就是 P8 跑 `slp-embedded.spec.ts` 用的同一組；只有另一把 `SLP_API_KEY`（已知回 1003）不同。zenbu 並沒有另一組「能過 PCI」的憑證。
+- 最小 HTML 重驗（只載官方 CDN SDK，不含 WordPress，分別從兩個 origin 載入）：`ShoplinePayments()` 初始化 `ok`、`createPayment()` 回 `paySession`，但輸入沙盒卡 `4147 6337 …` 時 PCI `bin/query` 一律 **400 `{"code":"1005","msg":"No interface access permission"}`**（與 §2.2 相同；`pay()` 的 `token/generate` 在 P8 已證實同樣 1005）。
+- 結論：**兩組憑證（P8 / zenbu）皆 1005** → 確證為 SHOPLINE 沙盒商店的 SDK / PCI 介面權限問題，非外掛 bug；zenbu commit `e2fbc9e` 訊息裡的「沙盒 4463 拒刷」只是錯誤提示的舉例，不是 zenbu 通過 PCI 的證據。
+- 依計劃停在步驟 2：未起 tunnel、未改站點設定、未建訂單、無影片；成功付款 → processing → 部分退款仍待 SHOPLINE 開通權限後重跑 `04-live/slp-embedded.spec.ts`。
+
 ### 2.3 重付同一訂單（referenceOrderId 重複）— **已修（1e227d2），live 重驗通過**
 - 訂單 #6664（NT$300）：第一次付款同 2.1 卡在 PCI 1005；等 35 秒（本站 confirm 防雙擊鎖 30 秒）後同一訂單第二次付款：
   - dispatch confirm **HTTP 500 `UNKNOWN`「付款處理失敗，請稍後再試或聯繫商家」**
@@ -157,7 +164,7 @@ log：`.tmp/gate/P8-mock-*.log`、`P8-full.log`、`P8-phpstan.log`、`P8-live-*.
 
 ## 11. 未解決問題
 
-1. **SLP 沙盒 PCI 1005**（外部）：嵌入式無法完成付款 → processing / 退款未驗；需 SHOPLINE 開通沙盒 SDK 權限。
+1. **SLP 沙盒 PCI 1005**（外部）：嵌入式無法完成付款 → processing / 退款未驗；需 SHOPLINE 開通沙盒 SDK 權限；D1 以 zenbu-site-2.0 的憑證重驗（實為同一組）仍 1005，見 §2.2.1。
 2. ~~SLP 嵌入式同訂單重付被拒（1001 重複下單）~~ → **已修**（`1e227d2`），live 重驗通過，見 §2.3。
 3. LINE Pay 人工付款段未跑（需真人 LINE sandbox 帳號，`LIVE_LINEPAY_MANUAL=1`）。
 4. 黑貓PAY / 黑貓宅急便 / 嘉里大榮 / 新竹 皆缺測試憑證或號段，建單類 live 未驗。

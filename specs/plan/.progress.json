@@ -30,7 +30,7 @@
         "P6": "done",
         "P7": "done",
         "P8": "done",
-        "P9": "pending"
+        "P9": "done"
     },
     "last_commit": "1baaa04",
     "P0_result": {
@@ -253,7 +253,7 @@
         "report": "specs/plan/2026-11-20-acceptance-report.md",
         "videos_dir": "tests/e2e/acceptance-videos/2026-11-21/ (gitignored)",
         "results": {
-            "shopline_payment_embedded": "BLOCKED (external): SLP sandbox PCI token/generate 1005 No interface access permission (reproduced outside WP); dispatch init/confirm + trade/payment/create OK; retry same order -> SLP 1001 duplicate referenceOrderId (product issue, NOT fixed, needs decision)",
+            "shopline_payment_embedded": "BLOCKED (external): SLP sandbox PCI token/generate 1005 No interface access permission (reproduced outside WP); dispatch init/confirm + trade/payment/create OK; retry: fixed@1e227d2 (per-attempt unique referenceOrderId; live-verified on order #6666)",
             "linepay": "degraded PASS (request 0000 -> sandbox-web-pay.line.me loaded)",
             "sf_express": "full PASS on SIT (ping, create SF3180007862096, PDF print, query, signed push -> accepted)",
             "hct_logistics": "degraded PASS (test site rejects prod account 424; prod read-only ping 200)",
@@ -277,6 +277,15 @@
             "dcebe47",
             "6877c7c",
             "1a1effa"
-        ]
+        ],
+        "d1_zenbu_credentials": {
+            "date": "2026-11-21",
+            "source": "zenbu-site-2.0 local Postgres settings payment.shopline_* (read-only; values never printed/stored)",
+            "finding": "zenbu sandbox merchantId/clientKey/apiKey/signKey are byte-identical to power-checkout .env SHOPLINE_SANDBOX_* (already used in P8); only the separate SLP_API_KEY (1003) differs",
+            "minimal_sdk_html": "official CDN SDK only, no WP: init ok, createPayment returns paySession, but PCI bin/query -> 400 1005 No interface access permission (tested from two origins)",
+            "result": "BLOCKED (external): both credential sets -> 1005; confirms SHOPLINE-side sandbox SDK/PCI permission issue",
+            "site_changes": "none (no tunnel, no settings change, no order created)",
+            "video": "none (stopped at step 2 per plan)"
+        }
     }
 }
