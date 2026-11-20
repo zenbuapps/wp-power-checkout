@@ -10,6 +10,7 @@
  *   - tcat_logistics（P4）：只做宅配（ASM-6）；選店 / 取消拋 UNSUPPORTED → has_cvs_map / can_cancel=false
  *   - hct_logistics（P5）：純宅配；選店拋 UNSUPPORTED → has_cvs_map=false，其餘（含 TransDataCancel 取消）皆 true
  *   - sf_express（P6）：宅配；選店 / 退貨拋 UNSUPPORTED → has_cvs_map / can_return=false，建單 / 查詢 / 列印 / 取消 true
+ *   - kerrytj_logistics（P7）：宅配；規格書無取消 API、選店不支援 → has_cvs_map / can_cancel=false，建單 / 查詢 / 列印 / 退貨（PickupV2）true
  *
  * 執行：
  *   vendor/bin/phpunit tests/Integration/Logistics/ --filter LogisticsProviderMetaContract --no-coverage
@@ -21,6 +22,7 @@ namespace Tests\Integration\Logistics;
 
 use J7\PowerCheckout\Domains\Logistics\Ecpay\Services\EcpayLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Hct\Services\HctLogisticsProvider;
+use J7\PowerCheckout\Domains\Logistics\Kerrytj\Services\KerrytjLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Paynow\Services\PaynowLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Payuni\Services\PayuniLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Shared\DTOs\LogisticsProviderMetaDTO;
@@ -123,6 +125,18 @@ final class LogisticsProviderMetaContractTest extends TestCase {
 				'can_print'           => true,
 				'can_return'          => false,
 				'can_cancel'          => true,
+			],
+		],
+		'kerrytj_logistics' => [
+			'class'   => KerrytjLogisticsProvider::class,
+			'methods' => [ 'HOME' ],
+			'caps'    => [
+				'can_create_shipment' => true,
+				'can_query_shipment'  => true,
+				'has_cvs_map'         => false,
+				'can_print'           => true,
+				'can_return'          => true,
+				'can_cancel'          => false,
 			],
 		],
 	];

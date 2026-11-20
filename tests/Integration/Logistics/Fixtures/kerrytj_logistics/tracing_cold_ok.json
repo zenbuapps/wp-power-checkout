@@ -1,0 +1,1 @@
+{"Status":"1","Result":[{"BLN":"__BLN__","CargoTracing":[{"BLN":"__BLN__","Date":"20200601","Time":"090000","StatusCode":"22","Status":"貨件發送受付"}]},{"BLN":"__BLN__","CargoTracing":[{"BLN":"__BLN__","Date":"20200601","Time":"090000","StatusCode":"22","Status":"貨件發送受付"},{"BLN":"__BLN__","Date":"20200602","Time":"140000","StatusCode":"91","Status":"配達"}]}],"Error":""}
