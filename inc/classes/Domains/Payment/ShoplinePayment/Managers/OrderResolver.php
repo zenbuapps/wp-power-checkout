@@ -10,7 +10,7 @@
  * 因此以建立 session 時存入的 _pc_identity 連結訂單。
  *
  * 資安：
- *  - 兩條路徑都必須驗證 payment_method === RedirectGateway::ID，不得誤配其他 gateway 的訂單。
+ *  - 每條路徑都必須驗證 payment_method 屬於 SLP gateway 白名單（導轉式 / 嵌入式），不得誤配其他 gateway 的訂單。
  *  - identity 命中結果額外做數字型 referenceOrderId 或 sessionId 一致性複驗。
  *
  * @see specs/open-issue/issue-18-plan.md §流程 2
@@ -21,11 +21,15 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Managers;
 
 use J7\PowerCheckout\Domains\Payment\Shared\Helpers\MetaKeys;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\EmbeddedGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\RedirectGateway;
 use J7\PowerCheckout\Plugin;
 
 /** Webhook 查單解析器 */
 final class OrderResolver {
+
+	/** @var array<int, string> SLP gateway ID 白名單（查單只接受這些付款方式的訂單） */
+	private const SLP_GATEWAY_IDS = [ RedirectGateway::ID, EmbeddedGateway::ID ];
 
 	/**
 	 * 依 tradeOrderId / referenceOrderId 解析出訂單
@@ -148,13 +152,15 @@ final class OrderResolver {
 
 
 	/**
-	 * 驗證訂單是否為 SLP 跳轉式付款訂單
+	 * 驗證訂單是否為 SLP 付款訂單（gateway ID 白名單：導轉式 + 嵌入式）
+	 *
+	 * 嵌入式（站內付）沒有 session，付款結果只來自 trade.* 事件，與導轉式共用同一個 webhook 端點（ASM-3 / R7）。
 	 *
 	 * @param \WC_Order $order 訂單
 	 *
 	 * @return bool 是否為 SLP 訂單
 	 */
 	private static function is_slp_order( \WC_Order $order ): bool {
-		return RedirectGateway::ID === $order->get_payment_method();
+		return \in_array( $order->get_payment_method(), self::SLP_GATEWAY_IDS, true );
 	}
 }
