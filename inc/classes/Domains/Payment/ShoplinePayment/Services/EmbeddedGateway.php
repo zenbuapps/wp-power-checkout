@@ -24,7 +24,9 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http\ApiClient;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http\WebHook;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Managers\EmbeddedSyncManager;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Abstracts\PaymentGateway;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\ErrorCode as SlpErrorCode;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\ResponseStatus;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Helpers\EmbeddedReference;
 use J7\PowerCheckout\Domains\Settings\Services\SettingTabService;
 use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Shared\Enums\Mode;
@@ -235,7 +237,7 @@ final class EmbeddedGateway extends PaymentGateway implements IGateway, IEmbedde
 	 * @param \WC_Order $order       訂單
 	 * @param mixed     $pay_session SDK paySession（前端送來，未驗證）
 	 * @return array<string, mixed>
-	 * @throws DispatchException 參數錯誤（400）/ 重複送出（409）
+	 * @throws DispatchException 參數錯誤（400）/ 已付款或重複送出 / SLP 重複下單（409）
 	 * @throws \RuntimeException 回應無 nextAction（建單失敗）
 	 * @throws \Throwable SLP API 失敗（原例外重新拋出）
 	 */
@@ -245,6 +247,15 @@ final class EmbeddedGateway extends PaymentGateway implements IGateway, IEmbedde
 				ErrorCode::VALIDATION,
 				\__( '付款資料格式錯誤，請重新整理頁面後再試', 'power_checkout' ),
 				400
+			);
+		}
+
+		// 已付款 / 無需付款的訂單不可再建交易（REST 層已擋；此處為 gateway 層防線，防過期分頁重複扣款）
+		if ( ! $order->needs_payment() ) {
+			throw new DispatchException(
+				ErrorCode::CONFLICT,
+				\__( '訂單已付款或無需付款', 'power_checkout' ),
+				409
 			);
 		}
 
@@ -260,12 +271,21 @@ final class EmbeddedGateway extends PaymentGateway implements IGateway, IEmbedde
 
 		$this->record_exception_to_order_note( $order );
 		try {
-			$result = ( new ApiClient( $this, $order ) )->create_sdk_payment(
-				CreateSdkPaymentDTO::create( $order, $pay_session, $this->get_return_url( $order ) )
+			// 每次嘗試唯一 referenceOrderId（SLP 拒絕重複單號 1001），送出前先寫入歷史 meta
+			$reference = EmbeddedReference::next( $order );
+			$result    = ( new ApiClient( $this, $order ) )->create_sdk_payment(
+				CreateSdkPaymentDTO::create( $order, $pay_session, $this->get_return_url( $order ), $reference )
 			);
 		} catch ( \Throwable $e ) {
 			\delete_transient( $lock_key );
 			$order->add_order_note( "❌ {$this->method_title} 建立交易失敗：{$e->getMessage()}" );
+			if ( self::is_duplicate_order_error( $e ) ) {
+				throw new DispatchException(
+					ErrorCode::CONFLICT,
+					\__( '此訂單的付款交易已存在，請重新整理頁面後再試；若仍無法付款請聯繫商家', 'power_checkout' ),
+					409
+				);
+			}
 			throw $e;
 		}
 
@@ -500,6 +520,16 @@ final class EmbeddedGateway extends PaymentGateway implements IGateway, IEmbedde
 		$counts = $settings->paymentMethodOptions['CreditCard']['installmentCounts'] ?? [ '0' ];
 		$counts = \array_map( 'strval', $counts );
 		return [] === $counts ? [ '0' ] : $counts;
+	}
+
+	/**
+	 * SLP 是否回「重複下單」（1001 referenceOrderId 重複 / 1006 referenceId 重複）
+	 *
+	 * @param \Throwable $e 建立交易時的例外（Requester 以 SLP 錯誤碼為 exception code）
+	 * @return bool
+	 */
+	private static function is_duplicate_order_error( \Throwable $e ): bool {
+		return \in_array( (string) $e->getCode(), [ SlpErrorCode::E_1001->value, SlpErrorCode::E_1006->value ], true );
 	}
 
 	/**

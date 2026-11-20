@@ -12,7 +12,8 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Components;
  * 規格：.claude/skills/shopline-payments-v1/references/api-reference.md §3
  *  - acquirerType 固定 SDK；paySession 為 SDK createPayment() 產物，**原樣**帶入（不可解析）
  *  - amount 一律由後端依訂單金額計算（round(total * 100)），忽略前端傳入值
- *  - referenceOrderId = WC 訂單 ID（OrderResolver / 導回同步以數字型 referenceOrderId 對單）
+ *  - referenceOrderId = 每次付款嘗試唯一值（EmbeddedReference::next()，{order_id}-{attempt}-{6 hex}）；
+ *    SLP 拒絕重複 referenceOrderId（1001），同一訂單重付必須換號；歸屬以訂單 reference 歷史 meta 判定
  *  - confirm：第一版只開信用卡（含分期，分期期數由 SDK 初始化 installmentCounts 決定，body 不帶；ASM-4）
  *  - order / billing / customer / client 與導轉式 CreateSessionDTO 共用同一組 Components
  *
@@ -32,7 +33,7 @@ final class CreateSdkPaymentDTO {
 	/**
 	 * Constructor
 	 *
-	 * @param string               $reference_order_id 特店訂單號（WC 訂單 ID）
+	 * @param string               $reference_order_id 特店訂單號（每次嘗試唯一）
 	 * @param int                  $amount_cents       金額（台幣 ×100）
 	 * @param string               $language           zh-TW|en
 	 * @param string               $return_url         付款完成導回頁
@@ -61,10 +62,11 @@ final class CreateSdkPaymentDTO {
 	 * @param \WC_Order $order       訂單
 	 * @param string    $pay_session SDK paySession（原樣字串）
 	 * @param string    $return_url  付款完成導回頁（order-received）
+	 * @param string    $reference   本次嘗試的 referenceOrderId（空字串 = WC 訂單 ID，相容舊呼叫端）
 	 * @return self
-	 * @throws \InvalidArgumentException PaySession 空白、訂單金額 ≤ 0 或 returnUrl 空白
+	 * @throws \InvalidArgumentException PaySession 空白、訂單金額 ≤ 0、returnUrl 空白或 reference 不合 SLP 限制
 	 */
-	public static function create( \WC_Order $order, string $pay_session, string $return_url ): self {
+	public static function create( \WC_Order $order, string $pay_session, string $return_url, string $reference = '' ): self {
 		if ( '' === \trim( $pay_session ) ) {
 			throw new \InvalidArgumentException( 'CreateSdkPaymentDTO：paySession 不可為空' );
 		}
@@ -78,8 +80,13 @@ final class CreateSdkPaymentDTO {
 			throw new \InvalidArgumentException( 'CreateSdkPaymentDTO：returnUrl 不可為空' );
 		}
 
+		$reference = '' === $reference ? (string) $order->get_id() : $reference;
+		if ( 1 !== \preg_match( '/^[A-Za-z0-9_-]{1,32}$/', $reference ) ) {
+			throw new \InvalidArgumentException( 'CreateSdkPaymentDTO：referenceOrderId 格式不合（≤ 32 字元英數 / - / _）' );
+		}
+
 		return new self(
-			reference_order_id: (string) $order->get_id(),
+			reference_order_id: $reference,
 			amount_cents: $amount_cents,
 			language: 'zh_TW' === \get_locale() ? 'zh-TW' : 'en',
 			return_url: $return_url,

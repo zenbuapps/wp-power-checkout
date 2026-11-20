@@ -662,6 +662,7 @@ Existing TW display format (`DefaultSetting::modify_tw_address_formats`) stays a
 | `_pc_payment_detail` | Payment details (admin display) — SLP |
 | `_pc_refund_detail` | Refund details — SLP |
 | `_pc_payment_processed_status` | Idempotency guard array — elements: `"{tradeOrderId}:{status}"`; shared by return sync and webhook — SLP |
+| `_pc_slp_reference_history` | SLP embedded: every `referenceOrderId` sent to `trade/payment/create` (format `{order_id}-{attempt}-{6 hex}`, written **before** the API call; SLP rejects duplicates with 1001). A new-format reference belongs to an order **only** if it is in that order's history (webhook `OrderResolver`, `EmbeddedSyncManager`, redirect return sync). Previous-attempt notices: SUCCEEDED settles only while the order still needs payment (identity re-pointed to the settled trade), otherwise note only (疑似重複付款 / 非目前交易) |
 | `pc_issued_data` | Invoice issuance response (ezPay: includes `invoice_trans_no` + `random_num`; allowance_data includes `allowance_no`) |
 | `pc_cancelled_data` | Invoice void response |
 | `pc_provider_id` | Which invoice provider was used |

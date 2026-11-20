@@ -10,7 +10,8 @@
  * 與導轉式 ReturnSyncManager 的差異（資安）：
  *  - tradeOrderId 只取伺服器端 confirm 階段寫入的 _pc_payment_identity，**不讀 $_GET**——
  *    嵌入式的 returnUrl 是我方自訂的 order-received，網址上的參數一律不可信。
- *  - 查詢結果 referenceOrderId 必須等於本訂單 ID（confirm 時固定送出 WC 訂單 ID）。
+ *  - 查詢結果 referenceOrderId 必須屬於本訂單：新格式（每次嘗試唯一，EmbeddedReference）須存在於本訂單
+ *    reference 歷史 meta；升級前建立的交易沿用舊規則（數字型 = 本訂單 ID）。
  *  - 認列交給既有 StatusManager（冪等 / 終態 / 幣別 / 金額四道守衛）。
  *
  * never-throw：所有失敗以 ReturnSyncResult 表達，thankyou 頁絕不可 500。
@@ -27,6 +28,7 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Payment\PaymentD
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http\ApiClient;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\ReturnSyncResult;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\StatusSource;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Helpers\EmbeddedReference;
 
 /** SLP 嵌入式主動查詢與認列 */
 final class EmbeddedSyncManager {
@@ -91,9 +93,12 @@ final class EmbeddedSyncManager {
 			return ReturnSyncResult::API_FAILED;
 		}
 
-		// 查詢結果必須屬於本訂單（confirm 時 referenceOrderId 固定送 WC 訂單 ID）
+		// 查詢結果必須屬於本訂單：新格式須在本訂單 reference 歷史內；舊版交易（升級前）為數字型 = 訂單 ID
 		$reference_order_id = isset( $payment_dto->referenceOrderId ) ? $payment_dto->referenceOrderId : '';
-		if ( $reference_order_id !== (string) $this->order->get_id() ) {
+		$belongs            = EmbeddedReference::is_attempt_reference( $reference_order_id )
+		? EmbeddedReference::belongs_to( $this->order, $reference_order_id )
+		: $reference_order_id === (string) $this->order->get_id();
+		if ( ! $belongs ) {
 			$this->gateway->logger(
 				"❌ {$this->gateway->title} 主動查詢結果不屬於本訂單 #{$this->order->get_id()}",
 				'error',
