@@ -4,7 +4,7 @@
  *
  * - process_payment → POST /v4/payments/request → redirect info.paymentUrl.web（api-redirect）
  * - transactionId 以字串保存（19 位，R4）；orderId = PCL{order_id}-{attempt}-{隨機}（每次付款唯一，1172）
- * - 請求成功即排 Action Scheduler 單次補單任務 pc_linepay_reconcile（約 +1500 秒，R3）
+ * - 請求成功即排 Action Scheduler 單次補單任務 pc_linepay_reconcile（預設 +300 秒：付款請求約 20 分鐘失效，補單須在失效前；可由 filter 調整，R3）
  * - returnCode ≠ 0000 → wc notice（通用訊息）+ order note 含 returnCode + 不 redirect
  *
  * 執行：
@@ -91,7 +91,40 @@ final class LinepayDirectGatewayTest extends TestCase {
 
 		$next = \as_next_scheduled_action( LinepayReconcileJob::HOOK, [ 'order_id' => $order->get_id() ] );
 		$this->assertIsInt( $next, '應排入 Action Scheduler 補單任務' );
-		$this->assertEqualsWithDelta( $before + 1500, $next, 60 );
+		$this->assertEqualsWithDelta( $before + 300, $next, 60, '補單預設延遲 5 分鐘（LINE Pay 付款請求約 20 分鐘失效）' );
+	}
+
+	/**
+	 * Edge：補單延遲預設 5 分鐘，且必須早於付款請求 20 分鐘失效時間
+	 *
+	 * @group edge
+	 */
+	public function test_補單延遲預設5分鐘且早於付款請求失效(): void {
+		$this->assertSame( 300, LinepayReconcileJob::DEFAULT_DELAY );
+		$this->assertLessThan( 20 * MINUTE_IN_SECONDS, LinepayReconcileJob::DEFAULT_DELAY );
+	}
+
+	/**
+	 * Edge：filter power_checkout_linepay_reconcile_delay 可覆寫延遲
+	 *
+	 * @group edge
+	 */
+	public function test_補單延遲可由filter覆寫(): void {
+		$order = $this->make_linepay_order( 1000.0 );
+		$this->fake_linepay( 'request', $this->request_ok() );
+		$filter = static fn(): int => 600;
+		\add_filter( 'power_checkout_linepay_reconcile_delay', $filter );
+
+		$before = \time();
+		try {
+			( new LinepayGateway() )->process_payment( $order->get_id() );
+		} finally {
+			\remove_filter( 'power_checkout_linepay_reconcile_delay', $filter );
+		}
+
+		$next = \as_next_scheduled_action( LinepayReconcileJob::HOOK, [ 'order_id' => $order->get_id() ] );
+		$this->assertIsInt( $next );
+		$this->assertEqualsWithDelta( $before + 600, $next, 60 );
 	}
 
 	/**

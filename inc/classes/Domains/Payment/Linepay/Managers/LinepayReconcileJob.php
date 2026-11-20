@@ -17,7 +17,7 @@ use J7\PowerCheckout\Plugin;
  * LINE Pay 補單（Action Scheduler `pc_linepay_reconcile` + 後台「查詢補單」共用）
  *
  * LINE Pay 沒有 webhook，扣款（confirm）由我方發起：顧客認證後關掉瀏覽器 → confirmUrl 永遠不會被呼叫（R3）。
- * 付款請求成功時排一個單次任務（預設 +1500 秒，可由 filter `power_checkout_linepay_reconcile_delay` 調整），
+ * 付款請求成功時排一個單次任務（預設 +300 秒：LINE Pay 付款請求約 20 分鐘失效，補單須趕在失效前；可由 filter `power_checkout_linepay_reconcile_delay` 調整），
  * 執行時**先查付款請求狀態**再決定（未認證就 confirm 會 1169 且整筆作廢，不可拿 confirm 當探針）：
  *  - 0110 已認證未 confirm → confirm（金額取自我方快照）
  *  - 0123 已完成 → 查明細 CAPTURE → 認列（不再 confirm）
@@ -35,8 +35,8 @@ final class LinepayReconcileJob {
 	/** @var string Action Scheduler group */
 	public const GROUP = 'power_checkout';
 
-	/** @var int 預設延遲秒數（付款請求後） */
-	public const DEFAULT_DELAY = 1500;
+	/** @var int 預設延遲秒數（付款請求後 5 分鐘；付款請求約 20 分鐘失效） */
+	public const DEFAULT_DELAY = 300;
 
 	/** @var int 失敗重排延遲秒數 */
 	public const RETRY_DELAY = 600;

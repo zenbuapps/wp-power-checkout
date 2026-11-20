@@ -4,7 +4,7 @@ LINE Pay 直連（linepay）設定頁
 - 憑證：Channel ID / Channel Secret（LINE Pay 合作商店中心 › 開發者工具 › 管理連結金鑰）。
   官方沒有公開測試 Channel：sandbox 需自助申請，sandbox 與正式憑證不可混用（混用回 1104）。
 - LINE Pay 沒有 webhook：顧客認證後由導回網址（confirmUrl）完成扣款；
-  顧客關閉瀏覽器時由系統排程（Action Scheduler）約 25 分鐘後自動補單，後台訂單另有「查詢補單」操作。
+  顧客關閉瀏覽器時由系統排程（Action Scheduler）約 5 分鐘後自動補單，後台訂單另有「查詢補單」操作。
 -->
 <script lang="ts" setup>
 import { Back, InfoFilled } from '@element-plus/icons-vue'
@@ -202,7 +202,7 @@ const rules = reactive<FormRules<TFormData>>({
 		</el-form-item>
 
 		<el-alert
-			title="LINE Pay 沒有付款通知（webhook）：顧客認證後會被導回本站完成扣款；若顧客中途關閉瀏覽器，系統約 25 分鐘後自動查詢補單（需 WP-Cron / Action Scheduler 正常運作），亦可在訂單頁使用「LINE Pay 重新查詢付款狀態（補單）」。"
+			title="LINE Pay 沒有付款通知（webhook）：顧客認證後會被導回本站完成扣款；若顧客中途關閉瀏覽器，系統約 5 分鐘後自動查詢補單（需 WP-Cron / Action Scheduler 正常運作），亦可在訂單頁使用「LINE Pay 重新查詢付款狀態（補單）」。"
 			type="info"
 			class="mb-4"
 			:closable="false"

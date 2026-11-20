@@ -36,7 +36,7 @@ use J7\WpUtils\Classes\WP;
  *
  * 流程（api-redirect，自動請款）：
  *  1. process_payment → POST /v4/payments/request（金額後端算）→ 存 transactionId（19 位字串）→
- *     排 AS 補單任務（+1500 秒）→ redirect info.paymentUrl.web
+ *     排 AS 補單任務（預設 +300 秒）→ redirect info.paymentUrl.web
  *  2. 顧客認證 → 瀏覽器 GET confirmUrl（自帶 order_id + order_key，LINE Pay 補 transactionId / orderId）→
  *     統一外框 handle_webhook()：驗 order_key + transactionId + orderId → confirm → payment_complete → 302 order-received
  *  3. LINE Pay **沒有 webhook**：顧客關掉瀏覽器時由 LinepayReconcileJob 補單；後台另有「查詢補單」order action
