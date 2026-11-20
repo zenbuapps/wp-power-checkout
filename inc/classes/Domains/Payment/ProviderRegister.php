@@ -23,6 +23,7 @@ final class ProviderRegister {
 		Payuni\Services\PayuniUppGateway::ID              => Payuni\Services\PayuniUppGateway::class,
 		PayuniUniEmbed\Services\PayuniUniEmbedGateway::ID => PayuniUniEmbed\Services\PayuniUniEmbedGateway::class,
 		Paynow\Services\PaynowGateway::ID                 => Paynow\Services\PaynowGateway::class,
+		TcatPay\Services\TcatPayGateway::ID               => TcatPay\Services\TcatPayGateway::class,
 	];
 
 	/** Register hooks */
@@ -59,6 +60,15 @@ final class ProviderRegister {
 				'woocommerce_blocks_loaded',
 				[ Paynow\Services\PaynowGateway::class, 'register_checkout_blocks' ]
 			);
+		}
+
+		// 黑貓PAY APN 端點 + block 結帳整合 —— 無條件註冊（同 PayNow：server-to-server 通知端點須恆常可達，
+		// 入帳一律以平台查詢為準；block 整合由 GatewayUtils 守衛，未啟用時 no-op）。
+		TcatPay\Http\TcatPayCallback::register_hooks();
+		if ( \did_action( 'woocommerce_blocks_loaded' ) ) {
+			TcatPay\Services\TcatPayGateway::register_checkout_blocks();
+		} else {
+			\add_action( 'woocommerce_blocks_loaded', [ TcatPay\Services\TcatPayGateway::class, 'register_checkout_blocks' ] );
 		}
 
 		foreach ( self::$gateway_services as $gateway_id => $gateway_service ) {
