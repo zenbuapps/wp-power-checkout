@@ -37,6 +37,9 @@ export type TPingResult = {
 	post_number: string
 	zip_code: string
 	deliverable: boolean
+
+	/** ParsingAddress 不驗證授權碼 → 恆 false（授權碼需以實際建單確認） */
+	credentials_verified: boolean
 }
 
 /** 託運單版型（PrintOBT 宅配 PrintOBTType） */

@@ -303,6 +303,13 @@ const rules = reactive<FormRules<TFormData>>({
 							: `連線成功，但「${pingResult.address}」查無可配送郵號（${pingResult.post_number || '空白'}），請確認寄件地址`
 					"
 				/>
+				<el-alert
+					v-if="pingResult && !pingResult.credentials_verified"
+					type="info"
+					:closable="false"
+					show-icon
+					title="地址查詢（ParsingAddress）不驗證契客代號與授權碼，以上結果只代表已連上黑貓；授權碼是否正確請以實際建單確認。"
+				/>
 			</div>
 		</el-form-item>
 

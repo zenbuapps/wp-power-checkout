@@ -410,7 +410,7 @@ final class TcatLogisticsProvider extends BaseService implements ILogisticsProvi
 	/**
 	 * 測試連線：以寄件地址呼叫 ParsingAddress（唯讀）
 	 *
-	 * @return array<string, mixed> provider / mode / address / post_number / zip_code / deliverable
+	 * @return array<string, mixed> provider / mode / address / post_number / zip_code / deliverable / credentials_verified（恆 false）
 	 * @throws TcatLogisticsException 憑證缺漏 / API 失敗
 	 */
 	public function test_connection(): array {
@@ -424,12 +424,14 @@ final class TcatLogisticsProvider extends BaseService implements ILogisticsProvi
 		$post_number = \trim( $rows[0]['PostNumber'] ?? '' );
 
 		return [
-			'provider'    => self::ID,
-			'mode'        => $settings->mode,
-			'address'     => $address,
-			'post_number' => $post_number,
-			'zip_code'    => TcatFieldRules::to_six_digit_zip( $post_number ),
-			'deliverable' => '' !== $post_number && 'X' !== \strtoupper( $post_number ),
+			'provider'             => self::ID,
+			'mode'                 => $settings->mode,
+			'address'              => $address,
+			'post_number'          => $post_number,
+			'zip_code'             => TcatFieldRules::to_six_digit_zip( $post_number ),
+			'deliverable'          => '' !== $post_number && 'X' !== \strtoupper( $post_number ),
+			// ParsingAddress 不驗證授權碼（P8 實測：測試站佔位憑證仍回郵號），授權碼需以實際建單確認
+			'credentials_verified' => false,
 		];
 	}
 
