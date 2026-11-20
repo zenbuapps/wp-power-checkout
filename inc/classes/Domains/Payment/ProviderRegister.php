@@ -27,6 +27,7 @@ final class ProviderRegister {
 	/** Register hooks */
 	public static function register_hooks(): void {
 		Shared\Services\PaymentApiService::register_hooks();
+		Shared\Services\PaymentDispatchApiService::register_hooks();
 
 		\add_filter( 'woocommerce_payment_gateways', [ __CLASS__, 'add_method' ] );
 		\add_action( 'woocommerce_refund_created', [ __CLASS__, 'default_refund_reason' ], 10, 2 );
