@@ -103,6 +103,7 @@ abstract class TestCase extends \WP_UnitTestCase {
 	 */
 	private const PROVIDER_OPTION_IDS = [
 		'shopline_payment_redirect',
+		'shopline_payment_embedded',
 		'ecpay_aio',
 		'ecpay_ecpg',
 		'newebpay_mpg',

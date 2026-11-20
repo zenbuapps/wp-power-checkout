@@ -26,6 +26,7 @@ use J7\PowerCheckout\Domains\Payment\Shared\DTOs\ProviderMetaDTO;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\OrderCreationStrategy;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\PaymentMode;
 use J7\PowerCheckout\Domains\Payment\Shared\Interfaces\IPaymentProvider;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\EmbeddedGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\RedirectGateway;
 use J7\PowerCheckout\Domains\Settings\Services\SettingApiService;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -57,6 +58,18 @@ final class ProviderMetaContractTest extends TestCase {
 				'capture'        => false,
 				'void'           => false,
 				'query'          => false,
+				'recurring'      => false,
+			],
+		],
+		'shopline_payment_embedded' => [
+			'class' => EmbeddedGateway::class,
+			'mode'  => 'client-sdk',
+			'caps'  => [
+				'refund'         => true,
+				'partial_refund' => true,
+				'capture'        => false,
+				'void'           => false,
+				'query'          => true,
 				'recurring'      => false,
 			],
 		],
