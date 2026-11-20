@@ -28,6 +28,7 @@ use J7\PowerCheckout\Domains\Payment\Shared\Enums\PaymentMode;
 use J7\PowerCheckout\Domains\Payment\Shared\Interfaces\IPaymentProvider;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\EmbeddedGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\RedirectGateway;
+use J7\PowerCheckout\Domains\Payment\TcatPay\Services\TcatPayGateway;
 use J7\PowerCheckout\Domains\Settings\Services\SettingApiService;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use Tests\Integration\TestCase;
@@ -141,6 +142,18 @@ final class ProviderMetaContractTest extends TestCase {
 				'partial_refund' => true,
 				'capture'        => false,
 				'void'           => false,
+				'query'          => true,
+				'recurring'      => false,
+			],
+		],
+		'tcat_pay'                  => [
+			'class' => TcatPayGateway::class,
+			'mode'  => 'api-redirect',
+			'caps'  => [
+				'refund'         => true,
+				'partial_refund' => true,
+				'capture'        => true,
+				'void'           => true,
 				'query'          => true,
 				'recurring'      => false,
 			],
