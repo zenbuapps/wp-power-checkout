@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Payment\Shared\Interfaces;
 
+use J7\PowerCheckout\Domains\Payment\Shared\DTOs\ProviderMetaDTO;
+
 /**
  * 金流 Provider 統一介面
  *
@@ -104,4 +106,24 @@ interface IPaymentProvider extends IGateway {
 	 * @return array<int|string, mixed> 支援的付款方式清單
 	 */
 	public function get_supported_payment_methods(): array;
+
+	/**
+	 * 取得 provider meta（付款模式 / 訂單建立策略 / 能力宣告）
+	 *
+	 * 能力採方法層級：只有 gateway 自己覆寫 process_refund / capture / void_auth / query_trade
+	 * 才可宣告對應能力為 true。
+	 *
+	 * @return ProviderMetaDTO
+	 */
+	public function get_provider_meta(): ProviderMetaDTO;
+
+	/**
+	 * 驗證金流回呼（webhook / notify）的真實性
+	 *
+	 * 預設 fail-closed（回 false）；使用統一 webhook 外框的 gateway 必須覆寫。
+	 *
+	 * @param \WP_REST_Request $request 回呼請求
+	 * @return bool 驗證通過為 true
+	 */
+	public function verify_callback( \WP_REST_Request $request ): bool;
 }

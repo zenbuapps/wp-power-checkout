@@ -22,6 +22,10 @@ use J7\PowerCheckout\Domains\Payment\Shared\Helpers\BlocksIntegration;
 use J7\PowerCheckout\Domains\Payment\Shared\Interfaces\IGateway;
 use J7\PowerCheckout\Domains\Payment\Shared\Utils\GatewayUtils;
 use J7\PowerCheckout\Plugin;
+use J7\PowerCheckout\Domains\Payment\Shared\DTOs\PaymentCapabilitiesDTO;
+use J7\PowerCheckout\Domains\Payment\Shared\DTOs\ProviderMetaDTO;
+use J7\PowerCheckout\Domains\Payment\Shared\Enums\OrderCreationStrategy;
+use J7\PowerCheckout\Domains\Payment\Shared\Enums\PaymentMode;
 use J7\PowerCheckout\Shared\Errors\ErrorCode;
 use J7\PowerCheckout\Shared\Errors\NormalizedError;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -619,6 +623,30 @@ final class MpgRedirectGateway extends AbstractPaymentGateway implements IGatewa
 					$payment_method_registry->register( new BlocksIntegration( $gateway ) );
 				}
 			}
+		);
+	}
+
+	/**
+	 * Provider meta（能力為方法層級宣告，見 PaymentCapabilitiesDTO）
+	 *
+	 * 藍新 MPG：auto-submit 表單導轉（form-redirect）。
+	 * 另有 admin action：請款 / 取消授權 / 重新查詢付款狀態（ACTION_QUERY）；未覆寫 capture() / void_auth() / query_trade()，故宣告 false。
+	 *
+	 * @return ProviderMetaDTO
+	 */
+	public function get_provider_meta(): ProviderMetaDTO {
+		return new ProviderMetaDTO(
+			id: self::ID,
+			payment_mode: PaymentMode::FORM_REDIRECT,
+			order_creation_strategy: OrderCreationStrategy::PRE_CREATE_PENDING,
+			capabilities: new PaymentCapabilitiesDTO(
+				refund: true,
+				partial_refund: true,
+				capture: false,
+				void: false,
+				query: false,
+				recurring: false,
+			),
 		);
 	}
 }

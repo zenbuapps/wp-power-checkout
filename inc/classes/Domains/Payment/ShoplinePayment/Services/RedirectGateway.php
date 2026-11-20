@@ -21,6 +21,10 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Abstracts\PaymentGat
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\ResponseStatus;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\ReturnSyncResult;
 use J7\PowerCheckout\Plugin;
+use J7\PowerCheckout\Domains\Payment\Shared\DTOs\PaymentCapabilitiesDTO;
+use J7\PowerCheckout\Domains\Payment\Shared\DTOs\ProviderMetaDTO;
+use J7\PowerCheckout\Domains\Payment\Shared\Enums\OrderCreationStrategy;
+use J7\PowerCheckout\Domains\Payment\Shared\Enums\PaymentMode;
 use J7\PowerCheckout\Shared\Errors\ErrorCode;
 use J7\PowerCheckout\Shared\Errors\NormalizedError;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -386,6 +390,30 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 					$payment_method_registry->register(new BlocksIntegration($gateway));
 				}
 			}
+		);
+	}
+
+	/**
+	 * Provider meta（能力為方法層級宣告，見 PaymentCapabilitiesDTO）
+	 *
+	 * SLP 導轉式：後端建 session 取 sessionUrl 導轉（api-redirect）。
+	 * 另有：order-received 回訪的 ReturnSyncManager 主動查詢（非 query_trade()，故 query=false）。
+	 *
+	 * @return ProviderMetaDTO
+	 */
+	public function get_provider_meta(): ProviderMetaDTO {
+		return new ProviderMetaDTO(
+			id: self::ID,
+			payment_mode: PaymentMode::API_REDIRECT,
+			order_creation_strategy: OrderCreationStrategy::PRE_CREATE_PENDING,
+			capabilities: new PaymentCapabilitiesDTO(
+				refund: true,
+				partial_refund: true,
+				capture: false,
+				void: false,
+				query: false,
+				recurring: false,
+			),
 		);
 	}
 }

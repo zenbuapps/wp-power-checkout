@@ -42,6 +42,10 @@ use J7\PowerCheckout\Domains\Payment\Shared\Interfaces\IGateway;
 use J7\PowerCheckout\Domains\Payment\Shared\Utils\GatewayUtils;
 use J7\PowerCheckout\Domains\Settings\Services\SettingTabService;
 use J7\PowerCheckout\Plugin;
+use J7\PowerCheckout\Domains\Payment\Shared\DTOs\PaymentCapabilitiesDTO;
+use J7\PowerCheckout\Domains\Payment\Shared\DTOs\ProviderMetaDTO;
+use J7\PowerCheckout\Domains\Payment\Shared\Enums\OrderCreationStrategy;
+use J7\PowerCheckout\Domains\Payment\Shared\Enums\PaymentMode;
 use J7\PowerCheckout\Shared\Enums\Mode;
 use J7\PowerCheckout\Shared\Errors\ErrorCode;
 use J7\PowerCheckout\Shared\Errors\NormalizedError;
@@ -418,6 +422,29 @@ final class EcpgGateway extends AbstractPaymentGateway implements IGateway {
 					$payment_method_registry->register( new EcpgBlocksIntegration( $gateway ) );
 				}
 			}
+		);
+	}
+
+	/**
+	 * Provider meta（能力為方法層級宣告，見 PaymentCapabilitiesDTO）
+	 *
+	 * 綠界 ECPG 站內付 2.0：前端 JS SDK 取 PayToken（client-sdk）。
+	 *
+	 * @return ProviderMetaDTO
+	 */
+	public function get_provider_meta(): ProviderMetaDTO {
+		return new ProviderMetaDTO(
+			id: self::ID,
+			payment_mode: PaymentMode::CLIENT_SDK,
+			order_creation_strategy: OrderCreationStrategy::PRE_CREATE_PENDING,
+			capabilities: new PaymentCapabilitiesDTO(
+				refund: true,
+				partial_refund: true,
+				capture: false,
+				void: false,
+				query: false,
+				recurring: false,
+			),
 		);
 	}
 }

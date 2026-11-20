@@ -4,10 +4,16 @@ declare ( strict_types = 1 );
 
 namespace J7\PowerCheckout\Domains\Payment\Shared\Abstracts;
 
+use J7\PowerCheckout\Domains\Payment\Shared\DTOs\PaymentCapabilitiesDTO;
+use J7\PowerCheckout\Domains\Payment\Shared\DTOs\ProviderMetaDTO;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\GatewaySupport;
+use J7\PowerCheckout\Domains\Payment\Shared\Enums\OrderCreationStrategy;
+use J7\PowerCheckout\Domains\Payment\Shared\Enums\PaymentMode;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
+use J7\PowerCheckout\Domains\Payment\Shared\Enums\WebhookOutcome;
 use J7\PowerCheckout\Domains\Payment\Shared\Helpers\MetaKeys;
 use J7\PowerCheckout\Domains\Payment\Shared\Interfaces\IPaymentProvider;
+use J7\PowerCheckout\Domains\Payment\Shared\Services\WebhookPipeline;
 use J7\PowerCheckout\Shared\Errors\ErrorCode;
 use J7\PowerCheckout\Shared\Errors\NormalizedError;
 use J7\WpUtils\Classes\DTO;
@@ -281,6 +287,112 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway implements IPa
 	public function get_supported_payment_methods(): array {
 		return [];
 	}
+
+	// region 統一介面：provider meta + webhook 外框（只加不改）
+
+	/**
+	 * Provider meta 保守預設：form-redirect / pre-create-pending，能力依「是否覆寫對應方法」推導
+	 *
+	 * 各 gateway 可覆寫以宣告真實付款模式；能力定義見 PaymentCapabilitiesDTO。
+	 *
+	 * @return ProviderMetaDTO
+	 */
+	public function get_provider_meta(): ProviderMetaDTO {
+		$refund = $this->overrides_method( 'process_refund' ) && $this->supports( 'refunds' );
+		return new ProviderMetaDTO(
+			id: $this->id,
+			payment_mode: PaymentMode::FORM_REDIRECT,
+			order_creation_strategy: OrderCreationStrategy::PRE_CREATE_PENDING,
+			capabilities: new PaymentCapabilitiesDTO(
+				refund: $refund,
+				partial_refund: $refund,
+				capture: $this->overrides_method( 'capture' ),
+				void: $this->overrides_method( 'void_auth' ),
+				query: $this->overrides_method( 'query_trade' ),
+				recurring: false,
+			),
+		);
+	}
+
+	/**
+	 * 回呼驗證預設 fail-closed
+	 *
+	 * @param \WP_REST_Request $request 回呼請求
+	 * @return bool
+	 */
+	public function verify_callback( \WP_REST_Request $request ): bool {
+		return false;
+	}
+
+	/**
+	 * 統一 webhook 外框入口（流程見 WebhookPipeline；永遠回 ack）
+	 *
+	 * @param \WP_REST_Request $request 回呼請求
+	 * @return \WP_REST_Response
+	 */
+	final public function handle_webhook( \WP_REST_Request $request ): \WP_REST_Response {
+		return ( new WebhookPipeline(
+			$this->id,
+			$this->verify_callback( ... ),
+			$this->resolve_callback_order( ... ),
+			$this->get_callback_idempotency_key( ... ),
+			$this->process_callback( ... ),
+			$this->callback_ack_response( ... ),
+		) )->handle( $request );
+	}
+
+	/**
+	 * [webhook 掛鉤] 找出回呼對應的訂單；找不到回 null
+	 *
+	 * @param \WP_REST_Request $request 回呼請求
+	 * @return \WC_Order|null
+	 */
+	protected function resolve_callback_order( \WP_REST_Request $request ): ?\WC_Order {
+		return null;
+	}
+
+	/**
+	 * [webhook 掛鉤] 冪等鍵，預設為 body 的 sha256
+	 *
+	 * @param \WP_REST_Request $request 回呼請求
+	 * @param \WC_Order        $order   訂單
+	 * @return string
+	 */
+	protected function get_callback_idempotency_key( \WP_REST_Request $request, \WC_Order $order ): string {
+		return \hash( 'sha256', $request->get_body() );
+	}
+
+	/**
+	 * [webhook 掛鉤] 業務處理；失敗請 throw（冪等鍵不寫入，允許重送重試）
+	 *
+	 * @param \WP_REST_Request $request 回呼請求
+	 * @param \WC_Order        $order   訂單
+	 * @return void
+	 */
+	protected function process_callback( \WP_REST_Request $request, \WC_Order $order ): void {}
+
+	/**
+	 * [webhook 掛鉤] ack 回應，預設 HTTP 200 JSON；可依處理結果覆寫（例：黑貓PAY 回 text/plain OK）
+	 *
+	 * @param \WP_REST_Request $request 回呼請求
+	 * @param WebhookOutcome   $outcome 處理結果
+	 * @return \WP_REST_Response
+	 */
+	protected function callback_ack_response( \WP_REST_Request $request, WebhookOutcome $outcome ): \WP_REST_Response {
+		return WebhookPipeline::default_ack();
+	}
+
+	/**
+	 * 本 gateway 類別（含中間抽象層）是否覆寫了 AbstractPaymentGateway 的方法
+	 *
+	 * @param string $method 方法名稱
+	 * @return bool
+	 */
+	private function overrides_method( string $method ): bool {
+		return self::class !== ( new \ReflectionMethod( $this, $method ) )->getDeclaringClass()->getName();
+	}
+
+	// endregion
 
 	/**
 	 * [後台] 欄位儲存 field schema 的值存入 option，可以自訂驗證邏輯

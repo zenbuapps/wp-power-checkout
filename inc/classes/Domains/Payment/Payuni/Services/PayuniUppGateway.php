@@ -19,6 +19,10 @@ use J7\PowerCheckout\Domains\Payment\Shared\Helpers\BlocksIntegration;
 use J7\PowerCheckout\Domains\Payment\Shared\Interfaces\IGateway;
 use J7\PowerCheckout\Domains\Payment\Shared\Utils\GatewayUtils;
 use J7\PowerCheckout\Plugin;
+use J7\PowerCheckout\Domains\Payment\Shared\DTOs\PaymentCapabilitiesDTO;
+use J7\PowerCheckout\Domains\Payment\Shared\DTOs\ProviderMetaDTO;
+use J7\PowerCheckout\Domains\Payment\Shared\Enums\OrderCreationStrategy;
+use J7\PowerCheckout\Domains\Payment\Shared\Enums\PaymentMode;
 use J7\PowerCheckout\Shared\Errors\ErrorCode;
 use J7\PowerCheckout\Shared\Errors\NormalizedError;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -583,6 +587,29 @@ final class PayuniUppGateway extends AbstractPaymentGateway implements IGateway 
 					$payment_method_registry->register( new BlocksIntegration( $gateway ) );
 				}
 			}
+		);
+	}
+
+	/**
+	 * Provider meta（能力為方法層級宣告，見 PaymentCapabilitiesDTO）
+	 *
+	 * PAYUNi UPP：auto-submit 表單導轉（form-redirect）；覆寫 query_trade / capture / void_auth（同時提供 admin action）。
+	 *
+	 * @return ProviderMetaDTO
+	 */
+	public function get_provider_meta(): ProviderMetaDTO {
+		return new ProviderMetaDTO(
+			id: self::ID,
+			payment_mode: PaymentMode::FORM_REDIRECT,
+			order_creation_strategy: OrderCreationStrategy::PRE_CREATE_PENDING,
+			capabilities: new PaymentCapabilitiesDTO(
+				refund: true,
+				partial_refund: true,
+				capture: true,
+				void: true,
+				query: true,
+				recurring: false,
+			),
 		);
 	}
 }

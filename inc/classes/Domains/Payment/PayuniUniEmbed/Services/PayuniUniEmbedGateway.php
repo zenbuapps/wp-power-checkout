@@ -41,6 +41,10 @@ use J7\PowerCheckout\Domains\Payment\Shared\Enums\OrderStatus;
 use J7\PowerCheckout\Domains\Payment\Shared\Interfaces\IPaymentProvider;
 use J7\PowerCheckout\Domains\Settings\Services\SettingTabService;
 use J7\PowerCheckout\Plugin;
+use J7\PowerCheckout\Domains\Payment\Shared\DTOs\PaymentCapabilitiesDTO;
+use J7\PowerCheckout\Domains\Payment\Shared\DTOs\ProviderMetaDTO;
+use J7\PowerCheckout\Domains\Payment\Shared\Enums\OrderCreationStrategy;
+use J7\PowerCheckout\Domains\Payment\Shared\Enums\PaymentMode;
 use J7\PowerCheckout\Shared\Errors\ErrorCode;
 use J7\PowerCheckout\Shared\Errors\NormalizedError;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -971,5 +975,28 @@ final class PayuniUniEmbedGateway extends AbstractPaymentGateway implements IPay
 		\add_filter( 'payuni_uni_embed_validate_credit_token', [ __CLASS__, 'validate_credit_token' ], 10, 3 );
 		\add_filter( 'payuni_uni_embed_validate_credit_token_length', [ __CLASS__, 'validate_credit_token_length' ], 10, 2 );
 		\add_filter( 'payuni_uni_embed_is_credit_token_expired', [ __CLASS__, 'is_credit_token_expired' ], 10, 2 );
+	}
+
+	/**
+	 * Provider meta（能力為方法層級宣告，見 PaymentCapabilitiesDTO）
+	 *
+	 * PAYUNi UNi Embed：iframe SDK 站內付（client-sdk）；覆寫 query_trade / capture / void_auth（同時提供 admin action）。
+	 *
+	 * @return ProviderMetaDTO
+	 */
+	public function get_provider_meta(): ProviderMetaDTO {
+		return new ProviderMetaDTO(
+			id: self::ID,
+			payment_mode: PaymentMode::CLIENT_SDK,
+			order_creation_strategy: OrderCreationStrategy::PRE_CREATE_PENDING,
+			capabilities: new PaymentCapabilitiesDTO(
+				refund: true,
+				partial_refund: true,
+				capture: true,
+				void: true,
+				query: true,
+				recurring: false,
+			),
+		);
 	}
 }
