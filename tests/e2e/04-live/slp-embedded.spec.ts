@@ -138,6 +138,7 @@ function settledVia(notes: string[]): string {
 
 test.describe('SHOPLINE Payments 嵌入式 live 驗收', () => {
   test('非 3DS 付款成功 → processing → 後台部分退款', async ({ page, browser }) => {
+    let videoName = 'shopline_payment_embedded-full'
     const admin = await AdminSession.open(browser)
     try {
       const productId = await prepare(admin, 401)
@@ -171,6 +172,7 @@ test.describe('SHOPLINE Payments 嵌入式 live 驗收', () => {
         console.log(`[slp] pay() 未完成（${outcome}）：${pci.samples.join(' | ')}；order notes=${JSON.stringify(notes.slice(0, 3))}`)
         await caption(page, 'SHOPLINE 沙盒 PCI API 回 1005「No interface access permission」→ SDK pay() 失敗（SHOPLINE 端，非本外掛）')
         await page.waitForTimeout(5_000)
+        videoName = 'shopline_payment_embedded-blocked'
         test.skip(true, `SHOPLINE 沙盒 PCI（payment-pci-api-sandbox）回 1005 No interface access permission，SDK pay() 無法完成付款；PC 端 dispatch init/confirm 與 trade/payment/create 正常（訂單 #${orderId}）`)
       }
 
@@ -217,7 +219,7 @@ test.describe('SHOPLINE Payments 嵌入式 live 驗收', () => {
       expect(String((await admin.getOrder(orderId)).status)).toBe('processing')
     } finally {
       await admin.close()
-      await saveAcceptanceVideo(page, 'shopline_payment_embedded-full')
+      await saveAcceptanceVideo(page, videoName)
     }
   })
 

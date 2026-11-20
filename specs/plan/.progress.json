@@ -29,7 +29,7 @@
         "P5": "done",
         "P6": "done",
         "P7": "done",
-        "P8": "pending",
+        "P8": "done",
         "P9": "pending"
     },
     "last_commit": "1baaa04",
@@ -246,6 +246,37 @@
             "e013f0e",
             "0b1f922",
             "1baaa04"
+        ]
+    },
+    "P8_result": {
+        "site": "https://local-turbo.powerhouse.tw (tunnel was offline; started connector with local-turbo-only ingress)",
+        "report": "specs/plan/2026-11-20-acceptance-report.md",
+        "videos_dir": "tests/e2e/acceptance-videos/2026-11-21/ (gitignored)",
+        "results": {
+            "shopline_payment_embedded": "BLOCKED (external): SLP sandbox PCI token/generate 1005 No interface access permission (reproduced outside WP); dispatch init/confirm + trade/payment/create OK; retry same order -> SLP 1001 duplicate referenceOrderId (product issue, NOT fixed, needs decision)",
+            "linepay": "degraded PASS (request 0000 -> sandbox-web-pay.line.me loaded)",
+            "sf_express": "full PASS on SIT (ping, create SF3180007862096, PDF print, query, signed push -> accepted)",
+            "hct_logistics": "degraded PASS (test site rejects prod account 424; prod read-only ping 200)",
+            "tcat_pay": "degraded PASS (placeholder creds -> checkout error notice, token 401 note)",
+            "tcat_logistics": "degraded PASS after fix (ParsingAddress does not verify token -> credentials_verified=false)",
+            "kerrytj_logistics": "degraded PASS after fix (range validation, waybill status, ping 424 AUTH)"
+        },
+        "bugs_fixed": [
+            "b03b570 ping provider failure 502->424 (CDN rewrote body)",
+            "6877c7c tcat ping credentials_verified=false"
+        ],
+        "tests": 3055,
+        "assertions": 10126,
+        "failures": "baseline 4 only",
+        "phpstan_errors": [
+            "RedirectSettingsDTO.php:148 (baseline)"
+        ],
+        "commits": [
+            "c80d27a",
+            "b03b570",
+            "dcebe47",
+            "6877c7c",
+            "1a1effa"
         ]
     }
 }
