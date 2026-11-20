@@ -19,7 +19,7 @@
 
 | Provider | 等級 | 結果 | 影片 |
 |---|---|---|---|
-| SHOPLINE Payments 嵌入式 | 完整（目標） | **未通過：外部阻塞**（SLP 沙盒 PCI API 1005）；PC 端 dispatch / 建交易正常；另發現重付被 SLP 拒絕（未修，見 §2.3） | `shopline_payment_embedded-blocked.webm`、`shopline_payment_embedded-retry.webm` |
+| SHOPLINE Payments 嵌入式 | 完整（目標） | **未通過：外部阻塞**（SLP 沙盒 PCI API 1005）；PC 端 dispatch / 建交易正常；重付被 SLP 拒絕問題**已修並 live 重驗通過**（1e227d2，見 §2.3 / §12） | `shopline_payment_embedded-blocked.webm`、`shopline_payment_embedded-retry.webm`（修正前）、`shopline_payment_embedded-retry-fixed.webm`（修正後） |
 | LINE Pay 直連 | 降級 | 通過 | `linepay-degraded.webm` |
 | 順豐速運 | **完整**（SIT） | 通過：測試連線 → SIT 建單 → PDF 面單 → 查詢 → 簽章推送更新貨態 | `sf_express-full.webm` |
 | 新竹物流 | 降級（唯讀） | 通過 | `hct_logistics-degraded.webm` |
@@ -29,7 +29,7 @@
 
 ## 2. SHOPLINE Payments 嵌入式（`shopline_payment_embedded`）
 
-- 影片：`...\acceptance-videos\2026-11-21\shopline_payment_embedded-blocked.webm`、`...\shopline_payment_embedded-retry.webm`
+- 影片：`...\acceptance-videos\2026-11-21\shopline_payment_embedded-blocked.webm`、`...\shopline_payment_embedded-retry.webm`（重付修正前）、`...\shopline_payment_embedded-retry-fixed.webm`（重付修正後）
 - 等級：目標完整；**未通過（外部阻塞，非本外掛）**。spec 以 `test.skip` 標記並附原因。
 - 憑證：repo `.env` `SHOPLINE_SANDBOX_*`（merchant 3252264968486264832）。站上原 apiKey 已失效（SLP 回 1003），驗收期間改用 .env 值，結束後還原。
 
@@ -47,13 +47,28 @@
 - 待辦：向 SHOPLINE Payments 確認沙盒商店 3252264968486264832 的 SDK / PCI 權限（或換一組有 SDK 權限的沙盒帳號），解除後重跑 `04-live/slp-embedded.spec.ts` 即可走完 processing + 部分退款（spec 已寫好，refund 段用 WC 原生部分退款 NT$100）。
 - Webhook：tunnel 在線，但沙盒商店的 Webhook URL 設在 SLP 後台（共用公開沙盒帳號，未擅改）→ 本次付款未完成，兩條路徑（webhook / order-received 主動查詢）皆未觸發認列。
 
-### 2.3 重付同一訂單（referenceOrderId 重複）— **發現產品問題，未修**
+### 2.3 重付同一訂單（referenceOrderId 重複）— **已修（1e227d2），live 重驗通過**
 - 訂單 #6664（NT$300）：第一次付款同 2.1 卡在 PCI 1005；等 35 秒（本站 confirm 防雙擊鎖 30 秒）後同一訂單第二次付款：
   - dispatch confirm **HTTP 500 `UNKNOWN`「付款處理失敗，請稍後再試或聯繫商家」**
   - order note：`/trade/payment/create 請求失敗 code 1001 msg 重複下單，交易已存在`
   - `_pc_payment_identity` 仍為第一次的 tradeOrderId
 - 結論：**SLP 拒絕同一 `referenceOrderId` 再次建交易**；嵌入式以 WC 訂單 ID 當 referenceOrderId，第一次付款失敗（卡被拒、3DS 放棄 / 失敗）後，該訂單在嵌入式**永遠無法重付**（與綠界 / 藍新「編號永久唯一」同類問題）。
-- 未修原因（保守）：修法需讓 referenceOrderId 每次嘗試唯一（如 `{order_id}-{n}`），會牽動 `EmbeddedSyncManager` 的 `referenceOrderId === order_id` 歸屬檢查與 `OrderResolver`（issue #19）的數字型 fallback / 一致性檢查，屬付款歸屬安全邏輯的設計變更，需團隊決定。最小緩解（未做）：1001 時回 409 + 「請重新下單」而非 500。
+- P8 當下未修（需團隊決定 referenceOrderId 策略）；其後已於 `1e227d2` 修正，以下為修正內容與 live 重驗。
+- **修正（`1e227d2`）**：每次 confirm 產生新 referenceOrderId `{order_id}-{attempt}-{6 hex}`（`EmbeddedReference`），送 API 前先寫入訂單 meta `_pc_slp_reference_history`；新格式只有「格式內訂單 ID = 該訂單」**且**「在該訂單歷史內」才判定歸屬（`OrderResolver` / `EmbeddedSyncManager` / `ReturnSyncManager` 同步調整）；SLP 1001 / 1006 改回 409 可讀訊息（不再 500）；已付款訂單 gateway 層 409。
+- **live 重驗（2026-11-21，訂單 #6666，NT$300）**：`04-live/slp-embedded.spec.ts`「付款未完成後同一訂單重付」**1 passed**（3.5m），log `.tmp/gate/P8-live-slp-retry-fixed.log`
+
+| 項目 | 第 1 次 | 第 2 次 |
+|---|---|---|
+| dispatch confirm（本站建立交易） | **HTTP 200** + `next_action` | **HTTP 200** + `next_action` |
+| 送出的 referenceOrderId | `6666-1-C682E7` | `6666-2-D28929` |
+| SLP tradeOrderId（`_pc_payment_identity`） | `10012611207799387699949077922` | `10012611207799388502118106532` |
+| `payment.pay()` | PCI 400 `1005 No interface access permission`（外部，預期） | 同左（預期） |
+
+- `_pc_slp_reference_history` = `["6666-1-C682E7","6666-2-D28929"]`（兩筆、互不相同、格式符合 `{order_id}-{attempt}-{hex6}`）
+- order notes：兩筆「交易已建立，等待顧客完成付款（tradeOrderId …）」，**無** `1001 重複下單`；前台全程無任何 5xx（spec 監聽站內 response ≥ 500 = 0 筆）
+- 影片：`...\acceptance-videos\2026-11-21\shopline_payment_embedded-retry-fixed.webm`
+- 前一次試跑（訂單 #6665，`6665-1-7FA0F2` → `6665-2-25DA7C`，兩次皆 HTTP 200）結果相同，僅因 spec 斷言 `/1001/` 誤配到 tradeOrderId 開頭 `1001…` 而判失敗；斷言收斂為 `code 1001` / 「重複下單」後重跑通過。
+- 環境：同 §0（scratchpad 起只含 local-turbo ingress 的 tunnel connector，驗收後關閉）；`woocommerce_shopline_payment_redirect_settings` / `woocommerce_shopline_payment_embedded_settings` 驗收前以 WP-CLI 備份、驗收後還原並逐鍵比對一致（embedded 回到 `enabled=no`）。
 - 另觀察：pay() 在前端失敗後 30 秒內重按會得到 409「付款處理中，請勿重複送出」（防雙擊鎖仍在），為既有設計。
 
 ## 3. LINE Pay 直連（`linepay`）
@@ -143,8 +158,19 @@ log：`.tmp/gate/P8-mock-*.log`、`P8-full.log`、`P8-phpstan.log`、`P8-live-*.
 ## 11. 未解決問題
 
 1. **SLP 沙盒 PCI 1005**（外部）：嵌入式無法完成付款 → processing / 退款未驗；需 SHOPLINE 開通沙盒 SDK 權限。
-2. **SLP 嵌入式同訂單重付被拒（1001 重複下單）**（產品，未修）：見 §2.3，需決定 referenceOrderId 策略。
+2. ~~SLP 嵌入式同訂單重付被拒（1001 重複下單）~~ → **已修**（`1e227d2`），live 重驗通過，見 §2.3。
 3. LINE Pay 人工付款段未跑（需真人 LINE sandbox 帳號，`LIVE_LINEPAY_MANUAL=1`）。
 4. 黑貓PAY / 黑貓宅急便 / 嘉里大榮 / 新竹 皆缺測試憑證或號段，建單類 live 未驗。
-5. 前端 AUTH 友善訊息「金流 / 發票憑證錯誤」用於物流設定頁文案不精確。
-6. `LogisticsApiService` 其餘端點（create-shipment 等）的 NETWORK / PROVIDER 仍回 502（`ErrorCode::to_http_status`），掛在 Cloudflare 後同樣可能被改寫本文；本次只修 ping。
+5. ~~前端 AUTH 友善訊息「金流 / 發票憑證錯誤」用於物流設定頁文案不精確~~ → **已修**（`7bec864`），見 §12。
+6. ~~`LogisticsApiService` 其餘端點（create-shipment 等）的 NETWORK / PROVIDER 仍回 502~~ → **已修**（`7e6e7ca`，改回 424），見 §12。
+
+## 12. P8 後修正
+
+| Commit | 類型 | 內容 | 驗證 |
+|---|---|---|---|
+| `3efa3cd` → `1e227d2` | test（Red）→ fix(slp-embedded) | 同一訂單重付改用每次嘗試唯一 referenceOrderId（`{order_id}-{attempt}-{hex6}` + `_pc_slp_reference_history` 歸屬判定）；SLP 1001 / 1006 → 409 | `SlpEmbeddedRetryTest` 等（mock）+ **live 重驗通過**（§2.3，訂單 #6666：兩次建立交易皆 HTTP 200、reference 不同、歷史兩筆、無 500） |
+| `fef6b69` → `ced619e` | test（Red）→ fix(slp) | `Requester` 寫入 WC log 前遮罩 apiKey / signKey / clientKey | `SlpRequesterLogMaskTest`（mock） |
+| `5502cdd` → `7bec864` | test（Red）→ fix(logistics-ui) | 物流 API 的 AUTH 錯誤改顯示物流憑證文案（原為「金流 / 發票憑證錯誤」，§11-5） | `tests/js/error-code.test.ts` |
+| `d4067f5` → `7e6e7ca` | test（Red）→ fix(logistics) | 物流 REST 建單 / 查詢 / 列印 / 退貨 provider 失敗改回 424，不再回 502（避免 Cloudflare 改寫本文，§11-6） | `LogisticsApiServiceStatusCodeTest`（mock） |
+
+另：`04-live/slp-embedded.spec.ts` 重付情境由「記錄結果」改為正式斷言（第 2 次 HTTP 200、`_pc_slp_reference_history` 兩筆且不同、格式、tradeOrderId 不同、無 1001、無 5xx），影片名 `shopline_payment_embedded-retry-fixed`。
