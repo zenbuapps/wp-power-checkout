@@ -110,11 +110,11 @@ final class TcatPaySettingsDTOTest extends TestCase {
 	 */
 	public function test_不合法值拋InvalidArgumentException(): void {
 		$cases = [
-			'mode 非 test/prod'     => [ 'mode' => 'sandbox' ],
-			'acquirer 不在白名單'     => [ 'acquirer_type' => 'ctbc' ],
-			'子方式不在白名單'          => [ 'enabled_methods' => [ 'credit', 'linepay' ] ],
-			'子方式空陣列'            => [ 'enabled_methods' => [] ],
-			'cust_id 非字串'        => [ 'cust_id' => [ 'x' ] ],
+			'mode 非 test/prod'    => [ 'mode' => 'sandbox' ],
+			'acquirer 不在白名單'      => [ 'acquirer_type' => 'ctbc' ],
+			'子方式不在白名單'            => [ 'enabled_methods' => [ 'credit', 'linepay' ] ],
+			'子方式空陣列'              => [ 'enabled_methods' => [] ],
+			'cust_id 非字串'         => [ 'cust_id' => [ 'x' ] ],
 			'enabled 非 yes/no'    => [ 'enabled' => 'true' ],
 			'expire_days 超出 1~30' => [ 'expire_days' => 31 ],
 		];

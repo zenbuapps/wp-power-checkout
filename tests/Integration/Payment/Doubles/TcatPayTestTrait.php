@@ -158,8 +158,8 @@ trait TcatPayTestTrait {
 
 		if ( \str_ends_with( $url, '/Token' ) ) {
 			$response = [] === $this->tcat_token_queue
-				? $this->tcat_fixture( 'token' )
-				: self::shift_queue( $this->tcat_token_queue );
+			? $this->tcat_fixture( 'token' )
+			: self::shift_queue( $this->tcat_token_queue );
 			return $this->to_http_response( $response, [] );
 		}
 
@@ -286,6 +286,18 @@ trait TcatPayTestTrait {
 		$order->set_billing_state( '臺北市' );
 		$order->set_billing_city( '中正區' );
 		$order->set_billing_address_1( '測試路 1 號' );
+
+		// 實體商品：payment_complete 後為 processing（無商品的訂單 WC 會直接 completed）
+		$product = new \WC_Product_Simple();
+		$product->set_name( '黑貓PAY 測試商品' );
+		$product->set_regular_price( (string) $total );
+		$product->save();
+		$item = new \WC_Order_Item_Product();
+		$item->set_product( $product );
+		$item->set_quantity( 1 );
+		$item->set_total( (string) $total );
+		$order->add_item( $item );
+
 		$order->set_total( (string) $total );
 		$order->save();
 		$order->update_status( $status );
@@ -323,7 +335,13 @@ trait TcatPayTestTrait {
 				'status'   => $status,
 				'nonce'    => '1030451234',
 			],
-			$is_cvs ? [ 'pay_amount' => (string) $amount ] : [ 'payment_detail' => [ 'auth_code' => '123456', 'auth_card_no' => '552199******1864', 'pay_amount' => $amount ] ],
+			$is_cvs ? [ 'pay_amount' => (string) $amount ] : [
+				'payment_detail' => [
+					'auth_code'    => '123456',
+					'auth_card_no' => '552199******1864',
+					'pay_amount'   => $amount,
+				],
+			],
 			$extra
 		);
 
@@ -346,7 +364,8 @@ trait TcatPayTestTrait {
 	 */
 	final protected function post_tcat_apn( array|string $payload ): \WP_REST_Response {
 		$request = new \WP_REST_Request( 'POST', '/power-checkout/tcat-pay/apn' );
-		$request->set_header( 'Content-Type', 'application/json' );
+		// 非 JSON 字串以 text/plain 送出（application/json + 壞 JSON 會被 WP REST 在進入 callback 前回 400）
+		$request->set_header( 'Content-Type', \is_string( $payload ) ? 'text/plain' : 'application/json' );
 		$request->set_body( \is_string( $payload ) ? $payload : (string) \wp_json_encode( $payload, JSON_UNESCAPED_UNICODE ) );
 		$response = \rest_do_request( $request );
 		return $response instanceof \WP_REST_Response ? $response : new \WP_REST_Response( null, 500 );
