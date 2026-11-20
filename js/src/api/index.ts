@@ -2,7 +2,11 @@ import axios from 'axios'
 import { ElNotification } from 'element-plus'
 
 import { API_URL, NONCE } from '@/utils/env'
-import { resolveErrorMessage, getNormalizedError } from '@/utils/error-code'
+import {
+	resolveErrorMessage,
+	resolveErrorDomain,
+	getNormalizedError,
+} from '@/utils/error-code'
 
 // 403（nonce / cookie 過期）時的確認對話框文案
 const SESSION_EXPIRED_CONFIRM =
@@ -68,9 +72,13 @@ apiClient.interceptors.response.use(
 			return Promise.reject(error)
 		}
 
+		// 依請求路徑分領域（物流 API 的 AUTH 不可顯示「金流 / 發票」文案）
 		ElNotification({
 			title: '發生 API 錯誤',
-			message: resolveErrorMessage(normalized),
+			message: resolveErrorMessage(
+				normalized,
+				resolveErrorDomain(error?.config?.url)
+			),
 			position: 'bottom-right',
 			type: 'error',
 		})

@@ -70,6 +70,59 @@ const ERROR_CODE_MESSAGE: Partial<Record<TErrorCode, string>> = {
 }
 
 /**
+ * 錯誤所屬領域
+ *
+ * 預設對照表的文案以金流 / 發票為主（例：「金流 / 發票憑證錯誤」）；物流 API 的錯誤
+ * 若套用同一張表會出現他域文案（P8 驗收：物流設定頁帳密錯誤顯示「金流 / 發票憑證錯誤」）。
+ */
+export const ERROR_DOMAIN = {
+	DEFAULT: 'default',
+	LOGISTICS: 'logistics',
+} as const
+
+/** 錯誤領域字面量聯集型別 */
+export type TErrorDomain = (typeof ERROR_DOMAIN)[keyof typeof ERROR_DOMAIN]
+
+/**
+ * 物流領域友善訊息對照表
+ *
+ * 只收錄物流適用的文案；未收錄的 code（VALIDATION / NOT_FOUND / CONFLICT …）
+ * 預設表文案屬金流 / 發票語境，物流改 fallback 後端 message（後端訊息已具體）。
+ */
+const LOGISTICS_ERROR_CODE_MESSAGE: Partial<Record<TErrorCode, string>> = {
+	[ERROR_CODE.AUTH]: '物流憑證錯誤，請檢查帳號密碼',
+	[ERROR_CODE.NETWORK]: '連線逾時，請稍後再試',
+}
+
+/** 各領域對照表 */
+const DOMAIN_ERROR_CODE_MESSAGE: Record<
+	TErrorDomain,
+	Partial<Record<TErrorCode, string>>
+> = {
+	[ERROR_DOMAIN.DEFAULT]: ERROR_CODE_MESSAGE,
+	[ERROR_DOMAIN.LOGISTICS]: LOGISTICS_ERROR_CODE_MESSAGE,
+}
+
+/**
+ * 依 API 請求路徑判定錯誤領域
+ *
+ * apiClient 的 baseURL 為 `power-checkout/v1/`，物流端點皆在 `logistics/...` 之下
+ * （含設定頁「測試連線」`logistics/{provider_id}/ping`）。
+ *
+ * @param url axios `config.url`（相對或絕對路徑皆可），可為 undefined
+ * @return 錯誤領域
+ */
+export function resolveErrorDomain(url?: string): TErrorDomain {
+	if (!url) {
+		return ERROR_DOMAIN.DEFAULT
+	}
+
+	return /(^|\/)logistics(\/|$)/.test(url)
+		? ERROR_DOMAIN.LOGISTICS
+		: ERROR_DOMAIN.DEFAULT
+}
+
+/**
  * 後端錯誤回應 envelope（P5/P6 契約）
  *
  * `error.response.data` 的形狀；所有欄位皆為選填以容忍非本契約的舊回應 / 第三方錯誤。
@@ -100,14 +153,16 @@ export interface INormalizedErrorResponse {
  * 「ElNotification 由 interceptor 處理」鐵律下，本函式只負責「算出要顯示的字串」，
  * 不觸發任何通知。
  *
- * @param data 後端錯誤回應 envelope（`error.response.data`），可為 undefined
+ * @param data   後端錯誤回應 envelope（`error.response.data`），可為 undefined
+ * @param domain 錯誤所屬領域（預設金流 / 發票；物流用 `resolveErrorDomain()` 判定）
  * @return 適合顯示給使用者的繁中錯誤訊息
  */
 export function resolveErrorMessage(
-	data?: INormalizedErrorResponse | null
+	data?: INormalizedErrorResponse | null,
+	domain: TErrorDomain = ERROR_DOMAIN.DEFAULT
 ): string {
 	const friendly = data?.error_code
-		? ERROR_CODE_MESSAGE[data.error_code as TErrorCode]
+		? DOMAIN_ERROR_CODE_MESSAGE[domain][data.error_code as TErrorCode]
 		: undefined
 
 	return friendly || data?.message || '發生未預期的錯誤，請稍後再試'
