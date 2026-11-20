@@ -7,6 +7,7 @@
  *   - ecpay_logistics：cancel 僅 C2C 帳號可用（B2C 呼叫拋「僅支援 C2C」），仍宣告 true
  *   - payuni_logistics：cancel_shipment 一律拋「不支援直接取消」→ can_cancel=false
  *   - paynow_logistics：create_return 一律拋「尚未實作」→ can_return=false
+ *   - tcat_logistics（P4）：只做宅配（ASM-6）；選店 / 取消拋 UNSUPPORTED → has_cvs_map / can_cancel=false
  *
  * 執行：
  *   vendor/bin/phpunit tests/Integration/Logistics/ --filter LogisticsProviderMetaContract --no-coverage
@@ -21,6 +22,7 @@ use J7\PowerCheckout\Domains\Logistics\Paynow\Services\PaynowLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Payuni\Services\PayuniLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Shared\DTOs\LogisticsProviderMetaDTO;
 use J7\PowerCheckout\Domains\Logistics\Shared\Interfaces\ILogisticsProvider;
+use J7\PowerCheckout\Domains\Logistics\Tcat\Services\TcatLogisticsProvider;
 use Tests\Integration\TestCase;
 
 /**
@@ -81,6 +83,18 @@ final class LogisticsProviderMetaContractTest extends TestCase {
 				'can_print'           => true,
 				'can_return'          => false,
 				'can_cancel'          => true,
+			],
+		],
+		'tcat_logistics'   => [
+			'class'   => TcatLogisticsProvider::class,
+			'methods' => [ 'HOME' ],
+			'caps'    => [
+				'can_create_shipment' => true,
+				'can_query_shipment'  => true,
+				'has_cvs_map'         => false,
+				'can_print'           => true,
+				'can_return'          => true,
+				'can_cancel'          => false,
 			],
 		],
 	];
