@@ -22,6 +22,7 @@ export const ROUTER_MAPPER = {
 	paynow_logistics: '/logistics/paynow_logistics',
 	tcat_logistics: '/logistics/tcat_logistics',
 	hct_logistics: '/logistics/hct_logistics',
+	sf_express: '/logistics/sf_express',
 	checkout_enhancement: '/checkout',
 }
 
@@ -91,6 +92,10 @@ const routes = [
 	{
 		path: '/logistics/hct_logistics',
 		component: () => import('@/pages/Logistics/Hct/index.vue'),
+	},
+	{
+		path: '/logistics/sf_express',
+		component: () => import('@/pages/Logistics/SfExpress/index.vue'),
 	},
 	{ path: '/invoices', component: () => import('@/pages/Invoices/index.vue') },
 	{
