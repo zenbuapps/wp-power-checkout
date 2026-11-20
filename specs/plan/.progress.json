@@ -22,7 +22,7 @@
   "phases": {
     "step0": "done",
     "P0": "done",
-    "P1": "pending",
+    "P1": "done",
     "P2": "pending",
     "P3": "pending",
     "P4": "pending",
@@ -32,7 +32,7 @@
     "P8": "pending",
     "P9": "pending"
   },
-  "last_commit": "2283494",
+  "last_commit": "812496d",
   "P0_result": {
     "tests": 2397,
     "assertions": 7885,
@@ -49,6 +49,28 @@
       "a5578e1",
       "8700139",
       "2283494"
+    ]
+  },
+  "P1_result": {
+    "tests": 2437,
+    "assertions": 8047,
+    "failures": "baseline 4 only",
+    "new_tests": 40,
+    "red": "111 tests / 40 errors (Class EmbeddedGateway not found) — .tmp/gate/P1-red-Payment.log",
+    "green_filter": "SlpEmbedded|SlpOrderResolver|SlpWebhookResponse|SlpReturnSync|SlpSessionIdentity|ProviderMetaContract|PaymentDispatchApiService|WebhookSignature|RedirectGatewayValidation → OK (144 tests, 522 assertions)",
+    "phpstan_errors": [
+      "RedirectSettingsDTO.php:148 (baseline)"
+    ],
+    "phpcs": "new/modified PHP files 0 errors (ApiClient/OrderResolver/Requester/PaymentDispatchApiService/ProviderRegister error count == master)",
+    "frontend": "pnpm build OK; pnpm build:blocks OK; changed-file eslint 0 errors (7 warnings: no-console / no-explicit-any, same pattern as existing modules)",
+    "sandbox_probe": "POST /api/v1/trade/payment/create (SLP sandbox) with same body shape → 200 status=CREATED + nextAction object (dummy paySession accepted at create stage)",
+    "credential_scan_note": "scan hit PENDING_META_KEY = '_pc_slp_embedded_pending' is an order meta key name, not a credential",
+    "commits": [
+      "db90ea6",
+      "cc4cf84",
+      "79d3ae9",
+      "01b6251",
+      "812496d"
     ]
   }
 }
