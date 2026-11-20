@@ -21,7 +21,7 @@
   },
   "phases": {
     "step0": "done",
-    "P0": "in_progress",
+    "P0": "done",
     "P1": "pending",
     "P2": "pending",
     "P3": "pending",
@@ -32,5 +32,23 @@
     "P8": "pending",
     "P9": "pending"
   },
-  "last_commit": "6d32e74"
+  "last_commit": "2283494",
+  "P0_result": {
+    "tests": 2397,
+    "assertions": 7885,
+    "failures": "baseline 4 only",
+    "new_tests": 61,
+    "phpstan_errors": [
+      "RedirectSettingsDTO.php:148 (baseline)"
+    ],
+    "phpcs": "new files 0 errors (1 warning: $void param name); modified files error count == master",
+    "commits": [
+      "9412da3",
+      "46017b6",
+      "5e609ac",
+      "a5578e1",
+      "8700139",
+      "2283494"
+    ]
+  }
 }
