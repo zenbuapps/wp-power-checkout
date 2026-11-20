@@ -17,14 +17,10 @@ declare( strict_types=1 );
 namespace Tests\Integration\Logistics;
 
 use J7\PowerCheckout\Domains\Logistics\Paynow\Services\PaynowLogisticsProvider;
-use J7\PowerCheckout\Domains\Logistics\Shared\DTOs\LogisticsProviderMetaDTO;
-use J7\PowerCheckout\Domains\Logistics\Shared\DTOs\ShipmentCapabilitiesDTO;
-use J7\PowerCheckout\Domains\Logistics\Shared\Enums\DeliveryMethod;
-use J7\PowerCheckout\Domains\Logistics\Shared\Interfaces\ILogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Shared\Services\LogisticsApiService;
-use J7\PowerCheckout\Shared\Abstracts\BaseService;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use Tests\Integration\TestCase;
+use Tests\Integration\Logistics\Doubles\CapabilityTestLogisticsProvider;
 
 /**
  * LogisticsApiService capability 測試
@@ -48,7 +44,23 @@ final class LogisticsApiServiceCapabilityTest extends TestCase {
 		\delete_option( ProviderUtils::get_option_name( CapabilityTestLogisticsProvider::ID ) );
 		\delete_option( ProviderUtils::get_option_name( PaynowLogisticsProvider::ID ) );
 		\wp_set_current_user( 0 );
+		$GLOBALS['wp_rest_server'] = null;
 		parent::tear_down();
+	}
+
+	/**
+	 * 重建 REST server，讓 LogisticsApiService 的路由註冊
+	 *
+	 * 正式環境中 Logistics\ProviderRegister 只在「任一物流 provider 啟用」時建立 LogisticsApiService；
+	 * 測試 bootstrap 時沒有啟用任何物流，因此需在此建立實例後重新觸發 rest_api_init。
+	 */
+	private function boot_rest_server(): void {
+		$callback = [ LogisticsApiService::instance(), 'register_apis' ];
+		if ( false === \has_action( 'rest_api_init', $callback ) ) {
+			\add_action( 'rest_api_init', $callback );
+		}
+		$GLOBALS['wp_rest_server'] = null;
+		\rest_get_server();
 	}
 
 	/**
@@ -163,6 +175,7 @@ final class LogisticsApiServiceCapabilityTest extends TestCase {
 	 * @group smoke
 	 */
 	public function test_冒煙_providers_meta路由已註冊(): void {
+		$this->boot_rest_server();
 		$routes = \rest_get_server()->get_routes();
 		$this->assertArrayHasKey( '/power-checkout/v1/logistics/providers/meta', $routes );
 		$this->assertArrayHasKey( '/power-checkout/v1/logistics/(?P<id>\d+)', $routes );
@@ -174,6 +187,7 @@ final class LogisticsApiServiceCapabilityTest extends TestCase {
 	 * @group happy
 	 */
 	public function test_admin可讀providers_meta(): void {
+		$this->boot_rest_server();
 		\wp_set_current_user( self::factory()->user->create( [ 'role' => 'administrator' ] ) );
 
 		$response = \rest_do_request( new \WP_REST_Request( 'GET', '/power-checkout/v1/logistics/providers/meta' ) );
@@ -192,6 +206,7 @@ final class LogisticsApiServiceCapabilityTest extends TestCase {
 	 * @group security
 	 */
 	public function test_未登入讀providers_meta被拒(): void {
+		$this->boot_rest_server();
 		\wp_set_current_user( 0 );
 
 		$response = \rest_do_request( new \WP_REST_Request( 'GET', '/power-checkout/v1/logistics/providers/meta' ) );
@@ -205,153 +220,11 @@ final class LogisticsApiServiceCapabilityTest extends TestCase {
 	 * @group security
 	 */
 	public function test_一般會員讀providers_meta被拒(): void {
+		$this->boot_rest_server();
 		\wp_set_current_user( self::factory()->user->create( [ 'role' => 'customer' ] ) );
 
 		$response = \rest_do_request( new \WP_REST_Request( 'GET', '/power-checkout/v1/logistics/providers/meta' ) );
 
 		$this->assertSame( 403, $response->get_status() );
-	}
-}
-
-/**
- * 測試替身：只支援建單 / 查詢的物流 provider
- */
-final class CapabilityTestLogisticsProvider extends BaseService implements ILogisticsProvider {
-
-	/** @var string provider id */
-	public const ID = 'pc_test_capability_logistics';
-
-	/** @var array<int, string> 被呼叫的方法紀錄 */
-	public static array $calls = [];
-
-	/** @var string $id Id */
-	public string $id = self::ID;
-
-	/**
-	 * 設定
-	 *
-	 * @param bool $with_default 是否帶預設值
-	 * @return array<string, mixed>
-	 */
-	public static function get_settings( bool $with_default = true ): array {
-		return [ 'enabled' => 'yes' ];
-	}
-
-	/**
-	 * Meta：只支援建單 / 查詢
-	 *
-	 * @return LogisticsProviderMetaDTO
-	 */
-	public function get_provider_meta(): LogisticsProviderMetaDTO {
-		return new LogisticsProviderMetaDTO(
-			id: self::ID,
-			supported_delivery_methods: [ DeliveryMethod::HOME ],
-			capabilities: new ShipmentCapabilitiesDTO(
-				can_create_shipment: true,
-				can_query_shipment: true,
-				has_cvs_map: false,
-				can_print: false,
-				can_return: false,
-				can_cancel: false,
-			),
-		);
-	}
-
-	/**
-	 * 選店
-	 *
-	 * @param \WC_Order            $order 訂單
-	 * @param array<string, mixed> $ctx   上下文
-	 * @return array<string, mixed>
-	 */
-	public function get_store_selection( \WC_Order $order, array $ctx = [] ): array {
-		self::$calls[] = 'get_store_selection';
-		return [];
-	}
-
-	/**
-	 * 解析選店
-	 *
-	 * @param array<string, mixed> $raw 原始資料
-	 * @return array<string, mixed>
-	 */
-	public function parse_store_selection( array $raw ): array {
-		self::$calls[] = 'parse_store_selection';
-		return [];
-	}
-
-	/**
-	 * 建單
-	 *
-	 * @param \WC_Order $order 訂單
-	 * @return array<string, mixed>
-	 */
-	public function create_shipment( \WC_Order $order ): array {
-		self::$calls[] = 'create_shipment';
-		return [ 'logistics_id' => 'DOUBLE-1' ];
-	}
-
-	/**
-	 * 查詢
-	 *
-	 * @param \WC_Order $order 訂單
-	 * @return array<string, mixed>
-	 */
-	public function query_shipment( \WC_Order $order ): array {
-		self::$calls[] = 'query_shipment';
-		return [ 'logistics_id' => 'DOUBLE-1' ];
-	}
-
-	/**
-	 * 列印
-	 *
-	 * @param \WC_Order $order 訂單
-	 * @return string
-	 */
-	public function print_document( \WC_Order $order ): string {
-		self::$calls[] = 'print_document';
-		return '<html></html>';
-	}
-
-	/**
-	 * 取消
-	 *
-	 * @param \WC_Order $order 訂單
-	 * @return array<string, mixed>
-	 */
-	public function cancel_shipment( \WC_Order $order ): array {
-		self::$calls[] = 'cancel_shipment';
-		return [];
-	}
-
-	/**
-	 * 退貨
-	 *
-	 * @param \WC_Order            $order 訂單
-	 * @param array<string, mixed> $ctx   上下文
-	 * @return array<string, mixed>
-	 */
-	public function create_return( \WC_Order $order, array $ctx = [] ): array {
-		self::$calls[] = 'create_return';
-		return [];
-	}
-
-	/**
-	 * 貨態 callback
-	 *
-	 * @param \WP_REST_Request $request 請求
-	 * @return \WP_REST_Response
-	 */
-	public function handle_status_callback( \WP_REST_Request $request ): \WP_REST_Response {
-		return new \WP_REST_Response( 'OK', 200 );
-	}
-
-	/**
-	 * 支援的子類型
-	 *
-	 * @return array<int, string>
-	 */
-	public function get_supported_methods(): array {
-		return [ 'HOME' ];
 	}
 }
