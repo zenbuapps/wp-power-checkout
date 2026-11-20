@@ -14,8 +14,15 @@ import * as path from 'path'
 import { applyLcBypass } from './helpers/lc-bypass.js'
 import { loginAsAdmin, AUTH_FILE, NONCE_FILE, getNonce } from './helpers/admin-setup.js'
 import { BASE_URL, TEST_IDS_FILE, type TestIds } from './fixtures/test-data.js'
+import { isLiveAcceptanceRun } from './helpers/live-env.js'
 
 async function globalSetup(_config: FullConfig) {
+  // live-acceptance（04-live 錄影驗收）於 spec 內自行登入與建資料：不套 LC bypass、不清建 [E2E] 訂單
+  if (isLiveAcceptanceRun()) {
+    console.log('\n--- E2E Global Setup：live-acceptance 略過 ---')
+    return
+  }
+
   console.log('\n--- E2E Global Setup ---')
 
   // ── 0. Ensure .auth directory exists ────────────────────────
