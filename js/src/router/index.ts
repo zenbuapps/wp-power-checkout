@@ -11,6 +11,7 @@ export const ROUTER_MAPPER = {
 	payuni_uni_embed: '/payments/payuni_uni_embed',
 	paynow: '/payments/paynow',
 	tcat_pay: '/payments/tcat_pay',
+	linepay: '/payments/linepay',
 	amego: '/invoices/amego',
 	ecpay: '/invoices/ecpay',
 	ezpay: '/invoices/ezpay',
@@ -60,6 +61,10 @@ const routes = [
 	{
 		path: '/payments/tcat_pay',
 		component: () => import('@/pages/Payments/TcatPay/index.vue'),
+	},
+	{
+		path: '/payments/linepay',
+		component: () => import('@/pages/Payments/Linepay/index.vue'),
 	},
 	{
 		path: '/logistics',
