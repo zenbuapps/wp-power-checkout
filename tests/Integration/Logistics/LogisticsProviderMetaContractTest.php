@@ -9,6 +9,7 @@
  *   - paynow_logistics：create_return 一律拋「尚未實作」→ can_return=false
  *   - tcat_logistics（P4）：只做宅配（ASM-6）；選店 / 取消拋 UNSUPPORTED → has_cvs_map / can_cancel=false
  *   - hct_logistics（P5）：純宅配；選店拋 UNSUPPORTED → has_cvs_map=false，其餘（含 TransDataCancel 取消）皆 true
+ *   - sf_express（P6）：宅配；選店 / 退貨拋 UNSUPPORTED → has_cvs_map / can_return=false，建單 / 查詢 / 列印 / 取消 true
  *
  * 執行：
  *   vendor/bin/phpunit tests/Integration/Logistics/ --filter LogisticsProviderMetaContract --no-coverage
@@ -24,6 +25,7 @@ use J7\PowerCheckout\Domains\Logistics\Paynow\Services\PaynowLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Payuni\Services\PayuniLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Shared\DTOs\LogisticsProviderMetaDTO;
 use J7\PowerCheckout\Domains\Logistics\Shared\Interfaces\ILogisticsProvider;
+use J7\PowerCheckout\Domains\Logistics\SfExpress\Services\SfExpressProvider;
 use J7\PowerCheckout\Domains\Logistics\Tcat\Services\TcatLogisticsProvider;
 use Tests\Integration\TestCase;
 
@@ -108,6 +110,18 @@ final class LogisticsProviderMetaContractTest extends TestCase {
 				'has_cvs_map'         => false,
 				'can_print'           => true,
 				'can_return'          => true,
+				'can_cancel'          => true,
+			],
+		],
+		'sf_express'       => [
+			'class'   => SfExpressProvider::class,
+			'methods' => [ 'HOME' ],
+			'caps'    => [
+				'can_create_shipment' => true,
+				'can_query_shipment'  => true,
+				'has_cvs_map'         => false,
+				'can_print'           => true,
+				'can_return'          => false,
 				'can_cancel'          => true,
 			],
 		],
