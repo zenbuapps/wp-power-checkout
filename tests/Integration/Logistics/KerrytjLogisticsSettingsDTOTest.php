@@ -117,9 +117,9 @@ final class KerrytjLogisticsSettingsDTOTest extends TestCase {
 	/** @return array<string, array{0: array<string, mixed>}> */
 	public function invalid_inputs(): array {
 		return [
-			'mode 非 test/prod'  => [ [ 'mode' => 'sandbox' ] ],
+			'mode 非 test/prod' => [ [ 'mode' => 'sandbox' ] ],
 			'客編非 8 碼'          => [ [ 'customer_no' => '1234' ] ],
-			'寄件郵遞區號非數字'       => [ [ 'sender_postcode' => 'abc' ] ],
+			'寄件郵遞區號非數字'        => [ [ 'sender_postcode' => 'abc' ] ],
 			'預設溫層非法'           => [ [ 'default_temperature' => '4' ] ],
 			'常溫號段只填一端'         => [ [ 'ambient_waybill_start' => '40350718600' ] ],
 			'常溫號段非 11 碼'       => [
@@ -140,7 +140,7 @@ final class KerrytjLogisticsSettingsDTOTest extends TestCase {
 					'cold_waybill_end'   => '667000099',
 				],
 			],
-			'enabled 非字串'       => [ [ 'enabled' => [ 'yes' ] ] ],
+			'enabled 非字串'      => [ [ 'enabled' => [ 'yes' ] ] ],
 		];
 	}
 

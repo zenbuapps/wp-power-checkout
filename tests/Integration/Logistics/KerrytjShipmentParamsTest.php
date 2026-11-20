@@ -37,11 +37,40 @@ final class KerrytjShipmentParamsTest extends TestCase {
 
 	/** @var array<int, string> 規格書 34 欄 */
 	private const SHIPMENT_KEYS = [
-		'ShipDate', 'CustomerNo', 'Consignee', 'ConsigneePost', 'ConsigneeAdd', 'ConsigneePhone', 'BLN',
-		'Weight', 'Volume', 'Shipper', 'ShipperPost', 'ShipperAdd', 'ShipperTel', 'CON', 'AC',
-		'PickupTime', 'ETA', 'Remark', 'Temperature', 'Piece', 'DeclaredValue', 'SpecialService',
-		'StationEnable', 'Receipt', 'HolidayId', 'MemberId', 'BoxNumber', 'IsValuable', 'CityType',
-		'Specification', 'BoxSize', 'DailyDelyId', 'PaymentType', 'ETP',
+		'ShipDate',
+		'CustomerNo',
+		'Consignee',
+		'ConsigneePost',
+		'ConsigneeAdd',
+		'ConsigneePhone',
+		'BLN',
+		'Weight',
+		'Volume',
+		'Shipper',
+		'ShipperPost',
+		'ShipperAdd',
+		'ShipperTel',
+		'CON',
+		'AC',
+		'PickupTime',
+		'ETA',
+		'Remark',
+		'Temperature',
+		'Piece',
+		'DeclaredValue',
+		'SpecialService',
+		'StationEnable',
+		'Receipt',
+		'HolidayId',
+		'MemberId',
+		'BoxNumber',
+		'IsValuable',
+		'CityType',
+		'Specification',
+		'BoxSize',
+		'DailyDelyId',
+		'PaymentType',
+		'ETP',
 	];
 
 	/** 每個測試前：設定 */
@@ -121,11 +150,25 @@ final class KerrytjShipmentParamsTest extends TestCase {
 	 * @group edge
 	 */
 	public function test_姓名截斷12字全名進備註(): void {
-		$long = $this->build( $this->make_kerrytj_order( [ 'name_last' => '歐陽', 'name_first' => '小明同學會長與其他九位理事長' ] ) );
+		$long = $this->build(
+			$this->make_kerrytj_order(
+			[
+				'name_last'  => '歐陽',
+				'name_first' => '小明同學會長與其他九位理事長',
+			]
+			)
+			);
 		$this->assertSame( '歐陽小明同學會長與其他九', $long['Consignee'] );
 		$this->assertStringContainsString( '歐陽小明同學會長與其他九位理事長', $long['Remark'] );
 
-		$short = $this->build( $this->make_kerrytj_order( [ 'name_last' => '歐陽', 'name_first' => '小明同學會長' ] ) );
+		$short = $this->build(
+			$this->make_kerrytj_order(
+			[
+				'name_last'  => '歐陽',
+				'name_first' => '小明同學會長',
+			]
+			)
+			);
 		$this->assertSame( '歐陽小明同學會長', $short['Consignee'] );
 		$this->assertStringNotContainsString( '收件人', $short['Remark'] );
 	}

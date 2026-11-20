@@ -75,7 +75,10 @@ final class WC_KerrytjLogisticsShippingTest extends TestCase {
 
 	/** @return array<string, mixed> 台灣目的地 package */
 	private function tw_package(): array {
-		return [ 'destination' => [ 'country' => 'TW' ] ];
+		return [
+			'contents'    => [],
+			'destination' => [ 'country' => 'TW' ],
+		];
 	}
 
 	/**

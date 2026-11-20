@@ -68,7 +68,8 @@ final class KerrytjLogisticsRegisterTest extends TestCase {
 
 	/** @return void 註冊嘉里 admin REST 並以 admin 身分 */
 	private function boot_admin_rest(): void {
-		KerrytjAdminApiService::instance();
+		// singleton 可能已由前一測試建立（其 rest_api_init hook 已被測試框架還原移除）→ 顯式掛上
+		\add_action( 'rest_api_init', [ KerrytjAdminApiService::instance(), 'register_apis' ] );
 		$GLOBALS['wp_rest_server'] = null;
 		\rest_get_server();
 		\wp_set_current_user( self::factory()->user->create( [ 'role' => 'administrator' ] ) );
@@ -268,7 +269,8 @@ final class KerrytjLogisticsRegisterTest extends TestCase {
 		$this->setup_kerrytj_logistics();
 		$order = $this->make_kerrytj_order();
 		$this->block_kerrytj_http();
-		KerrytjAdminApiService::instance();
+		// singleton 可能已由前一測試建立（其 rest_api_init hook 已被測試框架還原移除）→ 顯式掛上
+		\add_action( 'rest_api_init', [ KerrytjAdminApiService::instance(), 'register_apis' ] );
 		$GLOBALS['wp_rest_server'] = null;
 		\rest_get_server();
 		\wp_set_current_user( self::factory()->user->create( [ 'role' => 'customer' ] ) );

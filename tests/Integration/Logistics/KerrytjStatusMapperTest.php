@@ -68,18 +68,18 @@ final class KerrytjStatusMapperTest extends TestCase {
 	/** @return array<string, array{0: string, 1: ShippingState}> */
 	public function ambient_codes(): array {
 		return [
-			'01 集貨'        => [ '01', ShippingState::ACCEPTED ],
-			'02 配達'        => [ '02', ShippingState::DELIVERED ],
-			'09 站止領回'      => [ '09', ShippingState::DELIVERED ],
-			'30 聯運配達'      => [ '30', ShippingState::DELIVERED ],
-			'78 代收門市取件'    => [ '78', ShippingState::DELIVERED ],
-			'77 送回寄件人'     => [ '77', ShippingState::RETURNED ],
-			'08 站止未領'      => [ '08', ShippingState::READY_FOR_PICKUP ],
-			'F1 全家進店完成'    => [ 'F1', ShippingState::READY_FOR_PICKUP ],
-			'00 客戶不在'      => [ '00', ShippingState::IN_TRANSIT ],
-			'73 配送'        => [ '73', ShippingState::IN_TRANSIT ],
-			'18 貨件遺失'      => [ '18', ShippingState::FAILED ],
-			'64 丟棄'        => [ '64', ShippingState::FAILED ],
+			'01 集貨'     => [ '01', ShippingState::ACCEPTED ],
+			'02 配達'     => [ '02', ShippingState::DELIVERED ],
+			'09 站止領回'   => [ '09', ShippingState::DELIVERED ],
+			'30 聯運配達'   => [ '30', ShippingState::DELIVERED ],
+			'78 代收門市取件' => [ '78', ShippingState::DELIVERED ],
+			'77 送回寄件人'  => [ '77', ShippingState::RETURNED ],
+			'08 站止未領'   => [ '08', ShippingState::READY_FOR_PICKUP ],
+			'F1 全家進店完成' => [ 'F1', ShippingState::READY_FOR_PICKUP ],
+			'00 客戶不在'   => [ '00', ShippingState::IN_TRANSIT ],
+			'73 配送'     => [ '73', ShippingState::IN_TRANSIT ],
+			'18 貨件遺失'   => [ '18', ShippingState::FAILED ],
+			'64 丟棄'     => [ '64', ShippingState::FAILED ],
 		];
 	}
 
@@ -99,13 +99,13 @@ final class KerrytjStatusMapperTest extends TestCase {
 	/** @return array<string, array{0: string, 1: ShippingState}> */
 	public function cold_codes(): array {
 		return [
-			'13 集貨站受付' => [ '13', ShippingState::ACCEPTED ],
+			'13 集貨站受付'  => [ '13', ShippingState::ACCEPTED ],
 			'22 貨件發送受付' => [ '22', ShippingState::ACCEPTED ],
-			'73 配貨攜出'  => [ '73', ShippingState::IN_TRANSIT ],
-			'84 站止未領'  => [ '84', ShippingState::READY_FOR_PICKUP ],
-			'90 破損已收'  => [ '90', ShippingState::DELIVERED ],
-			'92 自領'    => [ '92', ShippingState::DELIVERED ],
-			'93 貨件退回'  => [ '93', ShippingState::RETURNED ],
+			'73 配貨攜出'   => [ '73', ShippingState::IN_TRANSIT ],
+			'84 站止未領'   => [ '84', ShippingState::READY_FOR_PICKUP ],
+			'90 破損已收'   => [ '90', ShippingState::DELIVERED ],
+			'92 自領'     => [ '92', ShippingState::DELIVERED ],
+			'93 貨件退回'   => [ '93', ShippingState::RETURNED ],
 		];
 	}
 
