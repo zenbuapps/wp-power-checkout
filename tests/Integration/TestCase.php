@@ -111,6 +111,7 @@ abstract class TestCase extends \WP_UnitTestCase {
 		'payuni_uni_embed',
 		'paynow',
 		'tcat_pay',
+		'linepay',
 	];
 
 	/**

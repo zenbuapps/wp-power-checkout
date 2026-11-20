@@ -17,6 +17,7 @@ namespace Tests\Integration\Payment;
 
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Services\AioRedirectGateway;
 use J7\PowerCheckout\Domains\Payment\Ecpg\Services\EcpgGateway;
+use J7\PowerCheckout\Domains\Payment\Linepay\Services\LinepayGateway;
 use J7\PowerCheckout\Domains\Payment\NewebpayMpg\Services\MpgRedirectGateway;
 use J7\PowerCheckout\Domains\Payment\Paynow\Services\PaynowGateway;
 use J7\PowerCheckout\Domains\Payment\Payuni\Services\PayuniUppGateway;
@@ -154,6 +155,18 @@ final class ProviderMetaContractTest extends TestCase {
 				'partial_refund' => true,
 				'capture'        => true,
 				'void'           => true,
+				'query'          => true,
+				'recurring'      => false,
+			],
+		],
+		'linepay'                   => [
+			'class' => LinepayGateway::class,
+			'mode'  => 'api-redirect',
+			'caps'  => [
+				'refund'         => true,
+				'partial_refund' => true,
+				'capture'        => false,
+				'void'           => false,
 				'query'          => true,
 				'recurring'      => false,
 			],
