@@ -3,6 +3,7 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 
 export const ROUTER_MAPPER = {
 	shopline_payment_redirect: '/payments/shopline_payment_redirect',
+	shopline_payment_embedded: '/payments/shopline_payment_embedded',
 	ecpay_aio: '/payments/ecpay_aio',
 	ecpay_ecpg: '/payments/ecpay_ecpg',
 	newebpay_mpg: '/payments/newebpay_mpg',
@@ -27,6 +28,10 @@ const routes = [
 		path: '/payments/shopline_payment_redirect',
 		component: () => import('@/pages/Payments/SLP/index.vue'),
 	}, // 請根據實際路徑調整
+	{
+		path: '/payments/shopline_payment_embedded',
+		component: () => import('@/pages/Payments/ShoplineEmbedded/index.vue'),
+	},
 	{
 		path: '/payments/ecpay_aio',
 		component: () => import('@/pages/Payments/EcpayAio/index.vue'),
