@@ -39,7 +39,7 @@ trait SlpEmbeddedTestTrait {
 	 * @param array<string, mixed> $embedded_extra   嵌入式額外設定
 	 * @return void
 	 */
-	protected function setup_slp_embedded(
+	final protected function setup_slp_embedded(
 		bool $redirect_enabled = false,
 		array $redirect_extra = [],
 		array $embedded_extra = []
@@ -69,13 +69,13 @@ trait SlpEmbeddedTestTrait {
 	 * @param array<string, mixed>|\WP_Error $response 假回應
 	 * @return void
 	 */
-	protected function fake_slp_http( string $fragment, array|\WP_Error $response ): void {
+	final protected function fake_slp_http( string $fragment, array|\WP_Error $response ): void {
 		$this->slp_fake_responses[ $fragment ] = $response;
 		$this->hook_slp_http();
 	}
 
 	/** 只掛攔截器（全部請求擋下並記錄），用於斷言「不打 API」 @return void */
-	protected function block_slp_http(): void {
+	final protected function block_slp_http(): void {
 		$this->hook_slp_http();
 	}
 
@@ -89,7 +89,7 @@ trait SlpEmbeddedTestTrait {
 	}
 
 	/** @return void 移除攔截器並清空紀錄 */
-	protected function reset_slp_embedded_http(): void {
+	final protected function reset_slp_embedded_http(): void {
 		\remove_filter( 'pre_http_request', [ $this, 'intercept_slp_http' ], 10 );
 		$this->slp_http_hooked    = false;
 		$this->slp_fake_responses = [];
@@ -104,7 +104,7 @@ trait SlpEmbeddedTestTrait {
 	 * @param string                               $url         URL
 	 * @return array<string, mixed>|\WP_Error
 	 */
-	public function intercept_slp_http( $preempt, array $parsed_args, string $url ) {
+	final public function intercept_slp_http( $preempt, array $parsed_args, string $url ) {
 		$this->slp_requests[] = [
 			'url'     => $url,
 			'body'    => \is_string( $parsed_args['body'] ?? null ) ? $parsed_args['body'] : '',
@@ -123,7 +123,7 @@ trait SlpEmbeddedTestTrait {
 	 *
 	 * @return array<int, array{url: string, body: string, headers: array<string, mixed>}>
 	 */
-	protected function slp_api_requests(): array {
+	final protected function slp_api_requests(): array {
 		return \array_values(
 			\array_filter(
 				$this->slp_requests,
@@ -138,7 +138,7 @@ trait SlpEmbeddedTestTrait {
 	 * @param string $json 回應 body
 	 * @return array<string, mixed>
 	 */
-	protected function slp_raw_json_response( string $json ): array {
+	final protected function slp_raw_json_response( string $json ): array {
 		return [
 			'headers'  => [ 'content-type' => 'application/json' ],
 			'body'     => $json,
@@ -157,7 +157,7 @@ trait SlpEmbeddedTestTrait {
 	 * @param array<string, mixed> $body 回應 body
 	 * @return array<string, mixed>
 	 */
-	protected function slp_json_response( array $body ): array {
+	final protected function slp_json_response( array $body ): array {
 		return $this->slp_raw_json_response( (string) \wp_json_encode( $body ) );
 	}
 
@@ -170,7 +170,7 @@ trait SlpEmbeddedTestTrait {
 	 * @param string      $payment_method gateway id
 	 * @return \WC_Order
 	 */
-	protected function make_slp_embedded_order(
+	final protected function make_slp_embedded_order(
 		float $total = 1000.0,
 		string $status = 'pending',
 		?string $trade_order_id = null,
@@ -205,7 +205,7 @@ trait SlpEmbeddedTestTrait {
 	 * @param int    $amount_cents       金額（cents）
 	 * @return array<string, mixed>
 	 */
-	protected function slp_payment_payload( string $trade_order_id, string $reference_order_id, string $status = 'SUCCEEDED', int $amount_cents = 100000 ): array {
+	final protected function slp_payment_payload( string $trade_order_id, string $reference_order_id, string $status = 'SUCCEEDED', int $amount_cents = 100000 ): array {
 		return [
 			'referenceOrderId' => $reference_order_id,
 			'tradeOrderId'     => $trade_order_id,

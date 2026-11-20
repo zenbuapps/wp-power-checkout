@@ -208,11 +208,14 @@ final class SlpEmbeddedGatewayTest extends TestCase {
 
 		$this->invoke_before_order_received( new EmbeddedGateway(), $order );
 
-		$data = $this->localized_data();
-		$this->assertStringContainsString( self::LOCALIZE_NAME, $data );
-		$this->assertStringContainsString( (string) \wp_json_encode( $order->get_order_key() ), $data );
-		$this->assertStringContainsString( 'pay\/' . $order->get_id() . '\/dispatch', $data );
-		$this->assertStringContainsString( 'cdn.shoplinepayments.com\/sdk\/v1\/payment-web.js', $data );
+		$this->assertSame( 1, \preg_match( '/var ' . self::LOCALIZE_NAME . ' = (\{.*?\});/s', $this->localized_data(), $matches ) );
+		$data = \json_decode( $matches[1], true );
+		$this->assertIsArray( $data );
+		$this->assertSame( $order->get_order_key(), $data['order_key'] );
+		$this->assertSame( (string) $order->get_id(), $data['order_id'] );
+		$this->assertStringContainsString( "pay/{$order->get_id()}/dispatch", $data['dispatch_url'] );
+		$this->assertSame( 'https://cdn.shoplinepayments.com/sdk/v1/payment-web.js', $data['sdk_url'] );
+		$this->assertSame( 'no', $data['awaiting_confirmation'] );
 		$this->assertSame( [], $this->slp_api_requests() );
 	}
 
