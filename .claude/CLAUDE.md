@@ -10,6 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Integrated Services:**
 - **Shopline Payment (SLP)** — Redirect-based payment (credit card, ATM, Apple Pay, LINE Pay, JKOPay, ZingalaCard)
+- **SLP Embedded** (`shopline_payment_embedded`) — Embedded payment (JS SDK + `trade/payment/create`, credit card + installment only); credentials shared with SLP redirect (`RedirectSettingsDTO`); two-phase via `/pay/{order_id}/dispatch` (init → confirm); each attempt uses a unique `referenceOrderId`; results via shared SLP webhook or order-received active query; [GAP: SLP sandbox PCI API returns `1005 No interface access permission` — end-to-end payment/refund unverified until SHOPLINE enables SDK permission on the sandbox merchant]
 - **ECPay AIO** (`ecpay_aio`) — Redirect-based payment via ECPay Cashier V5; CheckMacValue SHA256; supports credit card (one-time/installment/period), ATM, WebATM, CVS, BARCODE, ApplePay
 - **ECPay ECPG** (`ecpay_ecpg`) — Embedded payment (站內付 2.0); frontend JS SDK, AES-128-CBC, 3DS ThreeDURL; credit card only
 - **ECPay Logistics** (`ecpay_logistics`) — ECPay AllInOne Logistics v2; convenience store (FAMI/UNIMART/HILIFE) + home delivery (HOME, with temperature); B2C (2000132) + C2C (2000933) account types; COD (IsCollection) + online payment; two-phase store selection (TempTrade → CreateByTempTrade); AES-JSON callback
@@ -19,10 +20,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **PAYUNi UPP** (`payuni_upp`) — Redirect-based payment (UNiPaypage V2.0); AES-256-GCM + `hex(base64(cipher):::base64(tag))` + SHA256 HashInfo; supports credit card (one-time/installment), ATM, CVS, icash Pay, LINE Pay, JKoPay, Apple Pay, Google Pay; single NotifyURL endpoint; credit card API refund/capture/void_auth; query trade
 - **PAYUNi UNi Embed** (`payuni_uni_embed`) — Embedded payment (UNi Embed V3, iframe 站內付); AES-256-GCM (reuses PayuniCrypto); two-phase: token_get (`/api/iframe/token_get`) then merchant_trade (`/api/iframe/merchant_trade`); 3DS support; credit card only; single NotifyURL endpoint; credit card API refund/capture/void_auth; buyer token (credit_hash/credit_life) stored but never card number/CVC; parallel with payuni_upp
 - **PayNow** (`paynow`) — Embedded payment (立吉富體系 1, Component SDK v2 iframe 站內付); REST PaymentIntent + HMAC-SHA256 Webhook; supports credit card (one-time/installment), ATM, convenience store (ibon/FamiPort), LINE Pay, Apple Pay (excludes ApplePayDeferred); single NotifyURL endpoint; credit card/ATM API refund; query payment intent + refund query admin actions; capture/void_auth no-op (no corresponding endpoint); offline payment two-phase (pending → processing on payment); [GAP: sandbox PublicKey/PrivateKey pending application]
+- **Tcat Pay 黑貓PAY** (`tcat_pay`) — Redirect-style payment (統一客樂得 Kolet); sub-methods chosen at checkout (`pc_tcat_pay_method`): credit (COCS short URL redirect) / ibon CVS code / ATM virtual account (CVS-type = get-code, order stays pending); APN callback is trigger-only (checksum has no secret key) → platform query is the source of truth; credit refund via CocsOrderRefund (partial) / CocsOrderCancel (full, uncaptured); CVS/ATM no refund API; [GAP: no test credentials — only the failure path (token error note) was live-verified; capture/void/refund/APN unverified live]
+- **LINE Pay Direct** (`linepay`) — Direct Online API v4 (merchant's own Channel ID/Secret; unrelated to LINE Pay proxied by SLP/NewebPay/PAYUNi); api-redirect, auto-capture; **no webhook** → confirmUrl (browser GET) + Action Scheduler reconcile `pc_linepay_reconcile` + admin query action; refund (incl. partial) only, no capture/void; [GAP: real-person payment segment (customer login + confirm) not recorded — only request + redirect to LINE Pay sandbox page verified live]
 - **PayNow Logistics** (`paynow_logistics`) — Convenience store pickup (7-11/FAMI/HiLife) + TCAT home delivery (立吉富體系 1); TripleDES DES-EDE3 ECB encryption (JsonOrder base64(3DES(JSON)), apicode ECB+space→plus); PassCode SHA1; status push callback is unsigned → treated as trigger only, status re-fetched via Get_Order_Info (10s throttle); query/print/cancel; amount limits CVS ≤20000 / home ≤100000; idempotent ReNewOrder when existing valid shipment; create_return throws 尚未實作; [GAP: sandbox user_account/apicode pending; prod key/IV to confirm with PayNow]
+- **Tcat Logistics 黑貓宅急便直串** (`tcat_logistics`) — Home delivery only (統一速達 標準印單 API): PrintOBT create / DownloadOBT PDF / OBTStatus query (2h transient cache, E087) / ReserveAdd return; no cancel, no CVS map, no status push; [GAP: no test customer token — create/print live-unverified; test-connection uses ParsingAddress which does NOT validate credentials (`credentials_verified:false`)]
+- **HCT Logistics 新竹物流** (`hct_logistics`) — Home delivery only (EDI WebServices V15, hand-built SOAP 1.1); `WaybillNumberAllocator` mod-7 number range or HCT-assigned numbers; label image stored at create (print does not re-call API); create/cancel/return/query (searchGoods DES-CBC, 10min cache); [GAP: no HCT test account/range — official doc test credentials are actually prod; only read-only QueryEDELNO live-verified, create/cancel/return unverified]
+- **SF Express 順豐** (`sf_express`) — Home delivery only (IUOP; AES + sign + token cache); create/print (server-side PDF fetch)/query track/cancel (before pickup); signed track-push endpoint; no return/CVS; fully live-verified on the public SIT sandbox (connect → create → PDF → query → signed push); [GAP: TW→TW production eligibility/product must be confirmed with SF Taiwan account manager; push needs SF-side enablement + IP allowlist]
+- **Kerry TJ 嘉里大榮** (`kerrytj_logistics`) — Home delivery only (EDIEntrance, Basic Auth); ambient/cold waybill ranges via `WaybillNumberAllocator` (pending-BLN reuse); create/print label/query/pickup-return + Kerry-specific admin REST (update shipment, detail PDF); no cancel API, no COD; [GAP: no test account/ranges — create/print/pickup live-unverified; only settings validation + AUTH-failure ping verified]
 - **PayNow Invoice** (`paynow_invoice`) — Taiwan e-invoice B2C/B2B via PayNow (立吉富體系 3); Bearer JWT-Token auth (no symmetric encryption); issue/cancel/allowance (open+void)/query; IInvoiceService + ISupportsAllowance + ISupportsQuery; B2C tax_amount=0 / B2B actual tax; carrier/donation mutual exclusion; zero-tax requires reason; allowance_data uses `allowance_number` key (not ezPay's `allowance_no`); parallel with Amego/ECPay/ezPay, switchable from admin; [GAP: sandbox jwt_token pending application; dev env invoiceapi-dev.paynow.com.tw / prod invoiceapi-prod.paynow.com.tw]
 - **Checkout Fields** — Classic checkout custom fields (including invoice info fields)
 - **Checkout Enhancement** (`checkout_enhancement`) — Virtual provider (no gateway/provider class); 6 independent toggles, all default `no`: TW county/district dropdown (`tw_address`), TW mobile format check (`tw_phone_validation`), last-name-first (`last_name_first`), hide address fields for all-virtual cart (`virtual_hide_address`), auto-complete all-virtual orders (`virtual_auto_complete`), free-shipping hint (`free_shipping_hint`; + text/color settings). Option `woocommerce_checkout_enhancement_settings`; classic + Blocks checkout (support differs per feature, see Checkout Enhancement Flow); coexists with woomp (admin UI warns to enable only one side)
+
+**Unified provider interface (branch `feat/unified-gateway-providers`)** — every payment gateway and logistics provider declares a capability meta (`get_provider_meta()`); see Unified Provider Interface section. Existing gateways/providers were only added to, never migrated (webhooks of the original gateways do not use `WebhookPipeline`).
 
 ---
 
@@ -55,6 +64,12 @@ composer test:prod          # PHPUnit with API_MODE=prod
 vendor/bin/phpunit --filter RedirectGatewayTest
 vendor/bin/phpunit --filter "test_method_name"
 
+# Frontend pure-logic tests (Node built-in runner, no browser/WP): tests/js/*.test.ts
+pnpm test:js                # node --experimental-strip-types --test tests/js/*.test.ts
+
+# Live acceptance recording (real site + gateway/logistics sandbox; one spec at a time)
+cd tests/e2e && LIVE_ENV_FILES="<local env file>" npx playwright test --project=live-acceptance 04-live/<spec>
+
 # Release (requires .env with GITHUB_TOKEN)
 pnpm release                # Patch release (builds both Vue + Blocks, zips, GitHub release)
 pnpm release:minor          # Minor release
@@ -80,7 +95,9 @@ This plugin has **two separate frontend build pipelines**:
    - `MountEcpgPayment()` from `js/src/external/EcpgPayment/` — mounts on order-received page for ECPay ECPG embedded payment (loads SDK, triggers CreatePayment with PayToken, handles 3DS redirect)
    - `MountPayuniUniEmbed()` from `js/src/external/PayuniUniEmbed/` — mounts on order-received page for PAYUNi UNi Embed V3 (fetches SDK token, renders iframe, triggers merchant_trade, handles 3DS redirect)
    - `MountPaynowPayment()` from `js/src/external/PaynowPayment/` — mounts on order-received page for PayNow Component SDK v2 (loads CDN SDK, renders iframe, calls checkout() directly, handles 3DS; no create-payment POST; result determined by Webhook)
+   - `MountShoplineEmbedded()` from `js/src/external/ShoplineEmbedded/` — mounts on order-received page for SLP embedded payment (guards itself on `window.power_checkout_slp_embedded_data`; loads official SDK CDN, POST `/pay/{order_id}/dispatch` init → SDK `createPayment()` paySession → dispatch confirm → `payment.pay(nextAction)`; `awaiting_confirmation=yes` skips rendering the cashier to avoid double charge)
    - Stack: Vue 3 + Element Plus + TanStack Vue Query + Vue Router 4 (memory mode, `createMemoryHistory`)
+   - Error messages: `utils/error-code.ts` picks the message table by request path domain (`ERROR_DOMAIN`: `default` = payment/invoice wording; `logistics` = paths under `logistics/…`, AUTH → 「物流憑證錯誤」); pure-logic covered by `pnpm test:js`
 
 2. **React WC Blocks** (`vite.config.block.ts` → `inc/assets/dist/blocks/`)
    - WooCommerce Block Checkout payment method registration
@@ -99,7 +116,11 @@ inc/classes/
 │   │   ├── ShoplinePayment/         # SLP: redirect gateway, API client, webhook
 │   │   │   ├── Managers/StatusManager.php    # Idempotency + terminal/currency/amount guards; StatusSource label
 │   │   │   ├── Managers/ReturnSyncManager.php # Return-sync query + settle (never-throw, throttled, order_key gated)
-│   │   │   ├── Managers/OrderResolver.php     # Webhook lookup: identity → sessionId → referenceOrderId fallback + gateway check
+│   │   │   ├── Managers/OrderResolver.php     # Webhook lookup: identity → sessionId → referenceOrderId fallback + gateway check (SLP gateway whitelist: redirect + embedded; attempt-reference path via EmbeddedReference)
+│   │   │   ├── Services/EmbeddedGateway.php   # shopline_payment_embedded; implements IEmbeddedPaymentProvider (dispatch init/confirm); credentials from RedirectSettingsDTO, display settings in DTOs/EmbeddedSettingsDTO
+│   │   │   ├── Managers/EmbeddedSyncManager.php # order-received active query + settle (never-throw, throttled)
+│   │   │   ├── Shared/Helpers/EmbeddedReference.php # per-attempt referenceOrderId `{order_id}-{attempt}-{6 hex}` + history meta ownership check
+│   │   │   ├── Shared/Helpers/Requester.php   # masks apiKey/signKey/clientKey (keeps last 4) before writing WC log
 │   │   │   └── Shared/Exceptions/SignatureException.php # Distinguishes 401 (retryable) from 200 (do-not-retry)
 │   │   ├── EcpayAIO/                # ECPay AIO redirect gateway (ID: ecpay_aio)
 │   │   │   ├── Services/AioRedirectGateway.php
@@ -142,8 +163,27 @@ inc/classes/
 │   │   │   ├── DTOs/                                  # PaynowSettingsDTO, CreatePaymentIntentParams, RefundParams
 │   │   │   ├── Managers/StatusManager.php             # Status=Success/Failed; offline payment two-phase (_pc_paynow_payment_info + pending); amount guard; idempotency
 │   │   │   └── Shared/                                # Helpers (WebhookVerifier, PaynowMetaKeys, PaynowTradeNo, ItemName, PaynowBlocksIntegration), Enums (PaynowPaymentMethod, PaynowIntentStatus, PaynowRefundStatus)
-│   │   └── Shared/                  # AbstractPaymentGateway implements IPaymentProvider, PaymentApiService (REST /refund)
-│   │       └── Interfaces/IPaymentProvider.php # Payment 領域統一介面（7 methods，extends IGateway；mirrors ILogisticsProvider）
+│   │   ├── TcatPay/                 # 黑貓PAY (Kolet) gateway (ID: tcat_pay)
+│   │   │   ├── Services/TcatPayGateway.php      # AbstractPaymentGateway; sub-method field `pc_tcat_pay_method`; APN via handle_webhook(); refund/capture/void_auth/query_trade; admin action pc_tcat_pay_query_trade
+│   │   │   ├── Http/TcatPayApiClient.php        # token auth (cached) + CvsOrderAppend/Query, CocsOrderAppend/Query/Cancel/CashRequest/Refund; sandbox test.4128888card.com.tw/app, prod cocs.4128888card.com.tw
+│   │   │   ├── Http/TcatPayCallback.php         # REST power-checkout/tcat-pay/apn (plain-text `OK`/`RETRY` via rest_pre_echo_response)
+│   │   │   ├── DTOs/                            # TcatPaySettingsDTO, CvsOrderAppendParams, CocsOrderAppendParams
+│   │   │   ├── Managers/StatusManager.php       # settle_paid() only after platform query confirms; amount guard; processed-status idempotency
+│   │   │   └── Shared/                          # Helpers (TcatPayChecksum, TcatPayMetaKeys, TcatPayTradeNo, TcatPayAmountLimits, TcatPayBlocksIntegration, ItemName), Enums (TcatPayMethod, TcatPayApnStatus), Exceptions (TcatPayApiException, TcatPayRetryLaterException)
+│   │   ├── Linepay/                 # LINE Pay direct Online API v4 (ID: linepay)
+│   │   │   ├── Services/LinepayGateway.php      # AbstractPaymentGateway; confirm/cancel via handle_webhook() (browser GET); refund (partial OK); admin action pc_linepay_query_trade
+│   │   │   ├── Http/LinepayApiClient.php        # HMAC-SHA256 signed; request/check/confirm/details/refund; sandbox-api-pay.line.me / api-pay.line.me
+│   │   │   ├── Http/LinepayReturnController.php # REST power-checkout/linepay/confirm + /cancel (GET; order_id + key + LINE-appended transactionId/orderId; always 302)
+│   │   │   ├── Managers/StatusManager.php       # confirm + settle (orderId + amount snapshot guard; only transactionType=PAYMENT & payStatus=CAPTURE settles)
+│   │   │   ├── Managers/LinepayReconcileJob.php # Action Scheduler `pc_linepay_reconcile` (check status first, never confirm as a probe)
+│   │   │   └── Shared/                          # Helpers (LinepaySignature, LinepayOrderId `PCL{order}-{attempt}-{hex}`, LinepayMetaKeys), Enums (LinepayReturnCode, LinepayConfirmResult), Exceptions (LinepayApiException)
+│   │   └── Shared/                  # AbstractPaymentGateway implements IPaymentProvider, PaymentApiService (REST /refund), PaymentDispatchApiService (REST /pay/{id}/dispatch), WebhookPipeline
+│   │       ├── Interfaces/IPaymentProvider.php # Payment 領域統一介面（9 methods incl. get_provider_meta + verify_callback，extends IGateway；mirrors ILogisticsProvider）
+│   │       ├── Interfaces/IEmbeddedPaymentProvider.php # `dispatch(WC_Order, array): array` — two-phase embedded SDK contract (no pay_session = init; with = confirm)
+│   │       ├── DTOs/ProviderMetaDTO.php + PaymentCapabilitiesDTO.php # id / PaymentMode / OrderCreationStrategy / capabilities {refund, partial_refund, capture, void, query, recurring}
+│   │       ├── Enums/PaymentMode.php, OrderCreationStrategy.php, WebhookOutcome.php # form-redirect|api-redirect|client-sdk; pre-create-pending|callback-creates-order; PROCESSED/DUPLICATE/SIGNATURE_INVALID/NOT_FOUND/HANDLER_ERROR
+│   │       ├── Exceptions/DispatchException.php # business error with ErrorCode + HTTP status (400/409) surfaced by dispatch REST
+│   │       └── Services/WebhookPipeline.php # verify → resolve order → idempotency key → handler → audit log → ack (never throws)
 │   ├── Logistics/
 │   │   ├── ProviderRegister.php     # Registers logistics providers + WC shipping method + checkout meta
 │   │   ├── Ecpay/                   # ECPay AllInOne Logistics v2 (ID: ecpay_logistics)
@@ -159,11 +199,32 @@ inc/classes/
 │   │   │   ├── Http/LogisticsCallback.php   # power-checkout/paynow: logistics/selection-callback + logistics/status-callback (selection: orderid+order_key hash_equals; status: push untrusted → Get_Order_Info query; always HTTP 200)
 │   │   │   ├── DTOs/                        # PaynowLogisticsSettingsDTO (test: testlogistic.paynow.com.tw / prod: logistic.paynow.com.tw), CreateShipmentParams
 │   │   │   └── Shared/                      # Helpers (TripleDesCrypto [R2: ECB不是CBC], PassCodeService [SHA1], PaynowLogisticsMetaKeys [前綴_pc_paynow_logistics_], ItemName), Enums (PaynowLogisticService, PaynowDeliverMode, PaynowLogisticsStatus)
+│   │   ├── Tcat/                    # 黑貓宅急便直串 (ID: tcat_logistics) — HOME only
+│   │   │   ├── Services/TcatLogisticsProvider.php   # ILogisticsProvider + ISupportsConnectionTest; PrintOBT/DownloadOBT(PDF)/OBTStatus(2h cache)/ReserveAdd(return)
+│   │   │   ├── Services/WC_TcatLogisticsShipping.php
+│   │   │   ├── Http/TcatLogisticsApiClient.php      # test egs.suda.com.tw:8443 / prod api.suda.com.tw
+│   │   │   └── Shared/                              # Helpers (TcatFieldRules, TcatLogisticsDates, TcatLogisticsMetaKeys, TcatStatusMapper), Enums (TcatSpec, TcatThermosphere), Exceptions (TcatLogisticsException)
+│   │   ├── Hct/                     # 新竹物流 EDI SOAP (ID: hct_logistics) — HOME only
+│   │   │   ├── Services/HctLogisticsProvider.php    # + static register_hooks(): update_option_woocommerce_hct_logistics_settings → sync waybill range
+│   │   │   ├── Http/HctSoapClient.php + HctTrackClient.php  # hand-built SOAP 1.1 (.asmx, `_Json` methods); searchGoods track client
+│   │   │   └── Shared/                              # Helpers (HctTrackCrypto, HctStatusMapper, HctLabelImage, HctLogisticsMetaKeys), Enums (HctProductType), Exceptions (HctLogisticsException)
+│   │   ├── SfExpress/               # 順豐 IUOP (ID: sf_express) — HOME only
+│   │   │   ├── Services/SfExpressProvider.php       # create/print(PDF)/query track/cancel; handle_status_callback = signed track-push
+│   │   │   ├── Http/SfApiClient.php + SfTrackPushCallback.php  # push REST power-checkout/sf-express/track-push (registered even when disabled)
+│   │   │   ├── Managers/TrackPushManager.php + TrackStatusManager.php  # sign verify → order by event time → per-event ack; trackUniqueId idempotency
+│   │   │   └── Shared/                              # Helpers (SfCrypto, SfAccessTokenStore, SfOpcodeMapper, SfRegion, SfExpressMetaKeys), Exceptions (SfExpressException)
+│   │   ├── Kerrytj/                 # 嘉里大榮 EDIEntrance (ID: kerrytj_logistics) — HOME only
+│   │   │   ├── Services/KerrytjLogisticsProvider.php  # + static register_hooks(): settings save → sync ambient/cold ranges; extra methods update_shipment / print_detail
+│   │   │   ├── Http/KerrytjApiClient.php + KerrytjAdminApiService.php  # admin REST logistics/{id}/kerrytj/update|detail (registered only when enabled)
+│   │   │   └── Shared/                              # Helpers (KerrytjBln, KerrytjFields, KerrytjStatusMapper, KerrytjLogisticsMetaKeys), Enums (KerrytjBlnKind, KerrytjTemperature), Exceptions (KerrytjLogisticsException)
 │   │   └── Shared/
-│   │       ├── Interfaces/ILogisticsProvider.php  # 10-method interface (mirrors IInvoiceService)
-│   │       ├── Enums/                             # LogisticsSubType, LogisticsAccountType, LogisticsTemperature, LogisticsPaymentScenario, LogisticsStatus
+│   │       ├── Interfaces/ILogisticsProvider.php  # 11-method interface incl. get_provider_meta (mirrors IInvoiceService)
+│   │       ├── Interfaces/ISupportsConnectionTest.php  # optional `test_connection(): array` (read-only API; not implemented → ping 501)
+│   │       ├── Interfaces/IWaybillNumberFormat.php + Helpers/Mod7CheckDigitFormat.php, PlainSerialFormat.php
+│   │       ├── DTOs/LogisticsProviderMetaDTO.php + ShipmentCapabilitiesDTO.php  # id / supported_delivery_methods / capabilities {can_create_shipment, can_query_shipment, has_cvs_map, can_print, can_return, can_cancel}
+│   │       ├── Enums/                             # LogisticsSubType, LogisticsAccountType, LogisticsTemperature, LogisticsPaymentScenario, LogisticsStatus (ECPay raw), DeliveryMethod (HOME|CVS), ShippingState (11 unified states; new providers return `unified_state`)
 │   │       ├── Helpers/LogisticsMetaKeys.php       # Order meta CRUD helper (HPOS-aware)
-│   │       └── Services/LogisticsApiService.php    # REST power-checkout/v1 (5 endpoints); PROVIDER_IDS includes paynow_logistics
+│   │       └── Services/                          # LogisticsApiService (REST power-checkout/v1; PROVIDER_IDS = 7 ids), LogisticsPingApiService (POST logistics/{provider}/ping), WaybillNumberAllocator (atomic range allocator), CartLogisticsApiService
 │   ├── Invoice/
 │   │   ├── ProviderRegister.php     # Registers invoice providers + auto-issue hooks
 │   │   ├── Amego/                   # AmegoProvider (IInvoiceService), API client, DTOs
@@ -268,7 +329,11 @@ Frontend access: always use `utils/env.ts`, never read `window` directly.
 - API mode: controlled by `API_MODE` env var (`mock` / `sandbox` / `prod`)
 - Pure-logic offline verification (no WP bootstrap): `tests/offline/ezpay-pure-harness.php` — used when LocalWP DB constraints prevent `WP_UnitTestCase` from running locally
 - Legacy directory `inc/tests/` exists but is **not** referenced by `phpunit.xml.dist`; treat as inactive
-- E2E tests: `tests/e2e/` (Playwright) with separate `package.json` — admin, frontend, integration suites
+- E2E tests: `tests/e2e/` (Playwright) with separate `package.json` — admin, frontend, integration suites (project `api-tests`; `04-live/**` is ignored by it)
+- **Live acceptance** (`tests/e2e/04-live/*.spec.ts`, Playwright project `live-acceptance`): real site + gateway/logistics sandbox with recorded video/trace; specs `slp-embedded` / `linepay` / `tcat-pay` / `tcat-logistics` / `hct` / `sf-express` / `kerrytj-settings`. Run one spec at a time: `cd tests/e2e && LIVE_ENV_FILES="<local env file(s), ';'-separated>" npx playwright test --project=live-acceptance 04-live/<spec>`. Headed Chrome (`LIVE_BROWSER_CHANNEL`, default `chrome`; headless is often blocked by WAF / cashier anti-automation), no admin storageState (guest checkout; admin steps log in inside the spec), no extra `X-WP-Nonce` header (an empty nonce makes WP answer 403 `rest_cookie_invalid_nonce` to guest `order_key` REST such as dispatch). Credentials come **only** from env vars / a local untracked env file parsed by `helpers/live-env.ts` (`.env.*` and `.tmp/` are gitignored); a spec skips with the list of missing key names; nothing credential-like is committed. Videos land in `tests/e2e/acceptance-videos/` (gitignored). `E2E_BASE_URL` overrides the site; `PC_LIVE_ACCEPTANCE=1` marks a live run (global setup/teardown skipped). SF Express uses the official public SIT credentials parsed at run time; `LIVE_LINEPAY_MANUAL=1` pauses at the LINE Pay page for a real person
+- Baseline at the last full mock run (3055 tests): 4 pre-existing failures (`EzpayAesCrypto` edge + `LinePayTest` ×3, the SLP-proxied LINE Pay tests); PHPStan baseline only `RedirectSettingsDTO.php:148 isset.property`
+- **Frontend pure-logic tests**: `tests/js/*.test.ts`, run with `pnpm test:js` (Node built-in `node:test` + `--experimental-strip-types`; no browser, no WP) — currently `utils/error-code.ts` domain-aware message tables
+- Provider test filters (mock mode): `SlpEmbedded|SlpOrderResolver|SlpWebhookResponse|SlpReturnSync|SlpSessionIdentity`, `LinepayDirect`, `TcatPay`, `TcatLogistics|WC_TcatLogisticsShipping`, `Hct`, `Sf(Crypto|AccessTokenStore|Express|TrackPush|Region)`, `Kerrytj`, `LogisticsPingStatusCode` (see `specs/plan/2026-11-20-acceptance-report.md` §10 for the last run)
 
 ---
 
@@ -290,6 +355,11 @@ Frontend access: always use `utils/env.ts`, never read `window` directly.
 | `power-checkout/v1` | POST | `/logistics/{order_id}/print` | Nonce |
 | `power-checkout/v1` | POST | `/logistics/{order_id}/cancel` | Nonce |
 | `power-checkout/v1` | POST | `/logistics/{order_id}/return` | Nonce |
+| `power-checkout/v1` | GET | `/logistics/providers/meta` | Nonce — enabled providers' `LogisticsProviderMetaDTO::to_array()` keyed by id |
+| `power-checkout/v1` | POST | `/logistics/{provider}/ping` | Nonce — connection test (`ISupportsConnectionTest`); always registered (no provider needs to be enabled); unknown provider 404, not implemented 501, VALIDATION 422, other failures **424** (never 5xx) |
+| `power-checkout/v1` | POST | `/logistics/{order_id}/kerrytj/update` | Nonce — Kerry TJ update shipment (registered only when `kerrytj_logistics` enabled) |
+| `power-checkout/v1` | POST | `/logistics/{order_id}/kerrytj/detail` | Nonce — Kerry TJ detail PDF (same condition) |
+| `power-checkout/v1` | POST | `/pay/{order_id}/dispatch` | `__return_true`; body `order_key` `hash_equals` (anti-IDOR) — embedded provider two-phase dispatch |
 | `power-checkout/slp` | POST | `/webhook` | HMAC-SHA256 (signature mismatch → 401; everything else → 200, never 500) |
 | `power-checkout/ecpay` | POST | `/aio/return` | CheckMacValue SHA256 |
 | `power-checkout/ecpay` | POST | `/aio/payment-info` | CheckMacValue SHA256 |
@@ -303,9 +373,50 @@ Frontend access: always use `utils/env.ts`, never read `window` directly.
 | `power-checkout/paynow` | POST | `/notify` | HMAC-SHA256 raw body (`X-Payment-Center-Hmac-Sha256`, verified inside; always HTTP 200) |
 | `power-checkout/paynow` | POST | `/logistics/selection-callback` | returnUrl carries `orderid` + `cid`=order_key; both required + `hash_equals` (anti-IDOR) |
 | `power-checkout/paynow` | POST | `/logistics/status-callback` | open; push untrusted → server-side Get_Order_Info query is source of truth (10s throttle; always HTTP 200) |
+| `power-checkout/tcat-pay` | POST | `/apn` | checksum (no secret → trigger only) + platform query confirms; plain-text `OK` (200) / `RETRY` (503 → platform resends in 15 min) |
+| `power-checkout/linepay` | GET | `/confirm` | browser return: `order_id` + `key` (order_key `hash_equals`) + `transactionId` + `orderId` must all match order meta; always 302 |
+| `power-checkout/linepay` | GET | `/cancel` | same verification (transactionId/orderId optional on cancel); always 302 |
+| `power-checkout/sf-express` | POST | `/track-push` | header `sign` = Base64(MD5(key+body+key)) over raw body; no push key configured → whole batch rejected; HTTP always 200 + SF-format ack |
+
+`GET /settings` additionally returns `data.provider_meta.{payments,logistics}` (id → meta array) (intended for Vue to hide unsupported buttons; not consumed by any page yet).
 
 Nonce auth requires `X-WP-Nonce` header (`wp_create_nonce('wp_rest')`).
 ECPay callbacks use `permission_callback: __return_true`; auth is verified inside callback.
+
+---
+
+## Unified Provider Interface
+
+### Payment
+
+- `IPaymentProvider::get_provider_meta(): ProviderMetaDTO` — `AbstractPaymentGateway` supplies a conservative default (`form-redirect` / `pre-create-pending`, capabilities derived by reflection: only a gateway that **overrides** `process_refund` / `capture` / `void_auth` / `query_trade` can declare the capability true — method-level, admin-order-action-only abilities do not count). Gateways declare their real `PaymentMode` by overriding. All gateways are `PRE_CREATE_PENDING` (WC creates the pending order before `process_payment`)
+- `GET /settings` exposes the metas under `data.provider_meta.payments`
+- **Unified webhook frame** (`WebhookPipeline`, used via `AbstractPaymentGateway::handle_webhook()` — final): `verify_callback()` → `resolve_callback_order()` → `get_callback_idempotency_key()` → `process_callback()` → audit log (provider / outcome / key / elapsed; **never the body**) → `callback_ack_response()`. Always acks, never throws; idempotency key goes to order meta `_pc_callback_processed` (latest 50) **only after the handler succeeds**, so a handler exception lets the provider resend. `verify_callback()` defaults to **fail-closed** (`false`). `WebhookOutcome` tells the ack hook what happened. Used only by `tcat_pay` and `linepay`; every other gateway (including SLP embedded, which shares the SLP webhook) keeps its own callback. Gateways whose key would let a forged request pre-poison idempotency (tcat_pay, linepay) override the key to `''` and keep idempotency in their own `StatusManager`
+- **Embedded dispatch** (`IEmbeddedPaymentProvider`, REST `POST /pay/{order_id}/dispatch`): check order → 404; `order_key` `hash_equals` → 403; gateway must implement `IEmbeddedPaymentProvider` → 400 `UNSUPPORTED`; `needs_payment()` → 409; then `dispatch()` (payload = body minus `order_id`/`order_key`; no `pay_session` = init, with = confirm). `DispatchException` → its own ErrorCode/HTTP (400/409, message is user-safe); any other `\Throwable` → 500 generic message (detail only in log). Currently implemented by `shopline_payment_embedded` only
+
+### Logistics
+
+- `ILogisticsProvider::get_provider_meta(): LogisticsProviderMetaDTO` — `supported_delivery_methods` (`DeliveryMethod::HOME|CVS`) + `ShipmentCapabilitiesDTO`. `LogisticsApiService` checks capability **before** calling the provider: declared `false` → HTTP **501** + `error_code UNSUPPORTED`. **Exempt (keep legacy status codes)**: `ecpay_logistics`, `payuni_logistics`, `paynow_logistics` (`CAPABILITY_CHECK_EXEMPT_IDS`). All 4 new providers are checked
+- Provider id resolution list `LogisticsApiService::PROVIDER_IDS` (7 ids; new ones last so they never win when the request carries no provider param) is extensible via filter `power_checkout_logistics_provider_ids`
+- Errors carrying a normalized `ErrorCode` (new providers' exceptions: `error_code` / `raw_code`) map via `ErrorCode::to_http_status()`, except provider-side `502` is rewritten to **424 Failed Dependency** (Cloudflare etc. replace origin 5xx bodies, hiding the diagnostic message); `UNSUPPORTED` → 501. **Known gap**: other (legacy-style) failure paths in `LogisticsApiService` may still surface 502
+- `ShippingState` (11 values: pending / accepted / in_transit / arrived / ready_for_pickup / picked_up / delivered / returned / failed / expired_unclaimed / cancelled; `is_terminal()`): new providers return `unified_state` from `query_shipment()` alongside their raw status; `LogisticsStatus` (ECPay raw) is untouched
+- `ISupportsConnectionTest::test_connection()`: read-only API ping, **never writes data**, returns a credential-free summary; used by `POST /logistics/{provider}/ping`. Implemented by tcat_logistics / hct_logistics / sf_express / kerrytj_logistics
+- `WaybillNumberAllocator` (HCT, Kerry TJ): number ranges kept in options `pc_waybill_range_{key}` / `pc_waybill_current_{key}` (autoload no). Allocation is **one atomic SQL** (`UPDATE … SET option_value = LAST_INSERT_ID(value + 1) WHERE value < end`, then `SELECT LAST_INSERT_ID()`), no read-then-write; a number once issued is never reclaimed (also after API timeout, avoiding duplicate waybills); `sync_range()` keeps the current counter if still inside the new range; number format injected via `IWaybillNumberFormat` (`Mod7CheckDigitFormat`, `PlainSerialFormat`)
+
+---
+
+## SLP Embedded Payment Flow (shopline_payment_embedded)
+
+1. `before_process_payment()` only writes `_pc_slp_embedded_pending` and returns the order-received URL (no API call)
+2. `before_order_received()` (order_key verified + `needs_payment()`): `EmbeddedSyncManager::sync()` active query first (30s throttle, never-throw; tradeOrderId only from server-side `_pc_payment_identity`, **never `$_GET`**); then, if still unpaid and credentials present, localizes `power_checkout_slp_embedded_data` (dispatch URL, order_key, SDK URL, `awaiting_confirmation`)
+3. Frontend → dispatch **init**: returns SDK params (clientKey/merchantId/amount in cents computed server-side/env/installmentCounts); dispatch **confirm** (`pay_session` ≤ 10240 bytes, non-empty string) → `trade/payment/create` → returns `next_action` verbatim; no `nextAction` in response = creation failed (note + 500, front end must not call `pay()`)
+4. Guards: confirm lock transient `pc_slp_emb_lock_{order_id}` (30s, 409 on double click); `needs_payment()` re-check (stale tab); SLP `1001`/`1006` duplicate-order → 409
+5. **Per-attempt `referenceOrderId`** (`EmbeddedReference`): `{order_id}-{attempt}-{6 hex}` (≤ 32 chars). SLP rejects reusing a `referenceOrderId` (`1001`), so each confirm generates a new one and **writes it to `_pc_slp_reference_history` before calling the API** (SLP may create the trade even if we time out). Ownership rule: a new-format reference belongs to an order only if the ID embedded equals the order ID **and** it exists in that order's history meta (server-written only; attempt numbers being guessable is harmless); legacy reference rules stay for pre-upgrade trades. `OrderResolver` and `EmbeddedSyncManager` both apply it
+6. Result: shared `/power-checkout/slp/webhook` (SLP webhook rules unchanged) or the order-received active query → shared `StatusManager` (four guards). `OrderResolver` gateway check is now a whitelist (redirect + embedded)
+7. Currency must be TWD; credentials = `RedirectSettingsDTO` (merchantId / apiKey / clientKey / signKey / mode) — storefront `is_available()` is false unless currency is TWD and merchantId / apiKey / clientKey are all set. `Requester` masks `apiKey` / `signKey` / `clientKey` (last 4 chars kept, recursive, case-insensitive keys) before writing WC logs
+8. Refund: gateway overrides `process_refund` / `process_gateway_refund`, failure path via `fail_gateway_refund()`
+
+[GAP: SLP sandbox PCI API (`bin/query`, `token/generate`) answers `1005 No interface access permission` even in a minimal HTML with the official SDK → card form renders and confirm succeeds, but `pay()` cannot complete; processing/refund path unverified live until SHOPLINE grants SDK permission to the sandbox merchant; mock tests cover it]
 
 ---
 
@@ -476,6 +587,33 @@ Encryption/auth: **HMAC-SHA256** only; `WebhookVerifier` is standalone (does not
 
 ---
 
+## Tcat Pay Payment Flow (tcat_pay)
+
+1. Checkout sub-method (`pc_tcat_pay_method`: `credit` / `cvs_ibon` / `atm`; classic `payment_fields()` + Blocks `TcatPayBlocksIntegration` `onPaymentSetup`) validated against enabled list (whitelist) and per-method amount limit (`TcatPayAmountLimits`: defaults credit 100000 / ibon 20000 / ATM 49999, per-site override) in `validate_fields()` and again in `before_process_payment()`. Sub-method fixes the CVS acquirer combination (ibon = payment_type 0 + acquirer 2; ATM = 1 + 3) so platform-rejected combos cannot be built
+2. `before_process_payment()`: new `cust_order_no` per attempt (`PCT{order_id}-{5 chars}`, ≤25; platform keeps it unique forever → retry must use a new number; history kept in `_pc_tcat_pay_trade_no_history` for APN lookup) + charge-amount snapshot → `CocsOrderAppend` → redirect to returned card URL; or `CvsOrderAppend` → store `_pc_tcat_pay_payment_info` → order-received shows code/account, order stays pending
+3. **Payment result = platform query only (R1)**: APN has a checksum but no secret, so it is a *trigger*. `settle_paid()` runs only when `CocsOrderQuery` / `CvsOrderQuery` reports paid `process_code` (explicit lists: CVS 4/7/8, COCS 15/20/21/22 — never `>=`) **and** platform amount (CVS `pay_amount`, COCS `order_amount`) equals the snapshot (and notified amount if present); mismatch → note only
+4. Three confirmation paths: (a) APN (`handle_webhook` frame): checksum → order by `order_no` (current + history) → only paid-trigger statuses (CVS B/E; COCS B/O/E) query the platform (10s per-order throttle); non-paid statuses only leave an order note → ack plain-text `OK`; query failure / throttled → `TcatPayRetryLaterException` → 503 `RETRY` so the platform resends in 15 min; (b) COCS browser return (`chk` hash_base + `cust_order_no` owned by order → query); (c) admin action `pc_tcat_pay_query_trade`
+5. Idempotency: framework key disabled (`''`); `_pc_tcat_pay_processed_status` (`"{trade_no}:{status}"`) written only when actually processed, so a forged APN cannot pre-poison it. Overdue CVS is never auto-cancelled
+6. Refund (credit only; CVS/ATM → `UNSUPPORTED`, no API): by platform `process_code` — `>=20` (captured) → `CocsOrderRefund` (partial OK); `15` (authorized, uncaptured) → `CocsOrderCancel` (**full amount only**); other → `UNSUPPORTED`. Failure → `fail_gateway_refund()`. `capture()` = `CocsCashRequest`, `void_auth()` = `CocsOrderCancel` (methods exist for capability declaration; only the query admin action is wired to the order screen). No continuous/recurring collection
+7. Environments: sandbox `https://test.4128888card.com.tw/app` / prod `https://cocs.4128888card.com.tw`; test mode `mode=test`
+
+[GAP: no 黑貓PAY test credentials. Live-verified only the failure path (placeholder credentials → token error note, checkout error shown, no leak to customer); credit/CVS/ATM create, APN, refund, capture, void unverified live — covered by mock tests]
+
+---
+
+## LINE Pay Direct Payment Flow (linepay)
+
+1. `process_payment` → `POST /v4/payments/request` (amount from the order on the backend; `orderId` = `PCL{order_id}-{attempt}-{6 hex}`; `confirmUrl` / `cancelUrl` = REST `power-checkout/linepay/{confirm|cancel}?order_id=&key=`; param names deliberately avoid `orderId` / `transactionId` because LINE Pay appends those) → store `_pc_linepay_transaction_id` (19-digit **string**), amount snapshot, request time → schedule AS `pc_linepay_reconcile` → redirect `info.paymentUrl.web`
+2. Customer authenticates → browser GET confirmUrl → `handle_webhook()` frame: `verify_callback` (order exists + `order_key` `hash_equals` + `transactionId` and `orderId` both `hash_equals` to meta; cancel path: those two optional but must match when present) → `StatusManager::confirm()` → 302 to order-received (always 302, also on failure)
+3. Settle rules: confirm `0000` → `settle()` guards `orderId` + `payInfo` amount equal to snapshot, then `payment_complete(transactionId)`; `1172` / `1198` (already confirmed) → query payment details and settle only when `transactionType=PAYMENT` **and** `payStatus=CAPTURE`; `1180` → expired note; others → failure note; already paid / refunded / cancelled orders are never re-settled and trigger no API call. Framework idempotency key disabled (GET has no body; a refresh after a timeout must still be able to confirm)
+4. **No webhook**: if the customer authenticates then closes the browser, confirm is never called → `LinepayReconcileJob` (AS hook `pc_linepay_reconcile`, group `power_checkout`, delay default 300s, filter `power_checkout_linepay_reconcile_delay`, floor 60s). It **checks request status first** (never use confirm as a probe: confirming an unauthenticated request returns `1169` and voids the whole request): `0110` authenticated → confirm; `0123` completed → details → settle; `0000` not yet authenticated → re-schedule (`pending_round`+1, up to `MAX_PENDING_ROUNDS` 10 or the 1200s request expiry); `0121`/`0122` → note only, no status change, no reschedule; query failure → one retry at +600s, then give up with a note. No-op unless order is LINE Pay, still pending/failed/on-hold, and has a transactionId
+5. Refund: `/v4/payments/{id}/refund` with explicit `refundAmount` (partial OK); no capture/void (auto-capture). Admin action `pc_linepay_query_trade` runs the same reconcile logic manually (non-settling states leave a note)
+6. Environments: sandbox `https://sandbox-api-pay.line.me` / prod `https://api-pay.line.me`; HMAC-SHA256 request signing with Channel Secret
+
+[GAP: real-person payment segment (customer login, authentication, confirm → processing → refund) not recorded live — requires a real LINE sandbox account (spec supports `LIVE_LINEPAY_MANUAL=1` pause); live-verified only: request success → redirect to the sandbox pay page. Mock tests cover confirm/reconcile/refund]
+
+---
+
 ## ECPay Logistics Flow (ecpay_logistics)
 
 ### Three-phase store selection (convenience store)
@@ -562,6 +700,51 @@ PayNow POSTs to `/wp-json/power-checkout/paynow/logistics/status-callback` (Form
 | 逆物流 (`create_return`) | throw `\Exception('尚未實作')` | [GAP: no woomp evidence] |
 
 [GAP: sandbox user_account/apicode not yet applied; prod key/IV to confirm with PayNow; official logistics API document pending verification]
+
+---
+
+## Direct Logistics Providers (tcat_logistics / hct_logistics / sf_express / kerrytj_logistics)
+
+Shared traits of the 4 new providers: HOME delivery only (`has_cvs_map=false`; `get_store_selection` / `parse_store_selection` → `UNSUPPORTED`, REST layer returns 501 from the capability check); each has its own meta prefix `_pc_{provider_id}_*` (never `_pc_logistics_*`); each registers a `WC_*Shipping` classic shipping method (`METHOD_ID` = provider id) and writes checkout meta only when its method is the chosen one; every failure `throw`s a provider exception carrying a normalized `ErrorCode` + raw provider code (create/cancel/return failures also leave an order note); `query_shipment()` returns raw status + `unified_state` (`ShippingState`); no background polling (ASM-7); `test_connection()` is read-only. Capability matrix:
+
+| Provider | create | query | print | cancel | return | status push |
+|---|---|---|---|---|---|---|
+| `tcat_logistics` | PrintOBT | OBTStatus | PDF (DownloadOBT) | no | ReserveAdd | none (callback = 200 no-op) |
+| `hct_logistics` | TransData_Json | searchGoods | stored label image → HTML | yes | R_TransData_Json | none |
+| `sf_express` | IUOP_CREATE_ORDER | IUOP_QUERY_TRACK | PDF (server-side fetch) | yes (pre-pickup) | no | signed `track-push` |
+| `kerrytj_logistics` | ShipmentDelivery | BLNListTracing / ColdBLNListTracing | label PDF | no | PickupV2 | none |
+
+### tcat_logistics (統一速達 黑貓宅急便標準印單 API)
+- `create_shipment`: system allocates the waybill; existing `_pc_tcat_logistics_ref` → idempotent return (no re-allocation); stores FileNo (valid 24h → `print_document` DownloadOBT, `application/pdf` via REST `%PDF` detection)
+- `query_shipment`: same waybill may be queried only once per 2h (`E087`) → 2h transient cache (`pc_tcat_logistics_status_*`, response `cached=true`); `E077` (not collected yet) → pending; raw `StatusId` → `ShippingState`
+- `create_return` = ReserveAdd: recipient = store (sender settings), sender = customer; TakeDate D+1..D+7, 16:30 cutoff. Fields validated by `TcatFieldRules`; no 7-11 B2S / map (needs 黑貓PAY token)
+- `test_connection` uses ParsingAddress (read-only) which **does not validate customer id / token**; response carries `credentials_verified:false` and the settings page tells the admin so
+- Environments: test `https://egs.suda.com.tw:8443/api/Egs` / prod `https://api.suda.com.tw/api/Egs`
+- [GAP: no test customer token → create / print / return live-unverified (mock tests only)]
+
+### hct_logistics (新竹物流 EDI WebServices V15, SOAP)
+- `HctSoapClient` hand-builds SOAP 1.1 (`.asmx`; JSON string in `<json>`, params company / password / json; SOAPAction without trailing slash); do not use `\SoapClient`
+- `create_shipment`: if waybill range configured → `WaybillNumberAllocator` (key `hct_logistics`, `Mod7CheckDigitFormat`) allocates `edelno` atomically, else HCT assigns; ref/arrival station/label image (hex → base64) stored; existing ref → idempotent; numbers never reclaimed. Range options synced on settings save (`update_option_woocommerce_hct_logistics_settings`, registered even when disabled)
+- `print_document` returns the **stored** label (re-calling TransData would be an "amend" write); `query_shipment` degrades to `pending` (no API call) when track parameters are not set, else searchGoods (DES-CBC via `HctTrackCrypto`), 10-min cache (HCT maintenance window 03:40–04:30 daily)
+- Environments: test `https://hctrt.hct.com.tw/edi_webservice2_test/service1.asmx` / prod `.../edi_webservice2/service1.asmx`; `test_connection` = QueryEDELNO_Json on a non-existent order number
+- [GAP: no HCT test account / test range. The credentials in HCT's official document are actually **production** ones (test endpoint rejects them with "請勿使用正式公司名稱或密碼"). Live-verified only read-only QueryEDELNO on prod; create / cancel / return / track unverified]
+
+### sf_express (順豐 IUOP)
+- Auth: token via `SfAccessTokenStore` (cached); dispatch payload AES-256-CBC with self-implemented PKCS7 **block=32** (key from `encoding_aes_key`, IV = key[0:16], ciphertext tail must equal appKey else treated as tampering) + sha256 signature; push `sign` is a separate scheme (`SfCrypto`); environments SIT `https://api-ifsp-sit.sf.global` / prod `https://api-ifsp.sf.global`
+- `create_shipment`: `ref` = `sfWaybillNo` (push lookup key); existing ref → idempotent; error `123052` (duplicate customer order no, possibly a timed-out earlier success) → `IUOP_QUERY_ORDER`, adopt only if the **recipient mobile matches** (fail-closed). `print_document` fetches the PDF server-side (label URL is unauthenticated and contains PII → never stored, never sent to the browser)
+- `cancel_shipment`: IUOP_CANCEL_ORDER only before SF accepts; locally known accepted-or-later state → `CONFLICT` without an API call; success clears ref (SF renames the cancelled order `{no}_CANCEL_{ts}`, so re-create is possible); kept in `_pc_sf_express_cancelled_ref`
+- **Track push** `POST power-checkout/sf-express/track-push` (registered unconditionally so in-flight parcels keep updating after the provider is switched off): no push key set → whole batch rejected (fail-closed); verify `sign` on the **raw body** before parsing anything; events applied in event-time order (older "in transit" must not overwrite newer "signed"); per-event dedupe by `trackUniqueId` (fallback `{sfWaybillNo}:{opCode}:{localTm}`, 50 kept); unknown order/opCode/missing waybill → per-event `0` (resending cannot change it); our transient `\Throwable` → per-event `1` (SF resends); HTTP always 200 with SF-format ack
+- `test_connection`: token + encryption + signature + `IUOP_QUERY_TRACK` on a non-existent waybill (read-only), returns `customer_code_verified:false`, `push_key_configured`
+- Settings page warns **TW→TW production eligibility / product code must be confirmed with SF Taiwan account manager** (R12) and shows the push URL to hand to SF
+- Live status: fully verified on the public SIT sandbox (credentials are the official public test set, parsed at run time, never copied into the repo). [GAP: production TW→TW eligibility; push needs SF-side enablement + SF push IP allowlist; SIT test waybills cannot be cancelled once pushed]
+
+### kerrytj_logistics (嘉里大榮 EDIEntrance)
+- Auth: HTTP Basic (`username` / `password` / `customer_no`); test `https://api.kerrytj.com/EDIEntranceTest` / prod `.../EDIEntrance`; tracing `https://KerryTracingEDI.kerrytj.com/api/Tracing`
+- Waybill (BLN) ranges: ambient 11-digit / cold 9-digit serial or 10-digit with check digit (`KerrytjBln`; validated on save with specific messages); allocator key `kerrytj_logistics_{mode}_{ambient|cold}` (test machine progress does not eat the prod range); ranges synced on settings save (registered even when disabled)
+- `create_shipment`: temperature (checkout meta → setting default) selects the range; the allocated BLN is **stored on the order as pending BEFORE the API call** so a retry reuses it; a "duplicate waybill" reply for a reused pending BLN is treated as success (the earlier, probably timed-out call had succeeded); stores ref, 34-field snapshot (basis for label/update), station
+- Kerry-specific: `update_shipment` (UpdateShipmentDelivery; same BLN/date/temperature rebuilt from current order address; refused with `CONFLICT` once status is no longer pending) and `print_detail` (GetDetailPdf) via admin REST `logistics/{id}/kerrytj/update|detail`; return = PickupV2 (ambient range, same pending-BLN reuse)
+- No cancel API (spec and Help Page have none), **no COD** (wrong collection amount = over/under-charging the customer). `test_connection` = UpdateShipmentDelivery with an empty array (validates Basic Auth, writes nothing)
+- [GAP: no test account / BLN ranges from Kerry → create / label / pickup / track live-unverified; live-verified only range validation, range remaining-count display, and AUTH-failure ping (424 `AUTH` / raw `401`)]
 
 ---
 
@@ -723,6 +906,29 @@ Existing TW display format (`DefaultSetting::modify_tw_address_formats`) stays a
 | `_pc_paynow_logistics_delivery_type` | TCAT temperature tier (DeliveryType) |
 | `_pc_paynow_logistics_collection_paid` | COD pickup-complete flag (`yes`) |
 | `_pc_paynow_logistics_processed_status` | Idempotency guard array — elements: `"{OrderNo}:{LogisticCode}"` |
+| `_pc_callback_processed` | Unified webhook frame idempotency keys (array, latest 50; written only after handler success) — `tcat_pay` / `linepay` path |
+| `_pc_slp_embedded_pending` | SLP embedded: `process_payment` ran, order-received should mount the SDK |
+| `_pc_slp_reference_history` | SLP embedded: every per-attempt `referenceOrderId` sent (`{order_id}-{attempt}-{6 hex}`), written **before** the API call; ownership key for webhook / sync (server-written only) |
+| `_pc_tcat_pay_trade_no` | 黑貓PAY `cust_order_no` of the latest attempt (`PCT{order_id}-{5 chars}`) |
+| `_pc_tcat_pay_trade_no_history` | Every `cust_order_no` ever sent (APN / return lookup; platform numbers are permanently unique) |
+| `_pc_tcat_pay_method` | Sub-method: `credit` / `cvs_ibon` / `atm` (refund routing: CVS-type has no refund API) |
+| `_pc_tcat_pay_charge_amount` | Amount snapshot sent to the platform (amount guard baseline; refund/capture amounts) |
+| `_pc_tcat_pay_payment_url` | COCS card page short URL |
+| `_pc_tcat_pay_payment_info` | CVS/ATM get-code info for the thank-you page |
+| `_pc_tcat_pay_payment_detail` | Platform-confirmed payment detail |
+| `_pc_tcat_pay_processed_status` | Idempotency array — `"{trade_no}:{status}"`, written only when actually processed |
+| `_pc_linepay_transaction_id` | LINE Pay transactionId (19-digit string — never cast to int) |
+| `_pc_linepay_order_id` | LINE Pay orderId of the latest attempt (`PCL{order_id}-{attempt}-{6 hex}`) |
+| `_pc_linepay_attempt` | Attempt counter |
+| `_pc_linepay_charge_amount` | Amount snapshot used by confirm and the amount guard |
+| `_pc_linepay_payment_url` | `paymentUrl.web` |
+| `_pc_linepay_requested_at` | Payment request time (reconcile stops at the 1200s request expiry) |
+| `_pc_linepay_payment_detail` | Payment detail after settle |
+| `_pc_linepay_refund_detail` | Refund detail |
+| `_pc_tcat_logistics_provider_id` / `_thermosphere` / `_ref` / `_file_no` / `_file_no_created_at` / `_status` / `_status_name` / `_unified_state` / `_return_ref` | 黑貓宅急便 (waybill ref, 24h FileNo for DownloadOBT, raw + unified state, ReserveAdd return ref); prefix `_pc_tcat_logistics_` |
+| `_pc_hct_logistics_provider_id` / `_product_type` / `_ref` (edelno) / `_epino` / `_esdate` / `_arrival_station` / `_label` / `_status` / `_status_name` / `_unified_state` / `_status_time` / `_return_ref` | 新竹物流; prefix `_pc_hct_logistics_`; `_label` = stored label image used by print |
+| `_pc_sf_express_provider_id` / `_ref` (sfWaybillNo) / `_customer_order_no` / `_cancelled_ref` / `_status` / `_status_name` / `_unified_state` / `_status_time` / `_status_ts` / `_processed_tracks` | 順豐; prefix `_pc_sf_express_`; `_status_ts` = latest applied event time (out-of-order guard); `_processed_tracks` = `trackUniqueId` dedupe (latest 50) |
+| `_pc_kerrytj_logistics_provider_id` / `_temperature` / `_pending_bln` / `_ref` (BLN) / `_mode` / `_shipment` / `_station` / `_status` / `_status_name` / `_unified_state` / `_status_time` / `_return_pending_bln` / `_return_ref` | 嘉里大榮; prefix `_pc_kerrytj_logistics_`; `_pending_bln` = BLN allocated and stored before the API call (retry reuses it); `_shipment` = 34-field create snapshot |
 
 ---
 
@@ -730,7 +936,7 @@ Existing TW display format (`DefaultSetting::modify_tw_address_formats`) stays a
 
 | Hook | Purpose |
 |---|---|
-| `woocommerce_payment_gateways` | Inject SLP / ECPay AIO / ECPay ECPG / NewebPay MPG / PAYUNi UPP / PAYUNi UNi Embed / PayNow gateways |
+| `woocommerce_payment_gateways` | Inject SLP (redirect + embedded) / ECPay AIO / ECPay ECPG / NewebPay MPG / PAYUNi UPP / PAYUNi UNi Embed / PayNow / 黑貓PAY / LINE Pay gateways |
 | `before_woocommerce_init` | Declare HPOS + Blocks compatibility |
 | `wc_payment_gateways_initialized` | Populate ProviderUtils::$container |
 | `woocommerce_order_status_{status}` | Auto issue/void invoices |
@@ -744,9 +950,14 @@ Existing TW display format (`DefaultSetting::modify_tw_address_formats`) stays a
 | `woocommerce_cart_totals_before_shipping` / `woocommerce_review_order_before_shipping` | Classic free-shipping hint row |
 | `woocommerce_blocks_loaded` | Register Store API cart extension `power-checkout.free_shipping_hint` |
 | `wp_head` (p1000) | Print CSS hiding the Blocks country field for all-virtual carts |
-| `woocommerce_shipping_methods` | Register WC_EcpayLogisticsShipping + WC_PaynowLogisticsShipping (classic checkout shipping methods) |
+| `woocommerce_shipping_methods` | Register all logistics `WC_*Shipping` classes (ECPay / PAYUNi / PayNow / Tcat / HCT / SF Express / Kerry TJ; classic checkout shipping methods) |
 | `woocommerce_checkout_create_order` | Write logistics sub_type + payment_scenario meta from checkout |
-| `rest_api_init` | Register logistics status-callback + selection-callback endpoints |
+| `rest_api_init` | Register logistics status-callback + selection-callback endpoints; `PaymentDispatchApiService` (`/pay/{id}/dispatch`); `LogisticsPingApiService` (`/logistics/{provider}/ping`); unconditional `tcat-pay/apn`, `linepay/confirm` + `linepay/cancel`, `sf-express/track-push`; Kerry admin REST when enabled |
+| `pc_linepay_reconcile` (Action Scheduler action, group `power_checkout`) | `LinepayReconcileJob::run( order_id, attempt, pending_round )` — LINE Pay reconcile (no webhook); scheduled at payment request, re-scheduled while customer not yet authenticated |
+| filter `power_checkout_linepay_reconcile_delay` | Reconcile delay seconds `( int $default 300, int $order_id )`; floor 60 |
+| filter `power_checkout_logistics_provider_ids` | Extend `LogisticsApiService::PROVIDER_IDS` (new providers / test doubles) |
+| `update_option_woocommerce_hct_logistics_settings` / `…kerrytj_logistics_settings` (+ `add_option_…`) | Sync waybill ranges into `WaybillNumberAllocator` on settings save (registered without requiring the provider to be enabled) |
+| `woocommerce_order_actions` + `woocommerce_order_action_{pc_tcat_pay_query_trade\|pc_linepay_query_trade}` | Admin「重新查詢付款狀態（補單）」 for 黑貓PAY / LINE Pay |
 | `admin_enqueue_scripts` | Load Vue app bundle (admin pages) |
 | `wp_enqueue_scripts` | Load Vue app bundle (frontend checkout for invoice form); `classic-tw-address.js` (classic checkout, `tw_address`); `pc_free_shipping_hint` block script (p20, ES module) |
 
