@@ -1,76 +1,97 @@
 {
-  "plan": "2026-11-20-unified-gateway-and-7-providers",
-  "blueprint": "2026-11-20-tdd-blueprint",
-  "branch": "feat/unified-gateway-providers",
-  "baseline": {
-    "measured_at": "2026-11-20",
-    "base_commit": "6d32e74",
-    "command": "docker compose -p d5a5492d5679ff98cc7c025012f4fdfb run --rm --no-deps -e API_MODE=mock -w /var/www/html/wp-content/plugins/power-checkout tests-cli vendor/bin/phpunit --no-coverage",
-    "tests": 2336,
-    "assertions": 7583,
-    "errors": 0,
-    "failures": [
-      "Tests\\Integration\\Invoice\\EzpayAesCryptoTest::test_edge_標準AES16blockPadding會造成解密異常",
-      "Tests\\Integration\\Payment\\LinePayTest::test_LinePay_付款成功_訂單狀態變更為processing",
-      "Tests\\Integration\\Payment\\LinePayTest::test_LinePay_付款成功_付款詳情meta包含LinePay",
-      "Tests\\Integration\\Payment\\LinePayTest::test_LinePay_付款成功_Order_Note包含LINE_Pay"
-    ],
-    "phpstan_errors": [
-      "inc/classes/Domains/Payment/ShoplinePayment/DTOs/RedirectSettingsDTO.php:148 isset.property"
-    ]
-  },
-  "phases": {
-    "step0": "done",
-    "P0": "done",
-    "P1": "done",
-    "P2": "pending",
-    "P3": "pending",
-    "P4": "pending",
-    "P5": "pending",
-    "P6": "pending",
-    "P7": "pending",
-    "P8": "pending",
-    "P9": "pending"
-  },
-  "last_commit": "812496d",
-  "P0_result": {
-    "tests": 2397,
-    "assertions": 7885,
-    "failures": "baseline 4 only",
-    "new_tests": 61,
-    "phpstan_errors": [
-      "RedirectSettingsDTO.php:148 (baseline)"
-    ],
-    "phpcs": "new files 0 errors (1 warning: $void param name); modified files error count == master",
-    "commits": [
-      "9412da3",
-      "46017b6",
-      "5e609ac",
-      "a5578e1",
-      "8700139",
-      "2283494"
-    ]
-  },
-  "P1_result": {
-    "tests": 2437,
-    "assertions": 8047,
-    "failures": "baseline 4 only",
-    "new_tests": 40,
-    "red": "111 tests / 40 errors (Class EmbeddedGateway not found) — .tmp/gate/P1-red-Payment.log",
-    "green_filter": "SlpEmbedded|SlpOrderResolver|SlpWebhookResponse|SlpReturnSync|SlpSessionIdentity|ProviderMetaContract|PaymentDispatchApiService|WebhookSignature|RedirectGatewayValidation → OK (144 tests, 522 assertions)",
-    "phpstan_errors": [
-      "RedirectSettingsDTO.php:148 (baseline)"
-    ],
-    "phpcs": "new/modified PHP files 0 errors (ApiClient/OrderResolver/Requester/PaymentDispatchApiService/ProviderRegister error count == master)",
-    "frontend": "pnpm build OK; pnpm build:blocks OK; changed-file eslint 0 errors (7 warnings: no-console / no-explicit-any, same pattern as existing modules)",
-    "sandbox_probe": "POST /api/v1/trade/payment/create (SLP sandbox) with same body shape → 200 status=CREATED + nextAction object (dummy paySession accepted at create stage)",
-    "credential_scan_note": "scan hit PENDING_META_KEY = '_pc_slp_embedded_pending' is an order meta key name, not a credential",
-    "commits": [
-      "db90ea6",
-      "cc4cf84",
-      "79d3ae9",
-      "01b6251",
-      "812496d"
-    ]
-  }
+    "plan": "2026-11-20-unified-gateway-and-7-providers",
+    "blueprint": "2026-11-20-tdd-blueprint",
+    "branch": "feat/unified-gateway-providers",
+    "baseline": {
+        "measured_at": "2026-11-20",
+        "base_commit": "6d32e74",
+        "command": "docker compose -p d5a5492d5679ff98cc7c025012f4fdfb run --rm --no-deps -e API_MODE=mock -w /var/www/html/wp-content/plugins/power-checkout tests-cli vendor/bin/phpunit --no-coverage",
+        "tests": 2336,
+        "assertions": 7583,
+        "errors": 0,
+        "failures": [
+            "Tests\\Integration\\Invoice\\EzpayAesCryptoTest::test_edge_標準AES16blockPadding會造成解密異常",
+            "Tests\\Integration\\Payment\\LinePayTest::test_LinePay_付款成功_訂單狀態變更為processing",
+            "Tests\\Integration\\Payment\\LinePayTest::test_LinePay_付款成功_付款詳情meta包含LinePay",
+            "Tests\\Integration\\Payment\\LinePayTest::test_LinePay_付款成功_Order_Note包含LINE_Pay"
+        ],
+        "phpstan_errors": [
+            "inc/classes/Domains/Payment/ShoplinePayment/DTOs/RedirectSettingsDTO.php:148 isset.property"
+        ]
+    },
+    "phases": {
+        "step0": "done",
+        "P0": "done",
+        "P1": "done",
+        "P2": "done",
+        "P3": "pending",
+        "P4": "pending",
+        "P5": "pending",
+        "P6": "pending",
+        "P7": "pending",
+        "P8": "pending",
+        "P9": "pending"
+    },
+    "last_commit": "05b1754",
+    "P0_result": {
+        "tests": 2397,
+        "assertions": 7885,
+        "failures": "baseline 4 only",
+        "new_tests": 61,
+        "phpstan_errors": [
+            "RedirectSettingsDTO.php:148 (baseline)"
+        ],
+        "phpcs": "new files 0 errors (1 warning: $void param name); modified files error count == master",
+        "commits": [
+            "9412da3",
+            "46017b6",
+            "5e609ac",
+            "a5578e1",
+            "8700139",
+            "2283494"
+        ]
+    },
+    "P1_result": {
+        "tests": 2437,
+        "assertions": 8047,
+        "failures": "baseline 4 only",
+        "new_tests": 40,
+        "red": "111 tests / 40 errors (Class EmbeddedGateway not found) — .tmp/gate/P1-red-Payment.log",
+        "green_filter": "SlpEmbedded|SlpOrderResolver|SlpWebhookResponse|SlpReturnSync|SlpSessionIdentity|ProviderMetaContract|PaymentDispatchApiService|WebhookSignature|RedirectGatewayValidation → OK (144 tests, 522 assertions)",
+        "phpstan_errors": [
+            "RedirectSettingsDTO.php:148 (baseline)"
+        ],
+        "phpcs": "new/modified PHP files 0 errors (ApiClient/OrderResolver/Requester/PaymentDispatchApiService/ProviderRegister error count == master)",
+        "frontend": "pnpm build OK; pnpm build:blocks OK; changed-file eslint 0 errors (7 warnings: no-console / no-explicit-any, same pattern as existing modules)",
+        "sandbox_probe": "POST /api/v1/trade/payment/create (SLP sandbox) with same body shape → 200 status=CREATED + nextAction object (dummy paySession accepted at create stage)",
+        "credential_scan_note": "scan hit PENDING_META_KEY = '_pc_slp_embedded_pending' is an order meta key name, not a credential",
+        "commits": [
+            "db90ea6",
+            "cc4cf84",
+            "79d3ae9",
+            "01b6251",
+            "812496d"
+        ]
+    },
+    "P2_result": {
+        "tests": 2511,
+        "assertions": 8383,
+        "failures": "baseline 4 only",
+        "new_tests": 74,
+        "red": "110 tests / 74 errors (Class TcatPay... not found) — .tmp/gate/P2-red-Payment.log",
+        "green_filter": "TcatPay|ProviderMetaContract|WebhookPipeline → OK (110 tests, 547 assertions)",
+        "phpstan_errors": [
+            "RedirectSettingsDTO.php:148 (baseline)"
+        ],
+        "phpcs": "new PHP files 0 errors (warnings only); ProviderRegister error count == master",
+        "frontend": "pnpm build OK; pnpm build:blocks OK (tcat_pay.js); changed-file eslint 0 errors",
+        "sandbox_probe": ".env.local TCATPAY_CUST_ID / PASSWORD / HASH_BASE are angle-bracket placeholders → /Token 400 invalid_grant; unauthenticated /api/Collect → HTTP 401 {Message: Authorization has been denied}; no real-credential call possible",
+        "credential_scan_note": "scan hits are TcatPayMetaKeys *_KEY constant names (meta keys), not credentials",
+        "commits": [
+            "ae6ca4c",
+            "f4c5fe7",
+            "a0677b0",
+            "05b1754"
+        ]
+    }
 }
