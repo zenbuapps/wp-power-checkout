@@ -16,6 +16,8 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Logistics\Shared\Interfaces;
 
+use J7\PowerCheckout\Domains\Logistics\Shared\DTOs\LogisticsProviderMetaDTO;
+
 interface ILogisticsProvider {
 
 	/**
@@ -122,4 +124,14 @@ interface ILogisticsProvider {
 	 * @return array<int, string> 子類型 value 陣列（如 ['FAMI', 'UNIMART', 'HOME']）
 	 */
 	public function get_supported_methods(): array;
+
+	/**
+	 * 取得 provider meta（支援的配送方式 + 能力宣告）
+	 *
+	 * 能力需與方法實作一致：方法一律拋「不支援 / 尚未實作」者宣告 false。
+	 * LogisticsApiService 在呼叫操作前檢查，宣告 false 回 HTTP 501（既有 3 家豁免，維持原回應碼）。
+	 *
+	 * @return LogisticsProviderMetaDTO
+	 */
+	public function get_provider_meta(): LogisticsProviderMetaDTO;
 }
