@@ -24,6 +24,7 @@ final class ProviderRegister {
 		PayuniUniEmbed\Services\PayuniUniEmbedGateway::ID => PayuniUniEmbed\Services\PayuniUniEmbedGateway::class,
 		Paynow\Services\PaynowGateway::ID                 => Paynow\Services\PaynowGateway::class,
 		TcatPay\Services\TcatPayGateway::ID               => TcatPay\Services\TcatPayGateway::class,
+		Linepay\Services\LinepayGateway::ID               => Linepay\Services\LinepayGateway::class,
 	];
 
 	/** Register hooks */
@@ -69,6 +70,16 @@ final class ProviderRegister {
 			TcatPay\Services\TcatPayGateway::register_checkout_blocks();
 		} else {
 			\add_action( 'woocommerce_blocks_loaded', [ TcatPay\Services\TcatPayGateway::class, 'register_checkout_blocks' ] );
+		}
+
+		// LINE Pay 直連：confirmUrl / cancelUrl 導回端點 + Action Scheduler 補單 hook + block 結帳整合 —— 無條件註冊
+		// （gateway 停用期間已送出的付款請求仍須能 confirm / 補單；block 整合由 GatewayUtils 守衛，未啟用時 no-op）。
+		Linepay\Http\LinepayReturnController::register_hooks();
+		Linepay\Managers\LinepayReconcileJob::register_hooks();
+		if ( \did_action( 'woocommerce_blocks_loaded' ) ) {
+			Linepay\Services\LinepayGateway::register_checkout_blocks();
+		} else {
+			\add_action( 'woocommerce_blocks_loaded', [ Linepay\Services\LinepayGateway::class, 'register_checkout_blocks' ] );
 		}
 
 		foreach ( self::$gateway_services as $gateway_id => $gateway_service ) {
