@@ -29,17 +29,21 @@ use J7\PowerCheckout\Domains\Logistics\Payuni\Services\PayuniLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Payuni\Services\WC_PayuniLogisticsShipping;
 use J7\PowerCheckout\Domains\Logistics\Shared\Services\CartLogisticsApiService;
 use J7\PowerCheckout\Domains\Logistics\Shared\Services\LogisticsApiService;
+use J7\PowerCheckout\Domains\Logistics\Shared\Services\LogisticsPingApiService;
+use J7\PowerCheckout\Domains\Logistics\Tcat\Services\TcatLogisticsProvider;
+use J7\PowerCheckout\Domains\Logistics\Tcat\Services\WC_TcatLogisticsShipping;
 use J7\PowerCheckout\Shared\DTOs\BaseSettingsDTO;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 
 /** Loader 載入物流方式 */
 final class ProviderRegister {
 
-	/** @var array<string, string> $logistics_providers [id, class]（綠界 / PAYUNi / PayNow 並存可切換） */
+	/** @var array<string, string> $logistics_providers [id, class]（綠界 / PAYUNi / PayNow / 黑貓宅急便直串並存可切換） */
 	private static array $logistics_providers = [
 		EcpayLogisticsProvider::ID  => EcpayLogisticsProvider::class,
 		PayuniLogisticsProvider::ID => PayuniLogisticsProvider::class,
 		PaynowLogisticsProvider::ID => PaynowLogisticsProvider::class,
+		TcatLogisticsProvider::ID   => TcatLogisticsProvider::class,
 	];
 
 	/** 註冊 hooks @return void */
@@ -47,6 +51,8 @@ final class ProviderRegister {
 		// WC 運送方式（classic 結帳）— 不論啟用與否皆註冊類別，啟用狀態由運送方式自身設定控制
 		\add_filter( 'woocommerce_shipping_methods', [ __CLASS__, 'add_shipping_method' ] );
 		\add_action( 'woocommerce_checkout_create_order', [ __CLASS__, 'save_checkout_meta' ], 10, 2 );
+		// 物流「測試連線」ping（admin；不需任何物流已啟用，設定頁啟用前即可測試）
+		LogisticsPingApiService::register_hooks();
 
 		$any_enabled = false;
 		foreach ( self::$logistics_providers as $id => $class_name ) {
@@ -109,6 +115,7 @@ final class ProviderRegister {
 		$methods[ WC_EcpayLogisticsShipping::METHOD_ID ]  = WC_EcpayLogisticsShipping::class;
 		$methods[ WC_PayuniLogisticsShipping::METHOD_ID ] = WC_PayuniLogisticsShipping::class;
 		$methods[ WC_PaynowLogisticsShipping::METHOD_ID ] = WC_PaynowLogisticsShipping::class;
+		$methods[ WC_TcatLogisticsShipping::METHOD_ID ]   = WC_TcatLogisticsShipping::class;
 		return $methods;
 	}
 
@@ -125,6 +132,18 @@ final class ProviderRegister {
 		WC_EcpayLogisticsShipping::save_checkout_meta( $order, $data );
 		WC_PayuniLogisticsShipping::save_checkout_meta( $order, $data );
 		WC_PaynowLogisticsShipping::save_checkout_meta( $order, $data );
+		WC_TcatLogisticsShipping::save_checkout_meta( $order, $data );
+	}
+
+	/**
+	 * 取得已註冊 provider 的類別（不論是否啟用；ping 等 admin 工具用）
+	 *
+	 * @param string $id provider id
+	 * @return string|null 未註冊回 null
+	 */
+	public static function get_provider_class( string $id ): ?string {
+		$class_name = self::$logistics_providers[ $id ] ?? null;
+		return null !== $class_name && \class_exists( $class_name ) ? $class_name : null;
 	}
 
 	/** @return BaseSettingsDTO[] 取得 provider 設定 dtos（給 SettingApiService GET /settings） */

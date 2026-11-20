@@ -9,7 +9,7 @@
  *  - POST  logistics/{id}/store-selection  選店導轉（階段 A）→ data.redirect_target
  *  - POST  logistics/{id}/create-shipment  成立物流單（階段 B）→ data.logistics_id
  *  - GET   logistics/{id}                   查詢物流單 → data.{logistics_id,status,store_info}
- *  - POST  logistics/{id}/print             列印託運單 → HTML（rest_pre_echo_response 直接 echo）
+ *  - POST  logistics/{id}/print             列印託運單 → HTML 或 PDF（%PDF 開頭 → application/pdf；rest_pre_echo_response 直接 echo）
  *  - POST  logistics/{id}/cancel            C2C 取消物流單 → data.{logistics_id,cancelled}
  *  - POST  logistics/{id}/return            建立退貨單（逆物流）→ data.return_logistics_id
  *  - GET   logistics/providers/meta         已啟用 provider 的 meta（id => {supported_delivery_methods, capabilities}）
@@ -25,6 +25,7 @@
  *     - 「尚未選店」/「尚未成立物流單」/「僅支援 C2C」→ 403
  *     - 「必須為公開可訪問的 URL」/「已啟用的綠界物流子類型」/「寄貨編號」/「TransCode」/「RtnCode」→ 400
  *   不外洩內部細節（細節已由 provider / ApiClient 寫 order note / log）。
+ *   例外帶正規化 ErrorCode（新 provider，如 TcatLogisticsException）→ 改依 ErrorCode::to_http_status() 並回 error_code / raw_code。
  *
  * @see .claude/skills/ECPay-API-Skill/guides/07-logistics-allinone.md
  */
@@ -51,6 +52,7 @@ final class LogisticsApiService extends ApiBase {
 	 * ⚠️ ECPay / PAYUNi 共用 LogisticsMetaKeys（_pc_logistics_*）；PayNow 用獨立 meta
 	 *   （_pc_paynow_logistics_*），print/cancel/query 委派正常，但貨態 / 選店 callback 反查
 	 *   走 PayNow 自己的 callback class（power-checkout/paynow namespace）。
+	 * 黑貓宅急便直串（tcat_logistics，P4）用獨立 meta（_pc_tcat_logistics_*），排在最後（未指定 provider 時不搶先）。
 	 *
 	 * @var array<int, string>
 	 */
@@ -58,6 +60,7 @@ final class LogisticsApiService extends ApiBase {
 		'ecpay_logistics',
 		'payuni_logistics',
 		'paynow_logistics',
+		'tcat_logistics',
 	];
 
 	/**
@@ -68,7 +71,11 @@ final class LogisticsApiService extends ApiBase {
 	 *
 	 * @var array<int, string>
 	 */
-	private const CAPABILITY_CHECK_EXEMPT_IDS = self::PROVIDER_IDS;
+	private const CAPABILITY_CHECK_EXEMPT_IDS = [
+		'ecpay_logistics',
+		'payuni_logistics',
+		'paynow_logistics',
+	];
 
 	/** @var string 擴充 provider 解析清單的 filter（新 provider / 測試替身用） */
 	public const PROVIDER_IDS_FILTER = 'power_checkout_logistics_provider_ids';
@@ -188,9 +195,9 @@ final class LogisticsApiService extends ApiBase {
 	}
 
 	/**
-	 * 列印託運單（回 HTML body）
+	 * 列印託運單（回 HTML body；黑貓等回 PDF bytes 者以 application/pdf 輸出）
 	 *
-	 * 透過 rest_pre_echo_response 直接 echo HTML，避免 WP 序列化為 JSON（鏡像 EcpgCallback 技巧）。
+	 * 透過 rest_pre_echo_response 直接 echo 原文，避免 WP 序列化為 JSON（鏡像 EcpgCallback 技巧）。
 	 *
 	 * @param \WP_REST_Request $request 請求
 	 * @return \WP_REST_Response
@@ -202,10 +209,10 @@ final class LogisticsApiService extends ApiBase {
 			if (null !== $unsupported) {
 				return $unsupported;
 			}
-			$html = $provider->print_document( $order );
-			return self::html_response( $html );
+			$document = $provider->print_document( $order );
+			return self::document_response( $document, $order );
 		} catch ( \Throwable $e ) {
-			return self::error_response( $e->getMessage(), self::map_status( $e->getMessage() ) );
+			return self::exception_response( $e );
 		}
 	}
 
@@ -315,7 +322,7 @@ final class LogisticsApiService extends ApiBase {
 				200
 			);
 		} catch ( \Throwable $e ) {
-			return self::error_response( $e->getMessage(), self::map_status( $e->getMessage() ) );
+			return self::exception_response( $e );
 		}
 	}
 
@@ -467,20 +474,55 @@ final class LogisticsApiService extends ApiBase {
 	}
 
 	/**
-	 * HTML 回應（列印託運單；透過 rest_pre_echo_response 直接 echo，避免序列化為 JSON）
+	 * 例外 → 錯誤回應
 	 *
-	 * @param string $html 託運單 HTML
+	 * 例外帶正規化錯誤碼（新 provider 的 public readonly ErrorCode $error_code）→ 依 ErrorCode 映射 HTTP 並回 error_code / raw_code；
+	 * 其餘（既有 3 家拋的 \Exception）維持訊息關鍵字映射，回應不變。
+	 *
+	 * @param \Throwable $e 例外
 	 * @return \WP_REST_Response
 	 */
-	private static function html_response( string $html ): \WP_REST_Response {
-		$response = new \WP_REST_Response( $html, 200 );
-		$response->header( 'Content-Type', 'text/html; charset=utf-8' );
+	private static function exception_response( \Throwable $e ): \WP_REST_Response {
+		$error_code = \property_exists( $e, 'error_code' ) && $e->error_code instanceof ErrorCode ? $e->error_code : null;
+		if (null === $error_code) {
+			return self::error_response( $e->getMessage(), self::map_status( $e->getMessage() ) );
+		}
+
+		return new \WP_REST_Response(
+			[
+				'code'       => 'error',
+				'error_code' => $error_code->value,
+				'raw_code'   => \property_exists( $e, 'raw_code' ) && \is_string( $e->raw_code ) ? $e->raw_code : null,
+				'message'    => $e->getMessage(),
+				'data'       => null,
+			],
+			ErrorCode::UNSUPPORTED === $error_code ? 501 : $error_code->to_http_status()
+		);
+	}
+
+	/**
+	 * 列印文件回應：HTML（既有 3 家）或 PDF（以 %PDF 開頭，如黑貓 DownloadOBT）
+	 *
+	 * 透過 rest_pre_echo_response 直接 echo 原文，避免 WP 序列化為 JSON。
+	 *
+	 * @param string    $document 託運單 HTML 或 PDF bytes
+	 * @param \WC_Order $order    訂單（PDF 檔名用）
+	 * @return \WP_REST_Response
+	 */
+	private static function document_response( string $document, \WC_Order $order ): \WP_REST_Response {
+		$response = new \WP_REST_Response( $document, 200 );
+		if (\str_starts_with( $document, '%PDF' )) {
+			$response->header( 'Content-Type', 'application/pdf' );
+			$response->header( 'Content-Disposition', self::pdf_disposition( $order ) );
+		} else {
+			$response->header( 'Content-Type', 'text/html; charset=utf-8' );
+		}
 		\add_filter(
 			'rest_pre_echo_response',
-			static function ( $result, $server, $request ) use ( $html ) {
+			static function ( $result, $server, $request ) use ( $document ) {
 				$route = $request->get_route();
 				if (\is_string( $route ) && \str_contains( $route, '/logistics/' ) && \str_ends_with( $route, '/print' )) {
-					echo $html; // phpcs:ignore
+					echo $document; // phpcs:ignore
 					return null;
 				}
 				return $result;
@@ -489,6 +531,25 @@ final class LogisticsApiService extends ApiBase {
 			3
 		);
 		return $response;
+	}
+
+	/**
+	 * PDF Content-Disposition（檔名含物流單號，無則訂單 ID）
+	 *
+	 * @param \WC_Order $order 訂單
+	 * @return string
+	 */
+	private static function pdf_disposition( \WC_Order $order ): string {
+		$ref = '';
+		foreach ( [ '_pc_tcat_logistics_ref', '_pc_logistics_ref' ] as $key ) {
+			$value = $order->get_meta( $key );
+			if (\is_scalar( $value ) && '' !== (string) $value) {
+				$ref = (string) $value;
+				break;
+			}
+		}
+		$name = (string) \preg_replace( '/[^A-Za-z0-9_-]/', '', '' !== $ref ? $ref : 'order-' . $order->get_id() );
+		return "inline; filename=\"shipping-label-{$name}.pdf\"";
 	}
 
 	// endregion
