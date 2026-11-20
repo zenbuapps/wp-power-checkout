@@ -27,12 +27,12 @@
         "P3": "done",
         "P4": "done",
         "P5": "done",
-        "P6": "pending",
+        "P6": "done",
         "P7": "pending",
         "P8": "pending",
         "P9": "pending"
     },
-    "last_commit": "163b25e",
+    "last_commit": "63e0a50",
     "P0_result": {
         "tests": 2397,
         "assertions": 7885,
@@ -180,6 +180,38 @@
             "ca5c46f",
             "bbc0f5e",
             "163b25e"
+        ]
+    },
+    "P6_result": {
+        "tests": 2938,
+        "assertions": 9693,
+        "failures": "baseline 4 only",
+        "new_tests": 132,
+        "red": "142 tests / 124 errors + 8 failures (Class SfExpress* not found) — .tmp/gate/P6-red-Logistics.log",
+        "green_filter": "Sf(Crypto|AccessTokenStore|Express|TrackPush|Region)|LogisticsProviderMetaContract → OK (142 tests, 496 assertions)",
+        "phpstan_errors": [
+            "RedirectSettingsDTO.php:148 (baseline)"
+        ],
+        "phpcs": "new PHP files 0 errors (warnings only: base64_* required by algorithm, file_get_contents in test trait); ProviderRegister / LogisticsApiService error count == master (0)",
+        "frontend": "pnpm build OK; changed-file eslint 0 errors (blocks unchanged)",
+        "sandbox_probe": "official public sandbox creds read at runtime from skill md (not in code/commits); read-only only, no create/cancel. https://api-ifsp-sit.sf.global: token OK (expireIn 7200); bad appSecret -> 1005 App is not exist; IUOP_QUERY_TRACK unknown waybill -> success=true + trackSummary 訂單不存在或訂單已歸檔; IUOP_QUERY_ORDER unknown -> 123002; IUOP_QUERY_FREIGHT TW10048->TW80141 INT0005 1kg -> 23 NTD; ICMS_QUERY_REGION_BY_POST_CODE 40743 -> Taichung City/Xitun District (matches SfRegion); bad token -> 500 Access denied, token invalid; bad signature -> 2001 Signature is invalid; wrong AES key -> 505 The format of the request body is incorrect; wrong customerCode -> same results as valid (customerCode not verifiable read-only). PC SfCrypto class encrypt/decrypt verified against sandbox.",
+        "credential_scan_note": "Red scan hit = SfCryptoTest DEMO_AES_KEY / DEMO_APP_KEY (official SampleCode public vectors, auth-and-crypto.md §0.8); feat scan hits = SfExpressMetaKeys *_KEY meta key names",
+        "deviations": [
+            "test commit 49092fa after Red: added 505 case from sandbox probe, moved tamper byte to last-but-one block (original position not guaranteed detectable under CBC), weight unit kg, package contents key, phpcbf format",
+            "backend split into 2 feat commits (crypto/token/client; provider+push+shipping+register) — WC_SfExpressShipping committed with provider because ProviderRegister references both",
+            "ping uses IUOP_QUERY_TRACK on non-existent waybill; customer_code_verified=false (sandbox shows customerCode not validated by read-only APIs)",
+            "print downloads PDF server-side (label URL not stored/returned); falls back to HTML link page if not PDF",
+            "cancel clears ref (keeps _pc_sf_express_cancelled_ref) so order can be re-created; blocks locally when unified_state != pending",
+            "query_shipment has no cache (IUOP_QUERY_TRACK 600/min); push is primary, ASM-7 no polling",
+            "SfRegion data generated from zenbu tw-admin-divisions.ts (371 districts); zip3 300/600 ambiguous -> require names",
+            "COD orders rejected (VALIDATION); shipping rate only for destination TW"
+        ],
+        "commits": [
+            "4852999",
+            "49092fa",
+            "a0ca59d",
+            "7955f3e",
+            "63e0a50"
         ]
     }
 }
