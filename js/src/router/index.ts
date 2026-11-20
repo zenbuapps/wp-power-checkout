@@ -20,6 +20,7 @@ export const ROUTER_MAPPER = {
 	ecpay_logistics: '/logistics/ecpay_logistics',
 	payuni_logistics: '/logistics/payuni_logistics',
 	paynow_logistics: '/logistics/paynow_logistics',
+	tcat_logistics: '/logistics/tcat_logistics',
 	checkout_enhancement: '/checkout',
 }
 
@@ -81,6 +82,10 @@ const routes = [
 	{
 		path: '/logistics/paynow_logistics',
 		component: () => import('@/pages/Logistics/Paynow/index.vue'),
+	},
+	{
+		path: '/logistics/tcat_logistics',
+		component: () => import('@/pages/Logistics/Tcat/index.vue'),
 	},
 	{ path: '/invoices', component: () => import('@/pages/Invoices/index.vue') },
 	{
