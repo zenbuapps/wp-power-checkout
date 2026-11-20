@@ -26,12 +26,11 @@ description: >
 
 Taiwan 3rd-party payment gateway. **MPG (Multiple Payment Gateway)** is the RWD-responsive checkout page consumers see. **NDNF** is the document code name covering the entire 幕前支付 family (MPG + post-trade APIs).
 
-## Project Integration Specs
+## Recommended Integration Defaults
 
-- **Code path**: `apps/api-gateway/src/commerce/payments/newebpay/`
-- **Project Version**: currently `2.0` (works against NDNF 1.2.2 — see Version Compatibility below)
+- **Version**: start at `2.0` (works against NDNF 1.2.2 — see Version Compatibility below)
 - **Default payment**: `CREDIT=1`, `RespondType=JSON`, `LoginType=0`
-- **Credentials source**: `settings` table (per-tenant); `.env` provides dev sandbox fallback
+- **Credentials source**: per-tenant settings store; env vars provide dev sandbox fallback
 
 ## Document Sources
 
@@ -116,7 +115,6 @@ function decryptTradeInfo(encrypted: string, hashKey: string, hashIv: string): s
 ```
 
 - Algorithm: `aes-256-cbc`, Key: 32 bytes, IV: 16 bytes, Padding: PKCS7 (Node auto), Output: hex
-- ⚠️ **NewebPay pads its responses with a 32-byte PKCS#7 block** (official PHP sample `addpadding` blocksize=32, same as ezPay): pad value can be 17–32. OpenSSL's default PKCS#7 unpad only accepts 1–16 → `openssl_decrypt(..., OPENSSL_RAW_DATA)` returns `false` for ~half of responses (ATM/CVS code responses hit it often). Decrypt with `OPENSSL_RAW_DATA | OPENSSL_ZERO_PADDING` and strip 1–32 pad bytes manually. Requests encrypted with standard 16-byte PKCS#7 are accepted by NewebPay.
 
 ## AES-256-GCM Encryption (opt-in, `EncryptType=1`)
 
@@ -240,8 +238,7 @@ interface NewebPayCallback {
 4. `NotifyURL` is the source of truth; treat `ReturnURL` as UX only (browser may close before redirect)
 5. Domain: prefer `*.newebpay.com`; `*.spgateway.com` is a legacy alias
 6. `Amt`: integer TWD only, no decimals
-7. `MerchantOrderNo`: alphanumeric, max 30, unique per MerchantID (duplicate → `MPG03002`); once submitted it cannot be resubmitted even if unpaid (ATM code issued → `MPG03008 已存在相同的商店訂單編號`) → use a new number per payment attempt and keep history for late callbacks
-7a. Offline (VACC/CVS/BARCODE) code-issued response (CustomerURL) has no `PayTime`/`RespondCode=00`; `RespondCode` is a credit-card field — treat offline payment completion as `Status=SUCCESS` + `PayTime` present
+7. `MerchantOrderNo`: alphanumeric, max 30, unique per MerchantID (duplicate → `MPG03002`)
 8. PHP needs manual PKCS7 padding; Node.js `crypto` handles it automatically
 9. `ItemDesc` max 50 chars (single-byte counted)
 10. `TradeLimit`: 60–900 seconds (or `0`=no limit)

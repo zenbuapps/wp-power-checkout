@@ -1,208 +1,123 @@
-﻿# SHOPLINE Payments v1 -- Webhook Events
+# SHOPLINE Payments v1 — Webhook 通知（Event）
 
-> Source: https://docs.shoplinepayments.com/api/event/model/
+> 來源（2026-11-16 重新爬取）：https://docs.shoplinepayments.com/api/event/ 、/api/event/model/ 、
+> /api/event/model/session/ 、/payment/ 、/refund/ 、/capture/ 、/cancel/ 、/member/ 、/instrument/ 、/dispute/ 、/api/event/query/
 
-## Table of Contents
+兩種模式共用同一套 Webhook 與驗簽。
 
-1. [Webhook Overview](#webhook-overview)
-2. [HTTP Headers](#http-headers)
-3. [Body Structure](#body-structure)
-4. [Signature Verification](#signature-verification)
-5. [Session Events](#session-events)
-6. [Payment (Trade) Events](#payment-trade-events)
-7. [Refund Events](#refund-events)
-8. [Customer (Member) Events](#customer-member-events)
-9. [Instrument Events](#instrument-events)
-10. [Dispute Events](#dispute-events)
-11. [Platform Events](#platform-events)
-12. [Complete Event Type List](#complete-event-type-list)
+## 目錄
+
+1. [設定與訂閱](#1-設定與訂閱)
+2. [事件類型總表](#2-事件類型總表)
+3. [HTTP Header 與 Body 外殼](#3-http-header-與-body-外殼)
+4. [簽章驗證](#4-簽章驗證)
+5. [回應與重試](#5-回應與重試)
+6. [各結構 data 欄位](#6-各結構-data-欄位)
+7. [模式別建議訂閱與處理](#7-模式別建議訂閱與處理)
+8. [Event 查詢 API](#8-event-查詢-api)
+9. [NestJS / Express 範例](#9-nestjs--express-範例)
 
 ---
 
-## Webhook Overview
+## 1. 設定與訂閱
 
-SHOPLINE Payments sends HTTPS POST requests to your registered webhook URL when events occur. All subscribed events are enabled by default. Contact SLP support to modify the subscription list.
+- 在 SHOPLINE Payments 後台「設定 → 開發者管理」取得 API Key / Client Key / Sign Key；**每一個 Webhook URL 對應一把 Sign Key**。
+- 預設為特店開通訂閱**全部**事件類型；要改訂閱列表需聯絡串接窗口。
+- 官方提醒：未來可能新增事件類型，**不要假設只有列出的類型**（未知 type 應忽略並回 200）。
 
-Webhook URLs are configured per-environment (sandbox/production) through Shopline support -- not via API.
+## 2. 事件類型總表
 
-## HTTP Headers
+| 場景 | `type` | 結構 | 說明 |
+|---|---|---|---|
+| 結帳交易 | `session.created` | 結帳交易 | 結帳建立 |
+| | `session.expired` | 結帳交易 | 結帳逾時 |
+| | `session.pending` | 結帳交易 | 結帳處理中 |
+| | `session.succeeded` | 結帳交易 | 結帳成功 |
+| 付款交易 | `trade.succeeded` | 付款交易 | 付款成功 |
+| | `trade.failed` | 付款交易 | 付款失敗 |
+| | `trade.expired` | 付款交易 | 付款逾時 |
+| | `trade.processing` | 付款交易 | 付款處理中 |
+| | `trade.cancelled` | 付款交易 | 取消付款 |
+| | `trade.customer_action` | 付款交易 | 顧客處理中（3DS / 掃碼等） |
+| | `trade.refund.succeeded` | 退款交易 | 退款成功 |
+| | `trade.refund.failed` | 退款交易 | 退款失敗 |
+| 會員 | `customer.created` / `customer.updated` / `customer.deleted` | 付款會員 | 會員建立 / 更新 / 註銷 |
+| 付款工具 | `customer.instrument.binded` / `.updated` / `.unbinded` | 付款工具 | 綁定 / 更新 / 解綁 |
+| 爭議 | `dispute.chargeback.created` / `evidence_required` / `evidence_under_review` / `evidence_returned` / `resolved` / `cancelled` / `lost` / `won` / `expired` / `accepted` | 爭議交易 | 拒付流程 |
+| | `dispute.pre-chargeback.created` / `in_accept` / `in_reject` / `in_expire` / `accepted` / `merchant_rejected` | 爭議交易 | 預爭議 |
+| | `dispute.fraud.finished` | 爭議交易 | 欺詐預警 |
+| | `dispute.retrieval.created` / `finished` / `cancelled` | 爭議交易 | 調單 |
+| 平台專用 | `trade.settled`、`merchant.kyc.audit`、`trade.split.created` / `processing` / `cancelled` / `succeeded` / `failed` | 結算 / 審核 / 分帳 | 本 skill 不展開 |
 
-| Header | Required | Type | Description | Example |
+> 請款 / 取消結構頁的 `type` 範例為 `manual.trade.capture.succeeded`、`manual.trade.cancel.succeeded`，但**這兩個 type 不在官方事件總表中**；完整 type 列表（是否有 `.failed`）官方文件未載明。
+> 退款結構頁範例寫 `refund.succeeded`，總表為 `trade.refund.succeeded`，以總表為準。
+
+## 3. HTTP Header 與 Body 外殼
+
+### Header
+
+| 參數 | 必填 | 型別 | 說明 | 範例 |
 |---|---|---|---|---|
-| `apiVersion` | Yes | String | API version | `V1.2` |
-| `timestamp` | Yes | String | Send time in ms | `1629169157000` |
-| `sign` | Yes | String | HMAC-SHA256 hex signature | `873c40ac22fc...` |
+| `apiVersion` | 是 | String | API 版本，不同版本報文結構有差異 | `V1.2` |
+| `timestamp` | 是 | String | 發送時間戳，**毫秒** | `1629169157000` |
+| `sign` | 是 | String | 簽章值（hex） | `873c40ac...` |
 
-## Body Structure
+各結構頁另列：`Content-Type`（`application/json`）、`platformId`（平台特店）、`merchantId`、`requestId` String(32)、`idempotentKey` String(32) 選填。
 
-All webhook payloads share this envelope:
+> Node.js 的 header 名會被轉小寫：`req.headers['apiversion']`、`['timestamp']`、`['sign']`。
 
-```typescript
-interface WebhookEnvelope {
-  id: string;        // Unique notification message ID
-  type: string;      // Event type (e.g. "trade.succeeded")
-  created: number;   // Notification creation timestamp (ms)
-  data: object;      // Event-specific payload (varies by type)
-}
-```
+### Body（application/json）
 
-## Signature Verification
+| 參數 | 必填 | 型別 | 說明 |
+|---|---|---|---|
+| `id` | 是 | String(35) | 通知訊息唯一 ID（**用於去重**） |
+| `type` | 是 | String(32) | 事件類型 |
+| `created` | 是 | Number(14) | 通知產生時間（ms） |
+| `data` | 是 | Object | 事件業務電文 |
 
-### Algorithm: HMAC-SHA256
+## 4. 簽章驗證
 
-```
-payload = "{timestamp}.{rawBodyString}"
-expectedSign = HMAC-SHA256(payload, signKey)
-```
+演算法：**HMAC-SHA256**，金鑰為該 Webhook URL 對應的 `signKey`。
 
-### TypeScript Implementation
+1. 從 header 取 `timestamp`、`sign`。
+2. `payload = "{timestamp}.{bodyString}"`（bodyString = **原始** HTTP body 字串，不可 re-serialize）。
+3. `expected = hmacSha256(payload, signKey, UTF-8)`，輸出 hex（官方範例為 64 字元小寫 hex）。
+4. 比對 `sign`；相等後再檢查 `timestamp` 與現在的差距是否在容忍範圍（防重播；**容忍值由特店自訂，官方未給數字**）。
 
 ```typescript
-import * as crypto from 'crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto'
 
-function verifyShoplineWebhook(
-  signKey: string,
-  timestamp: string,
-  rawBody: string,
-  receivedSign: string,
-): boolean {
-  const payload = `${timestamp}.${rawBody}`;
-  const expected = crypto
-    .createHmac('sha256', signKey)
-    .update(payload, 'utf8')
-    .digest('hex');
-
-  const a = Buffer.from(expected, 'hex');
-  const b = Buffer.from(receivedSign, 'hex');
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
+export function verifySlpWebhook(signKey: string, timestamp: string, rawBody: string, sign: string, toleranceMs = 5 * 60_000): boolean {
+  const expected = createHmac('sha256', signKey).update(`${timestamp}.${rawBody}`, 'utf8').digest('hex')
+  const a = Buffer.from(expected, 'utf8')
+  const b = Buffer.from(sign.toLowerCase(), 'utf8')
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return false
+  const ts = Number(timestamp)
+  return Number.isFinite(ts) && Math.abs(Date.now() - ts) <= toleranceMs
 }
 ```
 
-### NestJS Controller Example
+> sign 大小寫：官方範例為小寫 hex，是否可能大寫官方未載明，故比較前轉小寫。5 分鐘容忍值為建議值。
 
-```typescript
-import { Controller, Post, Headers, Req, HttpCode } from '@nestjs/common';
-import { Request } from 'express';
+## 5. 回應與重試
 
-interface RequestWithRawBody extends Request {
-  rawBody?: Buffer;
-}
+- 回 **HTTP 200** = 處理成功，不再通知。
+- 非 200 = 失敗，等待下次通知。**共通知 16 次**，間隔：`15s / 15s / 30s / 3m / 10m / 20m / 30m / 1h / 1h / 2h / 3h / 6h / 6h / 6h / 12h / 12h`。
+- 回應 body 內容：官方未要求特定格式。
+- 因有重試，handler 必須**冪等**（以 `id` 或 `tradeOrderId + status` 去重）。
 
-@Controller('commerce/payments/shopline')
-export class ShoplineController {
-  @Post('webhook')
-  @HttpCode(200)
-  async webhook(
-    @Headers('timestamp') timestamp: string,
-    @Headers('sign') sign: string,
-    @Headers('apiversion') apiVersion: string | undefined,
-    @Req() req: RequestWithRawBody,
-  ): Promise<string> {
-    if (!timestamp || !sign) return 'OK';
-    const raw = req.rawBody?.toString('utf8') ?? '';
-    // Verify signature and process event
-    await this.shoplineService.handleWebhook({ timestamp, sign, apiVersion }, raw);
-    return 'OK';
-  }
-}
-```
+## 6. 各結構 data 欄位
 
-### Anti-Replay Protection
+### 6.1 結帳交易（`session.*`）
 
-Compare `timestamp` against current time. Reject if difference exceeds your tolerance (recommended: 5 minutes).
+與 `trade/sessions/query` 回應相同：`sessionId` String(32)、`referenceId` String(32)、`status`（`CREATED`/`PENDING`/`SUCCEEDED`/`EXPIRED`）、`sessionUrl`、`createTime` Integer、`amount`、`paymentDetails[]`（`tradeOrderId`、`status`、`paymentSuccessTime`、`paymentMethod`、`autoSettle`）。
 
-```typescript
-const WINDOW_MS = 5 * 60 * 1000;
-const ts = Number(timestamp);
-if (Math.abs(Date.now() - ts) > WINDOW_MS) {
-  throw new Error('Timestamp out of window');
-}
-```
+### 6.2 付款交易（`trade.succeeded` / `failed` / `expired` / `processing` / `cancelled` / `customer_action`）
 
----
+與 `trade/payment/get` 回應相同（完整欄位表見 `api-reference.md` §3）：
+`referenceOrderId`、`tradeOrderId`、`sessionId`（選填，導轉式才有）、`status`、`subStatus`、`paymentMsg{code,msg}`、`actionType`、`nextAction`、`order{merchantId, amount, referenceOrderId, createTime, customer{referenceCustomerId, customerId}}`、`payment{paymentMethod, subPaymentMethod, autoConfirm, autoCapture, paymentBehavior, paymentSuccessTime, autoSettle, isSettle, splitInfo, paidAmount, channelDealId, paymentCustomerId, creditCard{...}, virtualAccount{...}, linePay[...], paymentInstrument{...}, paymentMethodOptions.installments{...}}`、`additionalData`。
 
-## Session Events
-
-Events related to checkout sessions (redirect mode).
-
-### `session.created`
-Fired when a checkout session is created.
-
-### `session.pending`
-Fired when the session enters processing state.
-
-### `session.succeeded`
-Fired when all payments in the session are completed. **Primary event for confirming payment in redirect mode.**
-
-### `session.expired`
-Fired when the session expires (default timeout: 360 minutes).
-
-### Session Event Data Fields
-
-| Field | Type | Description |
-|---|---|---|
-| `sessionId` | String | SLP session ID |
-| `referenceId` | String | Merchant order reference |
-| `status` | String | `CREATED` / `PENDING` / `SUCCEEDED` / `EXPIRED` |
-| `amount` | Amount | Total session amount |
-| `paymentDetails` | Array | List of payment details within session |
-
----
-
-## Payment (Trade) Events
-
-Events for individual payment transactions.
-
-### `trade.succeeded`
-Payment completed successfully. Contains full payment details including card info, method, and amounts.
-
-### `trade.failed`
-Payment failed. Check `data.paymentError` or `data.payment.paymentMethod` for details.
-
-### `trade.expired`
-Payment expired (3DS timeout, bank timeout, or SLP 6-hour default timeout).
-
-### `trade.processing`
-Payment is being processed by SLP (authorization succeeded for credit card).
-
-### `trade.cancelled`
-Payment was cancelled by customer or merchant.
-
-### `trade.customer_action`
-Customer needs to perform an action (3DS verification, biometric, QR scan).
-
-### Payment Event Data Fields
-
-| Field | Type | Description |
-|---|---|---|
-| `actionType` | String | `SDK` or `API` |
-| `referenceOrderId` | String | Merchant order reference |
-| `tradeOrderId` | String | SLP payment order ID |
-| `paymentMsg` | String/null | Payment error message |
-| `status` | String | Payment status |
-| `subStatus` | String | Sub-status (e.g. `AUTHORIZED`, `RISK_REJECTED`) |
-| `payment.paymentMethod` | String | e.g. `CreditCard`, `LinePay` |
-| `payment.paymentBehavior` | String | `Regular`, `Recurring`, etc. |
-| `payment.paymentSuccessTime` | String | Success timestamp (ms) |
-| `payment.autoCapture` | Boolean | Auto-capture flag |
-| `payment.channelDealId` | String | Channel transaction ID |
-| `payment.creditCard.last4` | String | Last 4 digits of card |
-| `payment.creditCard.bin` | String | Card BIN (first 6-8 digits) |
-| `payment.creditCard.brand` | String | `Visa`, `MasterCard`, `JCB` |
-| `payment.creditCard.type` | String | `CREDIT`, `DEBIT` |
-| `payment.creditCard.issuer` | String | Issuing bank name |
-| `payment.creditCard.issuerCountry` | String | Issuer country code |
-| `payment.paidAmount` | Amount | Actual paid amount |
-| `payment.paymentMethodOptions.installments.count` | String/null | Installment count |
-| `order.amount` | Amount | Order amount |
-| `order.referenceOrderId` | String | Merchant reference |
-| `order.merchantId` | String | Merchant ID |
-| `order.createTime` | Number | Order creation time (ms) |
-| `order.customer.customerId` | String | SLP customer ID |
-| `order.customer.referenceCustomerId` | String | Merchant customer ref |
-
-### Example: trade.succeeded Payload
+官方範例（信用卡付款成功）：
 
 ```json
 {
@@ -217,23 +132,23 @@ Customer needs to perform an action (3DS verification, biometric, QR scan).
     "payment": {
       "paymentSuccessTime": "1718551768922",
       "autoCapture": true,
+      "subPaymentMethod": null,
       "paymentBehavior": "Regular",
+      "autoConfirm": false,
       "channelDealId": "17185517455610128070000",
       "paymentMethod": "CreditCard",
-      "paymentMethodOptions": {
-        "installments": { "installPay": null, "count": null, "installDownPay": null }
-      },
+      "paymentMethodOptions": { "installments": { "installPay": null, "count": null, "installDownPay": null } },
+      "paymentCustomerId": "",
+      "paymentInstrument": { "savePaymentInstrument": false, "paymentInstrumentId": null },
       "creditCard": {
-        "issuerCountry": "TW",
-        "last4": "1234",
-        "bin": "12345678",
-        "type": "CREDIT",
-        "category": "BUSINESS SIGNATURE",
-        "brand": "Visa",
+        "issuerCountry": "TW", "last4": "1234", "bin": "12345678", "type": "CREDIT",
+        "category": "BUSINESS SIGNATURE", "brand": "Visa",
         "issuer": "HONG KONG AND SHANGHAI BANKING CORP., LTD."
       },
       "paidAmount": { "currency": "TWD", "value": 10000 }
     },
+    "nextAction": null,
+    "additionalData": null,
     "subStatus": "",
     "status": "SUCCEEDED",
     "order": {
@@ -247,144 +162,124 @@ Customer needs to perform an action (3DS verification, biometric, QR scan).
 }
 ```
 
----
+> 注意範例中型別與規格表不一致處：`paymentSuccessTime` 是字串、`order.createTime` 是數字、`subStatus` 為空字串、`bin` 為 8 碼。解析時請寬鬆處理。
 
-## Refund Events
+### 6.3 退款交易（`trade.refund.succeeded` / `failed`）
 
-### `trade.refund.succeeded`
-Refund completed successfully.
+`refundOrderId` String(32)、`referenceOrderId` String(32)（特店退款訂單號）、`tradeOrderId` String(32)、`amount`、`status`（`CREATED`/`PROCESSING`/`SUCCEEDED`/`FAILED`）、`refundMsg{code,msg}`、`destinationDetails.linePay[]`、`channelDealId` String(32) 選填。
 
-### `trade.refund.failed`
-Refund failed. Check error details in payload.
+> 舊版 skill 的 `referenceRefundId`、`reason` 欄位不在官方退款 event 結構中。
 
-### Refund Event Data Fields
+### 6.4 請款交易（範例 type `manual.trade.capture.succeeded`）
 
-| Field | Type | Description |
+`referenceOrderId`、`tradeOrderId`、`tradeCaptureOrderId` String(32)（SLP 請款訂單編號）、`status`（付款狀態列舉）、`paymentMsg{code,msg}`。
+
+### 6.5 取消交易（範例 type `manual.trade.cancel.succeeded`）
+
+`referenceOrderId`、`tradeOrderId`、`tradeCancelOrderId` String(32)、`status`、`paymentMsg{code,msg}`。
+
+### 6.6 付款會員（`customer.*`）
+
+`customerId`、`referenceCustomerId`、`createTime` Integer。
+
+### 6.7 付款工具（`customer.instrument.*`）
+
+`customerId`、`referenceCustomerId`、`paymentInstrument{ instrumentId, instrumentType(CreditCard), instrumentStatus(CREATED/SUCCESSED/DISABLED/FAILED), instrumentCard{type, brand, expireYear, expireMonth, holder, first, last, issuer, issuerCountry, expired}, billing{personalInfo, address, descriptor{city,name}}, additionalData, passthrough }`。
+
+### 6.8 爭議交易（`dispute.*`）
+
+| 欄位 | 型別 | 必填 | 說明 |
+|---|---|---|---|
+| `disputeId` | String(32) | 必填 | SLP 拒付訂單編號 |
+| `tradeOrderId` | String(32) | 必填 | |
+| `referenceOrderId` | String(32) | 必填 | |
+| `paymentMethod` | String(16) | 必填 | |
+| `disputeType` | String(16) | 必填 | `PRE_CHARGEBACK` / `CHARGEBACK` / `FRAUD_NOTIFICATION` / `RETRIEVAL` |
+| `fee` | CurrencyAmount | 選填 | 手續費 |
+| `feeType` | String(16) | 選填 | `domestic` / `international` |
+| `createTime` / `updateTime` | Integer | 必填 | |
+| `disputeEvidenceUpdateDeadline` | Integer | 選填 | 最晚抗辯資料提交時間 |
+| `stage` | String(32) | 必填 | `CHARGEBACK` / `PRE_ARBITRATION` / `ARBITRATION` |
+| `status` | String(32) | 必填 | `CREATED`、`EVIDENCE_REQUIRED`、`MERCHANT_SUBMITTED`、`EVIDENCE_UNDER_REVIEW`、`EVIDENCE_RETURNED`、`RESOLVED`、`CANCELED`、`LOST`、`WON`、`EXPIRED`、`ACCEPTED`、`MERCHANT_ACCEPTED`、`PRE_CHARGEBACK_CREATED`、`PRE_CHARGEBACK_IN_ACCEPT`、`PRE_CHARGEBACK_IN_REJECT`、`PRE_CHARGEBACK_IN_EXPIRE`、`PRE_CHARGEBACK_ACCEPTED`、`PRE_CHARGEBACK_REJECTED`、`FRAUD_FINISHED`、`RETRIEVAL_CREATED`、`RETRIEVAL_FINISHED`、`RETRIEVAL_CANCELED` |
+| `amount` | CurrencyAmount | 選填 | 爭議初始金額 |
+| `stageFinalAmount` | CurrencyAmount | 選填 | 階段終態爭議金額 |
+| `reason` | String(512) | 必填 | 爭議原因 |
+
+## 7. 模式別建議訂閱與處理
+
+| 模式 | 主要事件 | 處理 |
 |---|---|---|
-| `refundOrderId` | String | SLP refund order ID |
-| `referenceRefundId` | String | Merchant refund reference |
-| `tradeOrderId` | String | Original payment order ID |
-| `status` | String | `SUCCEEDED` or `FAILED` |
-| `amount` | Amount | Refund amount |
-| `reason` | String | Refund reason |
+| 導轉式 | `session.succeeded` / `session.expired` | 以結帳交易狀態更新訂單；從 `paymentDetails[].tradeOrderId` 取付款交易 ID 保存（退款用） |
+| 導轉式（需卡號前六後四、ATM 付款人帳號等細節） | 另訂閱 `trade.*`，或用 `tradeOrderId` 呼叫 `trade/payment/get` | 官方：**同時訂閱 session 與 trade 通知會兩邊都收到**，須正確處理（去重） |
+| 內嵌式 | `trade.succeeded` / `trade.failed` / `trade.expired` / `trade.cancelled` | 以付款交易狀態更新訂單 |
+| 手動請款 | `trade.processing`（`subStatus=AUTHORIZED`）→ capture / cancel event | |
+| 退款（共用） | `trade.refund.succeeded` / `trade.refund.failed` | |
+| 綁卡 / 定期 | `customer.instrument.*` | 見 `card-binding-recurring.md` |
 
----
+導轉式邊界情況（guide/session）：
+- 一筆 Session 在極端情況可能對應**多筆 Trade**（顧客按上一頁改選其他付款方式、或付款交易逾時但 Session 未逾時後重新付款）。
+- 可能出現 **Session 已逾時但 Trade 成功**（ATM 虛擬帳號以天計逾時；通道延遲回報）。此時 Trade 會成功，**Session 不會變成功** → 必須訂閱 / 查詢 `trade.*` 才不會漏單。
 
-## Customer (Member) Events
+## 8. Event 查詢 API
 
-### `customer.created`
-New customer/member created.
+官方 /api/event/query/ 頁：
 
-### `customer.updated`
-Customer info updated.
+```
+GET {URI}/v1/api/events/query/{eventId}
+Header: appKey (String, 必填), appId (String, 必填)
+```
 
-### `customer.deleted`
-Customer deleted/deactivated.
+> 此頁使用 `appKey` / `appId` header 與 `{URI}/v1/api/...` 路徑，與其他 Server API（`apiKey` / `merchantId`、`/api/v1/...`）規格不一致，欄位說明為空白；`appKey` / `appId` 對應哪把金鑰**官方文件未載明**。回應範例為 Event 外殼（`id`、`type`、`created`、`data`）。實際可用性需向串接窗口確認。
 
----
+## 9. NestJS / Express 範例
 
-## Instrument Events
+NestJS 需開 rawBody：`NestFactory.create(AppModule, { rawBody: true })`。
 
-### `customer.instrument.binded`
-Customer bound a payment instrument (card).
+```typescript
+import { Controller, Post, Headers, Req, HttpCode, UnauthorizedException, RawBodyRequest } from '@nestjs/common'
+import type { Request } from 'express'
+import { verifySlpWebhook } from './slp-webhook.util'
 
-### `customer.instrument.updated`
-Payment instrument updated.
+type SlpEvent = { id: string; type: string; created: number; data: Record<string, any> }
 
-### `customer.instrument.unbinded`
-Payment instrument unbound.
+@Controller('payments/shopline')
+export class ShoplineWebhookController {
+  constructor(private readonly svc: ShoplinePaymentService) {}
 
----
+  @Post('webhook')
+  @HttpCode(200)
+  async handle(
+    @Headers('timestamp') timestamp: string,
+    @Headers('sign') sign: string,
+    @Req() req: RawBodyRequest<Request>,
+  ): Promise<string> {
+    const raw = req.rawBody?.toString('utf8') ?? ''
+    if (!timestamp || !sign || !verifySlpWebhook(process.env.SLP_SIGN_KEY!, timestamp, raw, sign)) {
+      throw new UnauthorizedException()   // 非 200 → SLP 會重試；確認是簽章問題再拒絕
+    }
+    const evt = JSON.parse(raw) as SlpEvent
+    if (await this.svc.alreadyProcessed(evt.id)) return 'OK'
 
-## Dispute Events
+    switch (evt.type) {
+      case 'session.succeeded': await this.svc.onSessionSucceeded(evt.data); break
+      case 'session.expired':   await this.svc.onSessionExpired(evt.data); break
+      case 'trade.succeeded':   await this.svc.onTradeSucceeded(evt.data); break
+      case 'trade.failed':
+      case 'trade.expired':
+      case 'trade.cancelled':   await this.svc.onTradeClosed(evt.data); break
+      case 'trade.refund.succeeded':
+      case 'trade.refund.failed': await this.svc.onRefund(evt.data); break
+      default: break            // 未知 type：忽略並回 200
+    }
+    await this.svc.markProcessed(evt.id)
+    return 'OK'
+  }
+}
+declare class ShoplinePaymentService {
+  alreadyProcessed(id: string): Promise<boolean>; markProcessed(id: string): Promise<void>
+  onSessionSucceeded(d: any): Promise<void>; onSessionExpired(d: any): Promise<void>
+  onTradeSucceeded(d: any): Promise<void>; onTradeClosed(d: any): Promise<void>; onRefund(d: any): Promise<void>
+}
+```
 
-### Chargeback Events
-
-| Event | Description |
-|---|---|
-| `dispute.chargeback.created` | Chargeback initiated |
-| `dispute.chargeback.evidence_required` | Evidence submission required |
-| `dispute.chargeback.evidence_under_review` | Evidence submitted, under review |
-| `dispute.chargeback.evidence_returned` | Evidence returned (resubmit needed) |
-| `dispute.chargeback.resolved` | Dispute resolved |
-| `dispute.chargeback.cancelled` | Dispute cancelled |
-| `dispute.chargeback.lost` | Dispute lost (chargeback upheld) |
-| `dispute.chargeback.won` | Dispute won (chargeback reversed) |
-| `dispute.chargeback.expired` | Dispute expired |
-| `dispute.chargeback.accepted` | Dispute accepted by merchant |
-
-### Pre-Chargeback Events
-
-| Event | Description |
-|---|---|
-| `dispute.pre-chargeback.created` | Pre-chargeback notification |
-| `dispute.pre-chargeback.in_accept` | Response accepted |
-| `dispute.pre-chargeback.in_reject` | Response rejected |
-| `dispute.pre-chargeback.in_expire` | Response expired |
-| `dispute.pre-chargeback.accepted` | Pre-chargeback accepted |
-| `dispute.pre-chargeback.merchant_rejected` | Merchant rejected |
-
-### Other Dispute Events
-
-| Event | Description |
-|---|---|
-| `dispute.fraud.finished` | Fraud alert |
-| `dispute.retrieval.created` | Retrieval request created |
-| `dispute.retrieval.finished` | Retrieval completed |
-| `dispute.retrieval.cancelled` | Retrieval cancelled |
-
----
-
-## Platform Events
-
-| Event | Description |
-|---|---|
-| `trade.settled` | Sub-merchant settlement |
-| `merchant.kyc.audit` | Sub-merchant KYC audit result |
-
----
-
-## Complete Event Type List
-
-| Category | Event Type | Description |
-|---|---|---|
-| Session | `session.created` | Session created |
-| Session | `session.pending` | Session processing |
-| Session | `session.succeeded` | Session payment completed |
-| Session | `session.expired` | Session expired |
-| Payment | `trade.succeeded` | Payment succeeded |
-| Payment | `trade.failed` | Payment failed |
-| Payment | `trade.expired` | Payment expired |
-| Payment | `trade.processing` | Payment processing |
-| Payment | `trade.cancelled` | Payment cancelled |
-| Payment | `trade.customer_action` | Customer action needed |
-| Refund | `trade.refund.succeeded` | Refund succeeded |
-| Refund | `trade.refund.failed` | Refund failed |
-| Member | `customer.created` | Customer created |
-| Member | `customer.updated` | Customer updated |
-| Member | `customer.deleted` | Customer deleted |
-| Instrument | `customer.instrument.binded` | Card bound |
-| Instrument | `customer.instrument.updated` | Card updated |
-| Instrument | `customer.instrument.unbinded` | Card unbound |
-| Dispute | `dispute.chargeback.created` | Chargeback initiated |
-| Dispute | `dispute.chargeback.evidence_required` | Evidence needed |
-| Dispute | `dispute.chargeback.evidence_under_review` | Evidence reviewing |
-| Dispute | `dispute.chargeback.evidence_returned` | Evidence returned |
-| Dispute | `dispute.chargeback.resolved` | Dispute resolved |
-| Dispute | `dispute.chargeback.cancelled` | Dispute cancelled |
-| Dispute | `dispute.chargeback.lost` | Chargeback upheld |
-| Dispute | `dispute.chargeback.won` | Chargeback reversed |
-| Dispute | `dispute.chargeback.expired` | Dispute expired |
-| Dispute | `dispute.chargeback.accepted` | Dispute accepted |
-| Dispute | `dispute.pre-chargeback.created` | Pre-chargeback created |
-| Dispute | `dispute.pre-chargeback.in_accept` | Pre-CB response accepted |
-| Dispute | `dispute.pre-chargeback.in_reject` | Pre-CB response rejected |
-| Dispute | `dispute.pre-chargeback.in_expire` | Pre-CB response expired |
-| Dispute | `dispute.pre-chargeback.accepted` | Pre-CB accepted |
-| Dispute | `dispute.pre-chargeback.merchant_rejected` | Pre-CB merchant rejected |
-| Dispute | `dispute.fraud.finished` | Fraud alert |
-| Dispute | `dispute.retrieval.created` | Retrieval created |
-| Dispute | `dispute.retrieval.finished` | Retrieval completed |
-| Dispute | `dispute.retrieval.cancelled` | Retrieval cancelled |
-| Platform | `trade.settled` | Sub-merchant settlement |
-| Platform | `merchant.kyc.audit` | Sub-merchant KYC audit |
+Express：`app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => { const raw = req.body.toString('utf8'); ... })`。

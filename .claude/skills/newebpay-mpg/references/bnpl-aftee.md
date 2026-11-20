@@ -293,9 +293,9 @@ async function refundBnpl(params: {
 7. **`ItemOrderNo` uniqueness within the order**: duplicate SKU on two lines → trade rejected.
 8. **Negative `ItemAmt` for discounts**: use `ItemType=4` and a negative `ItemAmt`, not a separate "discount" mechanism.
 
-## Project hookup notes (zenbu-site)
+## Integration hookup notes (example project)
 
-zenbu-site does not yet integrate AFTEE. When it does, suggested touchpoints:
+When integrating AFTEE, suggested touchpoints:
 
 - Add a new method `NewebpayService.createAfteeTradeInfo()` mirroring `createPaymentForm()` but with the AFTEE/OrderDetail/Inst fields.
 - Persist `OrderDetail` items alongside the `OrderEntity` so settle/refund can recompute exact subtotals.

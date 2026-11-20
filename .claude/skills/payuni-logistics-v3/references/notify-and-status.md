@@ -29,7 +29,7 @@
 | `81` | 門市關轉 | 取件 / 退貨（僅 C2C）門市暫歇（裝修 / 搬遷 / 改店號）；需在期限內重選門市（**2023-09-19 新增**）|
 | `82` | 待轉宅配退回 | **僅超商物流-店到店 C2C**：賣家未取後物流中心保管，PAYUNi 寄通知信提醒商店於期限內提供宅配地址（**2023-12-13 新增**）|
 
-### 商店狀態映射建議（zenbu-site `order.shippingStatus`）
+### 商店狀態映射建議（範例欄位 `order.shippingStatus`）
 
 | ShipStatus | 建議映射 | 備註 |
 |---|---|---|
@@ -42,7 +42,7 @@
 | 51, 52, 53, 55, 56, 82 | `returned` | 各種退貨 |
 | 46 | `abandoned` | 包裹拋棄（不可挽回）|
 
-> 此 mapping 為**建議**，實際以 zenbu-site `order.shippingStatus` enum 為準（`apps/api-gateway/src/commerce/orders/`）。
+> 此 mapping 為**建議**，實際以你自己的 `order.shippingStatus` enum 定義為準。
 
 ---
 

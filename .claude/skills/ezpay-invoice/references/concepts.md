@@ -129,8 +129,26 @@ $check_code = strtoupper(hash('sha256',
     'HashIV=1234567891234567&' . $check_str . '&HashKey=abcdefghijklmnopqrstuvwxyzabcdef'));
 ```
 
-> **驗證時機**：開立發票 / 觸發開立 / 作廢 / 折讓 / 查詢的回應都帶 `CheckCode`。
-> 比對 SHA256 時用 `crypto.timingSafeEqual`（見 integration.md）避免 timing side-channel。
+### 哪些 API 能驗 CheckCode（原文矛盾，需先知道）
+
+7 支 API 的回應都帶 `CheckCode`，原文也都寫「檢核方法請參考附件二」。但附件二**只定義**
+上面這套 5 欄位規則，而其中 4 支 API 的回應根本沒有這 5 個欄位——這是**官方原文本身的矛盾**。
+
+| API | 回應有 5 欄位嗎 | 本 SKILL 的處置 |
+|-----|----------------|-----------------|
+| `invoice_issue`（任何 Status）| 有（`Status=0/3` 時 `InvoiceNumber` 沒有，但 5 欄位都在）| **必驗**，不符即視為偽造回應 |
+| `invoice_touch_issue` | 有 | **必驗** |
+| `invoice_search` | 有 | **必驗** |
+| `invoice_invalid` | 無（只有 MerchantID / InvoiceNumber / CreateTime）| **不驗**：只看 `Status`，原樣保存 `CheckCode` |
+| `allowance_issue` | 無（有 AllowanceNo / AllowanceAmt / RemainAmt，沒有 InvoiceTransNo / RandomNum）| **不驗**：同上 |
+| `allowance_touch_issue` | 無 | **不驗**：同上 |
+| `allowanceInvalid` | 無 | **不驗**：同上 |
+
+- 「不驗」的 4 支：**不要**拿 5 欄位規則去算——缺欄位會算出 `InvoiceTransNo=&...`
+  或 `InvoiceTransNo=undefined`，永遠比對失敗，把成功的作廢 / 折讓誤判為失敗。
+- 原樣保存它們的 `CheckCode`，等沙箱實測出正確算法後再補驗證（列在 SKILL.md「未確認事項」）。
+- 必驗的 3 支，缺值欄位一律以**空字串**代入（不是 `undefined` / `null`）。
+- 比對用常數時間比較：PHP `hash_equals()`、Node `crypto.timingSafeEqual`（先比長度）。
 
 ## 載具規則
 
@@ -216,7 +234,31 @@ $check_code = strtoupper(hash('sha256',
   │
   └─ 整張取消 → 作廢發票（invoice_invalid，InvoiceStatus 變 2）
         條件：奇數月 14 日前可作廢前兩個月發票、未開過折讓、已上傳財政部成功
+        作廢後要重開 → 全新一次 invoice_issue，必須用「新的」MerchantOrderNo
 ```
+
+### 作廢後重開
+
+- 作廢的發票不會「復活」；重開就是全新開立，拿到全新發票號碼。
+- 原本的 `MerchantOrderNo` 在該商店已被用過，重開若沿用會撞 `LIB10003`。
+  自訂編號要能區分第幾次開立，例如 `{訂單編號}_{序號}`（限英數與 `_`、總長 ≤ 20）。
+- 本地要保留作廢歷史（原號碼、作廢時間、原因），不要用「清空發票欄位」表示可重開。
+
+### 還沒開出的發票（Status=0 等待觸發 / Status=3 預約）
+
+- 原文**沒有**「取消暫存發票」的 API；`invoice_invalid` 需要發票號碼，暫存發票還沒有號碼。
+- 訂單在觸發前取消 → 本地標記「不觸發」即可；`Status=3` 預約的發票到期**仍會自動開出**，
+  開出後只能再作廢。平台上殘留的暫存資料如何清除，原文未說明（列入「未確認事項」）。
+- 因此**預設用 `Status=1` 即時開立**，並在付款確認後才呼叫；只有明確需要延後開立的
+  業務（例如到貨後才開）才用 0 / 3。
+
+### 財政部上傳失敗（UploadStatus=3 / 4）
+
+- 原文只定義狀態值，**沒有**提供重新上傳或修正的 API；上傳失敗的發票也不能作廢（`INV70002`）。
+- 實作建議（非原文）：排程每日 06:00 之後查詢前一日開立的發票，`UploadStatus` 為
+  `3`（失敗）或 `4`（逾時）時通知管理員，由管理員登入 ezPay 平台查看原因或聯絡 ezPay 客服。
+- 常見原因是載具號碼或愛心碼「格式正確但不存在」——開立當下不會被擋，隔日上傳才失敗。
+  結帳時先呼叫 `checkBarCode` / `checkLoveCode` 驗證可大幅降低這種情況（見 `carrier-validation.md`）。
 
 ### 財政部上傳機制（非同步）
 
@@ -227,14 +269,34 @@ $check_code = strtoupper(hash('sha256',
 - 商店要確認財政部上傳結果，需用 `invoice_search` 查 `UploadStatus`
   （`0`=未上傳、`1`=已上傳成功、`2`=上傳中、`3`=上傳失敗、`4`=上傳逾時）。
 
-## 重送冪等性
+## 重送與冪等
 
-開立發票時：
+原文的兩條規則：
 
-- `MerchantOrderNo`（自訂編號）同一商店內**不可重覆**。
-- 若用**完全相同的 `PostData_`** 重送，平台回 `Status=SUCCESS` 並回傳原本那張發票的
-  `Result`（不重複開立）——這是平台對相同 `PostData_` 的冪等保證。
-- 若 `MerchantOrderNo` 重覆但其他欄位不同 → 回 `LIB10003`（自訂編號重覆）。
+- `MerchantOrderNo`（自訂編號）同一商店內**不可重覆**；重覆且內容不同 → `LIB10003`。
+- 用**完全相同的 `PostData_`** 重送 → 回 `Status=SUCCESS` 與原發票的 `Result`，不重複開立。
+
+**陷阱**：`PostData_` 裡有 `TimeStamp`。若每次呼叫都重新取當下時間，重送時 `PostData_`
+就不同 → 平台判定「自訂編號重覆但內容不同」→ `LIB10003`。第一次其實已開出發票，
+本地卻記成失敗。
+
+正確流程：
+
+```
+1. 組好業務參數（含 TimeStamp）→ 加密成 PostData_
+2. 送出「之前」先把 PostData_（或完整業務參數）存進資料庫，狀態記為「開立中」
+3. 送出
+   ├─ SUCCESS → 驗 CheckCode → 存發票號碼，狀態改「已開立」
+   ├─ 逾時 / 網路錯誤 / 非 JSON 回應 → 保持「開立中」，稍後用「存下來的同一份 PostData_」重送
+   ├─ LIB10003 → 不要換編號重開；改用 invoice_search（SearchType=1，
+   │             MerchantOrderNo + TotalAmt）取回原發票，查到就當作已開立
+   └─ 其他錯誤碼 → 狀態改「開立失敗」，依 error-codes.md 處置
+```
+
+- 重送用的是**同一份 `PostData_` 字串**，不是重新組一次參數。AES-CBC 用固定 IV，
+  同樣的參數會加密出同樣的結果；但只要 `TimeStamp` 變了就不同。
+- `TimeStamp` 過舊時平台是否拒收，原文未說明（錯誤碼表只有 `KEY10007`「頁面停留超過 30 分鐘」，
+  適用範圍不明）。所以重送若失敗，一律退回第 3 步的 `LIB10003` 路線，用查詢確認。
 
 ## 台灣電子發票背景
 

@@ -9,11 +9,12 @@ description: >
   物流貨態狀態碼（91/92/98/21/22/31/32/33/11/41/43/44/46/51/52/53/55/56/81/82）、
   超商物流貨態 Notify v1.0 與 宅配貨態 Notify v1.0。
   Use this skill whenever the task involves PAYUNi 物流、payuni-logistics、shipping、CVS pickup、
-  超商取貨、7-ELEVEN B2C/C2C/C2B、Tcat、黑貓宅配、ship_map、ShipTradeNo、ShipStatus、
+  超商取貨、7-ELEVEN B2C/C2C/C2B、ship_map、ShipTradeNo、ShipStatus、
   c2c_to_home_delivery、call_cat、退貨便、託運單 PDF、物流 Notify callback、
-  或任何 import from 'payuni-logistics' / 'payuni-crypto' / 涉及 ZenbuSite shippingRef、
-  shippingProvider=payuni、shippingStoreId、shippingOdno、ShipStatus mapping 的程式碼。
-  本 SKILL 為唯一官方 API reference 來源——不要再去翻 docs.payuni.com.tw。
+  或 shippingProvider=payuni 的程式碼。
+  **黑貓宅配僅限經 PAYUNi 代叫的情境**；自有系統直串黑貓走 tcat-logistics、
+  黑貓 PAY 金流走 tcat-pay。
+  本 SKILL 為 PAYUNi 物流唯一官方 API reference 來源——不要再去翻 docs.payuni.com.tw。
 ---
 
 # PAYUNi Logistics V3 — 完整官方 API 參考
@@ -62,12 +63,12 @@ description: >
 | **PaymentType / TradeStatus / LgsType / GoodsType / ServiceType / ShipType / Tag / Spec / DeliveryTimeTag** | `references/enums.md` |
 | **錯誤碼總表**（API00xxx + HOME01xxx + LAB01-06xxx + LGR01-06xxx + SHIP01-07xxx + DEF05xxx，共 450+ 條） | `references/error-codes.md` |
 
-### 1.4 NestJS 整合
+### 1.4 整合參考
 
 | 主題 | 詳細參考檔 |
 |---|---|
-| 本專案路徑、Settings keys、Service 慣例 | 9（本檔案下方） |
-| 完整 NestJS Service 範例（建立物流單 / 解析 Notify） | `references/nestjs-integration.md` |
+| 設定鍵、訂單欄位映射、Notify 處理順序 | 9（本檔案下方） |
+| 完整 NestJS Service 範例（TypeScript 參考實作，非本 repo 技術棧） | `references/nestjs-integration.md` |
 | 快速驗證點（HashInfo 公式、payload 範例、Notify 驗證流程） | `references/quick-checks.md` |
 
 ---
@@ -122,7 +123,7 @@ description: >
 5. HashInfo = SHA256(HashKey.trim() + EncryptInfo + HashIV.trim()).hex.toUpperCase()
 ```
 
-### 3.2 TypeScript / Node `crypto` 實作（與本專案 `payuni-crypto.ts` 一致）
+### 3.2 TypeScript / Node `crypto` 參考實作
 
 ```ts
 import * as crypto from 'crypto';
@@ -263,20 +264,14 @@ function Decrypt(string $encryptStr, string $merKey, string $merIV): string {
 
 ---
 
-## 9. 本專案（ZenbuSite）整合
+## 9. 整合參考模式
 
-### 9.1 程式碼位置
+> 以下為建議的整合形狀（設定鍵、訂單欄位映射、Notify 處理順序），**非任何特定 repo 的實作**。
+> 欄位名稱請對應到你自己的資料模型；重點在映射關係與處理順序，不在命名。
 
-| 用途 | 路徑 |
-|---|---|
-| AES / Hash 共用 helper | `apps/api-gateway/src/commerce/payments/payuni/payuni-crypto.ts` |
-| 物流 Service | `apps/api-gateway/src/commerce/payments/payuni-logistics/payuni-logistics.service.ts` |
-| 物流 Controller | `apps/api-gateway/src/commerce/payments/payuni-logistics/payuni-logistics.controller.ts` |
-| 模組註冊 | `apps/api-gateway/src/commerce/payments/payuni-logistics/payuni-logistics.module.ts` |
+### 9.1 設定（與金流共用憑證）
 
-### 9.2 設定（與金流共用憑證）
-
-讀 `settings` 表時使用以下 keys（`commerce.payment.*` 與 `commerce.shipping.*`）：
+設定儲存建議使用以下鍵名（`commerce.payment.*` 與 `commerce.shipping.*`）：
 
 | Key | 說明 |
 |---|---|
@@ -286,7 +281,7 @@ function Decrypt(string $encryptStr, string $merKey, string $merIV): string {
 | `payment.payuni_mode` | `sandbox` / `production` |
 | `shipping.payuni_enabled` | 物流主開關（**只擋 outbound action，inbound notify 不擋**） |
 
-### 9.3 Order 欄位映射
+### 9.2 Order 欄位映射（範例資料模型）
 
 | 欄位 | 取自 |
 |---|---|
@@ -298,15 +293,16 @@ function Decrypt(string $encryptStr, string $merKey, string $merIV): string {
 | `order.shippingOdno` | `Odno` 或 `OBTNumber` |
 | `order.shippingStatus` | 由 `ShipStatus` 經 `references/notify-and-status.md#mapping` 對應 |
 
-### 9.4 Notify 處理慣例
+### 9.3 Notify 處理慣例
 
-1. Controller 入口接 `application/x-www-form-urlencoded`；不要使用 RolesGuard / JwtGuard。
-2. 先 `verifyPayuniHash` → 失敗回 `200 "OK"`（不要回 4xx 否則 PAYUNi 重送）。
-3. `decryptPayuni` 取出內層 → 比對 `Status === 'SUCCESS'`。
-4. 用 `ShipTradeNo` 查 order → 更新 `shippingStatus` / `shippingOdno`。
+1. 入口接 `application/x-www-form-urlencoded`；**不要掛任何認證 / 授權中介層**（PAYUNi 不帶你的 token）。
+2. 先驗 HashInfo → 失敗仍回 `200 "OK"`（回 4xx 會讓 PAYUNi 重送）。
+3. 解密 EncryptInfo 取出內層 → 比對 `Status === 'SUCCESS'`。
+4. 用 `ShipTradeNo` 反查訂單 → 更新貨態與物流單號。
 5. 回傳純文字 `"OK"`（PAYUNi 不檢查 body，只看 200）。
 
-完整 NestJS 範例（含 timeout、retry、order 反查、idempotency）見 `references/nestjs-integration.md`。
+完整範例（含 timeout、retry、訂單反查、idempotency）見 `references/nestjs-integration.md`
+（NestJS / TypeScript **參考實作**，非本 repo 技術棧）。
 
 ---
 
@@ -354,5 +350,5 @@ function Decrypt(string $encryptStr, string $merKey, string $merIV): string {
 | 列舉值（LgsType / GoodsType / ServiceType / Tag / Spec / DeliveryTimeTag / ShipType） | `references/enums.md` |
 | 物流貨態狀態碼 ShipStatus + Notify payload 結構 + 對應商店 status mapping | `references/notify-and-status.md` |
 | 官方錯誤碼總表（API00xxx / HOME01xxx / LAB / LGR / SHIP / DEF） | `references/error-codes.md` |
-| NestJS Service 整合範例（4 大實際情境） | `references/nestjs-integration.md` |
+| NestJS Service 整合範例（4 大實際情境；TypeScript 參考實作，非本 repo 技術棧） | `references/nestjs-integration.md` |
 | 快速驗證點（Self-check 用） | `references/quick-checks.md` |

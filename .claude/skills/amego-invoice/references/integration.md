@@ -1,8 +1,7 @@
 # Amego 整合 — NestJS / TypeScript
 
-本檔提供光貿電子發票在 zenbu-site（NestJS 11 + TypeORM 0.3）的整合範式。
-zenbu-site 第三方整合慣例位於 `apps/api-gateway/src/commerce/`；光貿是電子發票加值中心，
-非金流，建議獨立成 `commerce/invoicing/amego/` 子模組（與 `payments/` 平行）。
+本檔提供光貿電子發票的 NestJS / TypeScript **參考實作**（非本 repo 技術棧——本 repo 為語言中立規格庫）。
+光貿是電子發票加值中心而非金流，建議獨立成 `commerce/invoicing/amego/` 子模組（與 `payments/` 平行）。
 
 ## 1. sign 簽章函式（最關鍵）
 
@@ -206,7 +205,7 @@ function buildB2cTaxablePayload(orderId: string, items: AmegoProductItem[]): Ame
 `f0401` 回 `code:0` 只代表光貿收件並配號，**不代表上傳財政部成功**。
 真正完成要看 `invoice_status` / `invoice_query` 的 `invoice_status` 欄位到 `99`（完成）。
 
-在 zenbu-site 用 BullMQ（`@nestjs/bullmq`）排程一個延遲 job 輪詢：
+以 BullMQ（`@nestjs/bullmq`）排程一個延遲 job 輪詢：
 
 ```typescript
 // 開立成功後丟一個延遲 job
@@ -237,7 +236,7 @@ BullMQ 用法詳見 `/zenbu-powers:bullmq-v5` SKILL。
 
 - 同一 `OrderId` 重送會回 `3040171`（OrderId 重複）。**開立前先 `invoice_query`
   查該訂單是否已有發票**——已有就直接用既有發票號碼，不重開。
-- 對齊 zenbu-site commerce 的 idempotency 慣例（`findOne by (orderId, type)` 已存在 → no-op）：
+- 建議的 idempotency 慣例（`findOne by (orderId, type)` 已存在 → no-op）：
   建議在 `commerce_orders` 或新表記下 `(orderId → invoiceNumber)`，
   開票前先查本地表，避免每次都打光貿。
 
@@ -257,7 +256,7 @@ BullMQ 用法詳見 `/zenbu-powers:bullmq-v5` SKILL。
 「暫時性」的留給 BullMQ retry。logger 只印 `code` / `msg` / `orderId`，
 **不印 `appKey`、不印完整 `data` JSON**（含買方 email / 地址等 PII）。
 
-## 9. zenbu-site 模組落點建議
+## 9. 模組落點建議（NestJS 專案範例）
 
 ```
 apps/api-gateway/src/commerce/invoicing/amego/

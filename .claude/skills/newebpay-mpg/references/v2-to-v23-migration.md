@@ -129,7 +129,7 @@ Run the existing CBC encrypt → submit → callback flow with `Version='2.3'`. 
 
 If a regression appears, immediately roll `Version` back to `'2.0'` — same code path, no encryption changes — and report to NewebPay.
 
-## Project-specific notes (zenbu-site)
+## Project-specific notes (example NestJS project)
 
 The project currently sends `Version='2.0'`. Migration touchpoint is one constant in:
 
@@ -140,5 +140,5 @@ apps/api-gateway/src/commerce/payments/newebpay/newebpay.service.ts
 When upgrading:
 1. Change the Version string constant.
 2. Update fixtures under `apps/api-gateway/tests/fixtures/newebpay/` if they contain `"Version":"2.0"`.
-3. Re-run `pnpm --filter @zenbu-site/api-gateway test` and `test:int`.
+3. Re-run the unit and integration test suites.
 4. Sandbox transaction via Cloudflare Tunnel (`bash scripts/start-tunnel.sh`) to verify callback round-trip.

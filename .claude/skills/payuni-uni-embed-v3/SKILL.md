@@ -7,8 +7,8 @@ description: >
   當程式碼涉及 PAYUNi、統一金流、payuni-uni、UNi Embed、內嵌金流、站內付、tokenization、
   iframe 信用卡收單、SDK 整合、uni-payment.js、createSession、getTradeResult、
   iframe/token_get、iframe/merchant_trade、IFrameDomain、SDK_TOKEN 時使用。
-  與 payuni-upp-v3（導轉式整合支付頁）平行；加密規則（AES-256-GCM + SHA256 HashInfo）
-  與 UPP 完全一致，請參考 payuni-upp-v3 該段。本 SKILL 為 V3 (2025/09 釋出)，
+  與 payuni-upp-v2（導轉式整合支付頁）平行；加密規則（AES-256-GCM + SHA256 HashInfo）
+  與 UPP 完全一致，請參考 payuni-upp-v2 該段。本 SKILL 為 V3 (2025/09 釋出)，
   若程式碼出現 V2 或 V1 路徑，請勿混用——V3 token_get 階段不送訂單資料。
 ---
 
@@ -18,11 +18,11 @@ description: >
 
 PAYUNi 免跳轉支付元件——商店頁面以 iframe 內嵌支付欄位（信用卡號、有效期限、CVC），消費者**不離開商店網站**完成付款。後端先呼叫 `token_get` 取 SDK_TOKEN（10 分鐘有效），前端用 SDK 蒐集卡片並取得綁定 TOKEN 結果，後端再以**原 SDK_TOKEN** 呼叫 `merchant_trade` 進行幕後授權。
 
-**目前僅支援信用卡**（一次付清、分期、約定信用卡、強制約定、記憶卡號）。ATM/CVS/LINE Pay/街口/Apple Pay 等請改用 **UPP**（導轉式）— 見 `payuni-upp-v3`。
+**目前僅支援信用卡**（一次付清、分期、約定信用卡、強制約定、記憶卡號）。ATM/CVS/LINE Pay/街口/Apple Pay 等請改用 **UPP**（導轉式）— 見 `payuni-upp-v2`。
 
 ## 與 UPP 的關鍵差異
 
-| 面向 | UNi Embed (本 SKILL) | UPP (`payuni-upp-v3`) |
+| 面向 | UNi Embed (本 SKILL) | UPP (`payuni-upp-v2`) |
 |------|----------------------|------------------------|
 | 體驗 | 站內付（iframe，不跳轉） | 跳轉至 PAYUNi 託管頁 |
 | 支付工具 | **僅信用卡** | 全部（信用卡+ATM+CVS+LINE Pay+街口+Apple/Google/Samsung Pay+AFTEE+貨到付款...） |
@@ -34,7 +34,7 @@ PAYUNi 免跳轉支付元件——商店頁面以 iframe 內嵌支付欄位（�
 | 加密規則 | **同 UPP**（AES-256-GCM + SHA256 HashInfo） | 同左 |
 | Hash Key/IV | 同一組商店金鑰 | 同左 |
 
-**加密實作完全相同——本 SKILL 不重複；請直接讀 `payuni-upp-v3/SKILL.md` 的「加解密」段或本專案 `apps/api-gateway/src/commerce/payments/payuni/payuni-crypto.ts`。**
+**加密實作完全相同——本 SKILL 不重複；請直接讀 `payuni-upp-v2/SKILL.md` 的「加解密」段或 [`payuni-upp-v2/references/encryption.md`](../payuni-upp-v2/references/encryption.md)。**
 
 ## V3 vs V2 vs V1 版本差異
 
@@ -247,7 +247,7 @@ PAYUNi 以 **Form POST** 將授權結果送至 `NotifyURL`，欄位與「非 3D 
 4. 比對 `TradeAmt` 與本地訂單金額（防止竄改）
 5. 依 `Status` / `TradeStatus` 更新訂單
 
-> NotifyURL 必須回應 `200 OK`；PAYUNi 不會用 retry，逾時建議 30 分鐘後主動以 [`/api/trade/query`](../payuni-upp-v3/references/api-reference.md) 查詢一次（與 UPP 共用，請參考 `payuni-upp-v3`）。
+> NotifyURL 必須回應 `200 OK`；PAYUNi 不會用 retry，逾時建議 30 分鐘後主動以 [`/api/trade/query`](../payuni-upp-v2/references/api-reference.md) 查詢一次（與 UPP 共用，請參考 `payuni-upp-v2`）。
 
 ## SDK 整合（前端核心）
 
@@ -403,7 +403,7 @@ input 處於 focus 時 SDK 自動加上 `form-input-focus` class，可自訂 CSS
 
 首次交易完成後，回傳會帶 `CreditHash`（Token Hash）+ `CreditLife`（有效日期 MMYY）。
 
-後續扣款使用 PAYUNi UPP 體系的「續期收款 API」（`/api/credit` mode）——**與 UPP 共用**，詳見 `payuni-upp-v3/references/api-reference.md` 的「續期收款 API」段。UNi Embed **本身不負責續期扣款**，僅負責首次綁卡。
+後續扣款使用 PAYUNi UPP 體系的「續期收款 API」（`/api/credit` mode）——**與 UPP 共用**，詳見 `payuni-upp-v2/references/api-reference.md` 的「續期收款 API」段。UNi Embed **本身不負責續期扣款**，僅負責首次綁卡。
 
 ## 訂單金額限制（信用卡）
 
@@ -411,7 +411,7 @@ input 處於 focus 時 SDK 自動加上 `form-input-focus` class，可自訂 CSS
 |------|------|
 | 信用卡 | 1～199,999 元 |
 
-> ATM/CVS/LINE Pay 等其他工具上限見 `payuni-upp-v3` 內 `references/api-reference.md`，本 SKILL 不適用。
+> ATM/CVS/LINE Pay 等其他工具上限見 `payuni-upp-v2` 內 `references/api-reference.md`，本 SKILL 不適用。
 
 ## 信用卡支援卡別與分期
 
@@ -448,11 +448,11 @@ input 處於 focus 時 SDK 自動加上 `form-input-focus` class，可自訂 CSS
 | API | `https://sandbox-api.payuni.com.tw` |
 | SDK CDN | `https://vendor.payuni.com.tw/sdk/uni-payment.js`（用 `env:"S"` 切換） |
 
-詳細 sandbox 後台驗證流程（playwright-cli 自動登入查訂單）請見 `payuni-upp-v3/SKILL.md`「後台驗證訂單」段——同一帳號通用。
+詳細 sandbox 後台驗證流程（playwright-cli 自動登入查訂單）請見 `payuni-upp-v2/SKILL.md`「後台驗證訂單」段——同一帳號通用。
 
 ## 注意事項
 
-1. **加密規則 100% 同 UPP**：AES-256-GCM、SHA256 HashInfo、`hex(base64(cipher) + ":::" + base64(tag))`，不重複定義；本專案實作見 `apps/api-gateway/src/commerce/payments/payuni/payuni-crypto.ts`。
+1. **加密規則 100% 同 UPP**：AES-256-GCM、SHA256 HashInfo、`hex(base64(cipher) + ":::" + base64(tag))`，不重複定義；完整說明見 [`payuni-upp-v2/references/encryption.md`](../payuni-upp-v2/references/encryption.md)。
 2. **V3 token_get 不要送 MerTradeNo / TradeAmt / NotifyURL** — 這是 V3 與 V2 最容易踩雷的差異；送了會被忽略或回 `TOKEN02xxx` 錯誤。
 3. **同一個 SDK_TOKEN 走完全程**：`token_get` → 前端 `getTradeResult` → 後端 `merchant_trade` 都用同一個 SDK_TOKEN。10 分鐘逾期 → `IFTRADE04001`。
 4. **MerTradeNo 在 merchant_trade 才送，10 分鐘內不可重複**。
@@ -471,14 +471,14 @@ input 處於 focus 時 SDK 自動加上 `form-input-focus` class，可自訂 CSS
     - `merchant_trade` 請求送 `1.0`、回傳固定 `1.2`（**不論是否帶發票**，回傳一律 `1.2`，無條件分支）
 16. **`getTradeResult` 在 V3 是「綁定」不是「授權」**——詳見「SDK 整合 / getTradeResult(config) 參數」段的 V3 vs V2 差異說明。
 
-## 與本專案的整合
+## 整合參考資料
 
 | 區段 | 檔案 |
 |------|------|
 | NestJS Service / Controller / DTO 範本 | `references/nestjs-example.md` |
 | 前端 Next.js 16 + React 19 整合範例 | `references/frontend-example.md` |
 | 完整錯誤代碼表（SDK + Token API + Trade API） | `references/error-codes.md` |
-| Sandbox / 後台驗證 / playwright-cli 自動化 | 同 UPP，見 `../payuni-upp-v3/SKILL.md` |
+| Sandbox / 後台驗證 / playwright-cli 自動化 | 同 UPP，見 `../payuni-upp-v2/SKILL.md` |
 
 ## 官方資源
 

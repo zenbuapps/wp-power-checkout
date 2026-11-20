@@ -359,14 +359,22 @@ JSON 回應範例：
 | `Version` | 串接程式版本 | V | Varchar(5) | **固定帶 `1.3`** |
 | `TimeStamp` | 時間戳記 | V | Varchar(30) | Unix 時間戳（秒）|
 | `SearchType` | 查詢方式 |  | Varchar(1) | `0`=用發票號碼 + 隨機碼查詢、`1`=用訂單編號 + 發票金額查詢。不帶則預設 `0` |
-| `MerchantOrderNo` | 訂單編號 | V | Varchar(20) | 此次查詢的訂單編號（`SearchType=1` 用）|
-| `TotalAmt` | 發票金額 | V | Varchar(10) | 開立發票的總金額（`SearchType=1` 用）|
-| `InvoiceNumber` | 發票號碼 | V | Varchar(10) | 此次查詢的發票號碼（`SearchType=0` 用）|
-| `RandomNum` | 發票防偽隨機碼 | V | Varchar(4) | 開立時回傳的 4 碼防偽隨機碼（`SearchType=0` 用）|
+| `MerchantOrderNo` | 訂單編號 | 條件 | Varchar(20) | `SearchType=1` 時必填：開立時帶的自訂編號 |
+| `TotalAmt` | 發票金額 | 條件 | Varchar(10) | `SearchType=1` 時必填：開立發票的總金額 |
+| `InvoiceNumber` | 發票號碼 | 條件 | Varchar(10) | `SearchType=0` 時必填：發票號碼 |
+| `RandomNum` | 發票防偽隨機碼 | 條件 | Varchar(4) | `SearchType=0` 時必填：開立時回傳的 4 碼防偽隨機碼 |
 | `DisplayFlag` | 是否於本平台網頁顯示發票查詢結果 |  | Varchar(1) | 值為 `1` 時須以 Form Post 將網頁控制權送至平台，由平台網頁顯示結果；不帶則以參數回傳發票資料 |
 
-> `SearchType` 決定查詢鍵：`0` 用 `InvoiceNumber + RandomNum`；`1` 用
-> `MerchantOrderNo + TotalAmt`。對應的查詢鍵欄位才需有值。
+> 原文表格把四個查詢鍵都標 `V`（必填），但實際依 `SearchType` **二擇一**：
+> `0` 用 `InvoiceNumber + RandomNum`；`1` 用 `MerchantOrderNo + TotalAmt`。
+>
+> **`SearchType=1` 的用途**：本地只知道自訂編號、沒拿到發票號碼時（例如開立請求逾時、
+> 或重送撞 `LIB10003`），用它取回平台上已存在的那張發票。見 `concepts.md`「重送與冪等」。
+>
+> **`DisplayFlag=1` 的用法**：這不是後端 API 呼叫，而是在**瀏覽器**產生一個自動送出的
+> `<form method="post" action=".../Api/invoice_search">`，欄位同樣是 `MerchantID_` +
+> `PostData_`（`PostData_` 內加 `DisplayFlag=1`），讓顧客直接看到平台的發票頁。
+> `PostData_` 必須在後端加密後才輸出到頁面，HashKey / HashIV 不可出現在前端。
 
 ### 7.2 Response（JSON 模式）
 
@@ -444,43 +452,125 @@ ezPay 平台只做兩項計算檢核（其餘金額正確性由營業人 / 財�
 2. **開立折讓**：折讓總金額 = 折讓商品小計 + 折讓商品稅額。
    即 `TotalAmt = Σ ItemAmt + Σ ItemTaxAmt`。
 
-### B2C 含稅範例（一般應稅 5%）
+> 以下演算法中的 `round()` 為**四捨五入到整數**。捨入方式與稅額算法屬財會決策，
+> ezPay 不檢核——上線前請與財會確認。所有範例皆為一般應稅 5%。
+
+### B2C 範例（單價含稅）
 
 買受人為個人，`Category=B2C`，`ItemPrice` / `ItemAmt` 為**含稅**金額。
-假設兩項商品含稅小計 200 + 200 = 400：
 
 ```
-TotalAmt = 400                       # 含稅總額（= 各 ItemAmt 加總）
-Amt      = round(400 / 1.05) = 381   # 未稅銷售額
-TaxAmt   = 400 - 381 = 19            # 稅額
+TotalAmt = Σ ItemAmt                 # 含稅總額 = 顧客實付
+Amt      = round(TotalAmt / 1.05)    # 未稅銷售額
+TaxAmt   = TotalAmt − Amt            # 稅額用減法得出，保證加總相等
+```
+
+兩項商品含稅小計 200 + 200：
+
+```
+TotalAmt = 400
+Amt      = round(400 / 1.05) = round(380.95) = 381
+TaxAmt   = 400 − 381 = 19
 # 檢核：Amt + TaxAmt = 381 + 19 = 400 = TotalAmt ✓
 ```
 
-### B2B 未稅範例（一般應稅 5%）
+### B2B 範例（單價未稅）
 
 買受人為營業人，`Category=B2B`，`ItemPrice` / `ItemAmt` 為**未稅**金額。
-官方 PHP 範例：`Amt=490`、`TaxAmt=10`、`TotalAmt=500`：
+
+**情境 A：商品本身以未稅價計價**（報價單式 B2B）
 
 ```
-Amt      = 490                       # 未稅銷售額（= 各 ItemAmt 加總）
-TaxAmt   = round(490 × 0.05) = 25 ... # 範例直接給 10（實務以財會確認的數字為準）
-TotalAmt = Amt + TaxAmt = 500
-# 檢核：Amt + TaxAmt = TotalAmt ✓
+Amt      = Σ ItemAmt                 # 未稅銷售額
+TaxAmt   = round(Amt × 0.05)
+TotalAmt = Amt + TaxAmt
 ```
 
-> 官方 B2B 範例 `Amt=490 / TaxAmt=10 / TotalAmt=500` 中稅額並非嚴格 5%——
-> 平台**只檢核** `Amt + TaxAmt = TotalAmt`，不檢核稅額是否等於 `Amt × 稅率`。
-> 稅額實際數字請與財會確認。
+未稅 300 + 200：`Amt=500`、`TaxAmt=25`、`TotalAmt=525`。
 
-### TaxType=9 混合稅率
+**情境 B：電商結帳，顧客付的是含稅價、事後要打統編**（最常見）
 
-`Category=B2C` 才可用 `TaxType=9`。需提供 `AmtSales`（應稅）/ `AmtZero`（零稅率）/
-`AmtFree`（免稅）三個分項銷售額，且：
+顧客實付是含稅總額，必須反推各列未稅金額，並讓各列加總剛好等於 `Amt`：
+
+```
+TotalAmt   = 顧客實付含稅總額
+Amt        = round(TotalAmt / 1.05)
+TaxAmt     = TotalAmt − Amt
+各列未稅小計 = round(該列含稅小計 / 1.05)
+尾差        = Amt − Σ 各列未稅小計      # 通常是 −1、0 或 +1
+→ 把尾差加到金額最大的那一列（同額時取第一列），讓 Σ ItemAmt = Amt
+```
+
+三件含稅 100 元的商品（三列各 1 件）：
+
+```
+TotalAmt = 300
+Amt      = round(300 / 1.05) = round(285.71) = 286
+TaxAmt   = 300 − 286 = 14
+各列未稅  = round(100 / 1.05) = 95 → 95 + 95 + 95 = 285
+尾差      = 286 − 285 = +1 → 三列同額，加到第一列 → 96
+ItemPrice = 96|95|95、ItemAmt = 96|95|95
+# 檢核：Σ ItemAmt = 286 = Amt ✓；Amt + TaxAmt = 300 = TotalAmt ✓
+```
+
+> **官方 PHP 範例的 B2B 數字不能照抄**：範例帶 `Amt=490 / TaxAmt=10 / TotalAmt=500`，
+> 10 並不是 490 的 5%（應為 25）。那組數字只示範欄位格式，能過平台是因為平台
+> **只檢核** `Amt + TaxAmt = TotalAmt`，不檢核稅額是否等於 `Amt × 稅率`。
+
+### TaxType=9 混合稅率（僅 B2C）
+
+`Category=B2C` 才可用 `TaxType=9`。需提供 `AmtSales`（應稅，未稅）/ `AmtZero`（零稅率）/
+`AmtFree`（免稅）三個分項銷售額，每項商品以 `ItemTaxType`（`1`/`2`/`3`，多項用 `|`
+分隔）標示課稅別，且：
 
 ```
 Amt = AmtSales + AmtZero + AmtFree
 ```
 
-每項商品需以 `ItemTaxType`（`1`/`2`/`3`，多項用 `|` 分隔）標示課稅別。
-混合稅率發票開折讓時，需依應稅 / 零稅率 / 免稅**個別開立折讓單**，並用
-`TaxTypeForMixed` 指定該折讓單的課稅別。
+範例：一件應稅商品含稅 210 元、一件免稅商品 100 元：
+
+```
+ItemName    = 應稅商品|免稅商品
+ItemPrice   = 210|100           # B2C → 含稅；免稅品本來就沒有稅
+ItemAmt     = 210|100
+ItemTaxType = 1|3
+TaxType     = 9
+TaxRate     = 5
+AmtSales    = round(210 / 1.05) = 200
+AmtZero     = 0
+AmtFree     = 100
+Amt         = 200 + 0 + 100 = 300
+TaxAmt      = 210 − 200 = 10     # 只有應稅部分有稅
+TotalAmt    = 310
+# 檢核：Amt + TaxAmt = 310 = TotalAmt ✓
+```
+
+> 此範例依原文欄位定義推導（原文沒有 TaxType=9 的完整數字範例），送出前請與財會確認，
+> 並在沙箱實測。混合稅率發票開折讓時，需依應稅 / 零稅率 / 免稅**個別開立折讓單**，
+> 並用 `TaxTypeForMixed` 指定該折讓單的課稅別。
+
+### 整數化：小數單價、折扣、運費
+
+原文把 `ItemCount` / `ItemPrice` / `ItemAmt` 定義為 `Int` 且「純數字」，**沒有提到小數或負數**。
+在沙箱確認前，一律送**正整數**，照下列規則把訂單明細轉成發票品項：
+
+| 情況 | 做法 |
+|------|------|
+| 該列小計能被數量整除 | `ItemCount=數量`、`ItemPrice=小計÷數量`、`ItemAmt=小計` |
+| 該列小計**不能**被數量整除（例：3 件共 100 元）| 合成一列：`ItemCount=1`、`ItemPrice=ItemAmt=小計`，品名後綴 ` x3`（注意 `ItemName` 上限 30 字）|
+| 訂單有折扣（折價券、滿額折）| 依各商品列小計**按比例攤進商品列**（折後價），尾差由金額最大的一列吸收；**不要**送負數列 |
+| 運費、手續費等費用 | 各自成一列正數（例：`運費`、`1`、`式`、`60`）|
+| 0 元列（贈品）| 原文未說明 0 元是否可送；預設**省略**，要保留紀錄可寫進 `Comment` |
+
+送出前的本地檢核（任何一條不成立就不要送出，直接記為本地錯誤）：
+
+```
+1. 每列 ItemAmt = ItemCount × ItemPrice，且三者皆為正整數
+2. B2C：Σ ItemAmt = TotalAmt；B2B：Σ ItemAmt = Amt
+3. Amt + TaxAmt = TotalAmt
+4. TotalAmt = 訂單實付總額
+5. 品名已移除 `|`（與多品項分隔符衝突），且每個品名 ≤ 30 字
+```
+
+> **負數折扣列**（每張折價券一列負數，規格 INV-204 的模型 b）是否被 ezPay 接受，
+> **原文未說明**，列入 SKILL.md「未確認事項」。沙箱實測通過前，不要採用。

@@ -1,8 +1,7 @@
 # ezPay 電子發票 — NestJS / TypeScript 整合
 
-對應 EZP_INVI_1.2.1 標準版。本檔提供在 zenbu-site（NestJS 11 + TypeORM 0.3）
-`apps/api-gateway/src/commerce/` 下整合 ezPay 電子發票的實作指引。官方範例是
-PHP / .NET C#，本檔將其轉為 Node.js / TypeScript。
+對應 EZP_INVI_1.2.1 標準版。本檔為 ezPay 電子發票的 NestJS / TypeScript **參考實作**，
+供對照演算法步驟用。**PHP 版本（本 repo 規劃的 WordPress 外掛技術棧）見 `php-client.md`**。
 
 > 以下程式碼為依官方規格推導的 TypeScript 實作；AES 參數、CheckCode 規則、
 > API 路徑、欄位名稱均忠實對齊 PDF。
@@ -72,27 +71,24 @@ export function decryptPostData(
 
 ## 2. CheckCode 回應驗證（SHA256）
 
+只用在 `invoice_issue` / `invoice_touch_issue` / `invoice_search` 的回應；作廢與折讓類回應
+沒有這 5 個欄位，**不要**拿來驗（原因見 concepts.md「哪些 API 能驗 CheckCode」）。
+
 ```typescript
 import * as crypto from 'crypto';
 
-/**
- * 計算回應 CheckCode：取 5 欄位 → A~Z 排序 → 前後加 HashIV/HashKey → SHA256 大寫
- */
+const CHECK_FIELDS = ['InvoiceTransNo', 'MerchantID', 'MerchantOrderNo', 'RandomNum', 'TotalAmt'] as const;
+
+/** 計算回應 CheckCode：取 5 欄位 → A~Z 排序 → 前後加 HashIV/HashKey → SHA256 大寫 */
 export function computeCheckCode(
-  result: {
-    InvoiceTransNo: string;
-    MerchantID: string;
-    MerchantOrderNo: string;
-    RandomNum: string;
-    TotalAmt: string | number;
-  },
+  result: Record<string, unknown>,
   hashKey: string,
   hashIv: string,
 ): string {
-  // A~Z 排序的 5 個欄位
-  const sorted = ['InvoiceTransNo', 'MerchantID', 'MerchantOrderNo', 'RandomNum', 'TotalAmt']
+  const sorted = [...CHECK_FIELDS]
     .sort()
-    .map((k) => `${k}=${String((result as Record<string, unknown>)[k])}`)
+    // 缺值一律代空字串，避免出現 "RandomNum=undefined"
+    .map((k) => `${k}=${result[k] == null ? '' : String(result[k])}`)
     .join('&');
 
   const raw = `HashIV=${hashIv}&${sorted}&HashKey=${hashKey}`;
@@ -101,22 +97,20 @@ export function computeCheckCode(
 
 /** 用 timing-safe 比對驗證回應 CheckCode */
 export function verifyCheckCode(
-  result: Parameters<typeof computeCheckCode>[0] & { CheckCode: string },
+  result: Record<string, unknown> & { CheckCode?: string },
   hashKey: string,
   hashIv: string,
 ): boolean {
-  const expected = computeCheckCode(result, hashKey, hashIv);
-  const a = Buffer.from(expected);
-  const b = Buffer.from(result.CheckCode ?? '');
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+  const expected = Buffer.from(computeCheckCode(result, hashKey, hashIv));
+  const actual = Buffer.from(result.CheckCode ?? '');
+  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
 }
 ```
 
 ## 3. EzpayInvoiceService 骨架
 
-依 zenbu-site 慣例：注入 `ConfigService`（禁直讀 `process.env`），HTTP 用
-標準 fetch / undici。設定（網域 / MerchantID / HashKey / HashIV）建議走 settings
-資料表（per-tenant）；下例以 ConfigService 示意。
+重點：開立分成「組 PostData_ 並存檔」與「送出」兩步——重送時必須送**同一份** `PostData_`，
+不能重新組參數（`TimeStamp` 會變，撞 `LIB10003`）。流程說明見 concepts.md「重送與冪等」。
 
 ```typescript
 import { Injectable, Logger } from '@nestjs/common';
@@ -129,6 +123,11 @@ interface EzpayConfig {
   hashKey: string;   // 32 bytes
   hashIv: string;    // 16 bytes
 }
+
+type EzpayResponse = { Status: string; Message: string; Result: string };
+
+/** 暫時性錯誤：可用同一份 PostData_ 重送 */
+export class EzpayTransientError extends Error {}
 
 @Injectable()
 export class EzpayInvoiceService {
@@ -146,51 +145,69 @@ export class EzpayInvoiceService {
     };
   }
 
-  /** 通用 POST：組 PostData_ → form post → parse JSON 回應 */
-  private async post(
-    path: string,
-    bizParams: Record<string, string | number>,
-  ): Promise<{ Status: string; Message: string; Result: string }> {
+  /** 送出已加密的 PostData_；網路錯誤、HTTP 非 2xx、非 JSON 回應都視為暫時性錯誤 */
+  private async send(path: string, postData: string): Promise<EzpayResponse> {
     const cfg = this.getConfig();
-    const postData = encryptPostData(bizParams, cfg.hashKey, cfg.hashIv);
-
     const body = new URLSearchParams({
-      MerchantID_: cfg.merchantId,  // 注意底線
-      PostData_: postData,          // 注意底線
+      MerchantID_: cfg.merchantId, // 注意底線
+      PostData_: postData,         // 注意底線
     });
 
-    const res = await fetch(`${cfg.baseUrl}${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: body.toString(),
-    });
+    let text: string;
+    try {
+      const res = await fetch(`${cfg.baseUrl}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body.toString(),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!res.ok) throw new EzpayTransientError(`HTTP ${res.status}`);
+      text = await res.text();
+    } catch (e) {
+      if (e instanceof EzpayTransientError) throw e;
+      throw new EzpayTransientError(`network: ${(e as Error).message}`);
+    }
 
-    const json = (await res.json()) as { Status: string; Message: string; Result: string };
-    // 注意：不要在 logger 印 hashKey/hashIv/postData 全文
+    let json: EzpayResponse;
+    try {
+      json = JSON.parse(text) as EzpayResponse;
+    } catch {
+      throw new EzpayTransientError('non-JSON response');
+    }
+    // 不要在 logger 印 hashKey / hashIv / postData 全文
     this.logger.debug(`ezPay ${path} -> ${json.Status}`);
     return json;
   }
 
-  /** 開立發票（即時，B2C 範例） */
-  async issueInvoice(input: {
+  private post(path: string, bizParams: Record<string, string | number>) {
+    const cfg = this.getConfig();
+    return this.send(path, encryptPostData(bizParams, cfg.hashKey, cfg.hashIv));
+  }
+
+  /**
+   * 第 1 步：組開立參數並加密。呼叫端必須在呼叫 sendIssue 之前，
+   * 把回傳的 postData 連同 merchantOrderNo / totalAmt 存進資料庫（狀態「開立中」）。
+   */
+  buildIssuePostData(input: {
     merchantOrderNo: string;
     buyerName: string;
     buyerEmail?: string;
     category: 'B2B' | 'B2C';
     buyerUbn?: string;        // B2B 必填
     items: { name: string; count: number; unit: string; price: number; amt: number }[];
-    amt: number;             // 銷售額（未稅）
-    taxAmt: number;          // 稅額
-    totalAmt: number;        // 含稅總額
+    amt: number;              // 銷售額（未稅）
+    taxAmt: number;           // 稅額
+    totalAmt: number;         // 含稅總額
     carrierType?: '0' | '1' | '2';
     carrierNum?: string;
     loveCode?: string;
     printFlag: 'Y' | 'N';
-  }): Promise<{ invoiceNumber: string; invoiceTransNo: string; randomNum: string }> {
+  }): string {
+    const cfg = this.getConfig();
     const bizParams: Record<string, string | number> = {
       RespondType: 'JSON',
       Version: '1.5',                                  // 開立發票固定 1.5
-      TimeStamp: Math.floor(Date.now() / 1000),        // Unix 秒
+      TimeStamp: Math.floor(Date.now() / 1000),        // 只在這裡取一次，之後重送沿用
       MerchantOrderNo: input.merchantOrderNo,
       Status: '1',                                     // 1=即時開立
       Category: input.category,
@@ -198,7 +215,8 @@ export class EzpayInvoiceService {
       ...(input.buyerUbn ? { BuyerUBN: input.buyerUbn } : {}),
       ...(input.buyerEmail ? { BuyerEmail: input.buyerEmail } : {}),
       ...(input.carrierType ? { CarrierType: input.carrierType } : {}),
-      ...(input.carrierNum ? { CarrierNum: encodeURIComponent(input.carrierNum) } : {}),
+      // 官方要求 rawurlencode；外層 URLSearchParams 會再編一次，與 PHP 範例一致
+      ...(input.carrierNum ? { CarrierNum: encodeURIComponent(input.carrierNum.trim()) } : {}),
       ...(input.loveCode ? { LoveCode: input.loveCode } : {}),
       PrintFlag: input.printFlag,
       TaxType: '1',
@@ -212,10 +230,25 @@ export class EzpayInvoiceService {
       ItemPrice: input.items.map((i) => i.price).join('|'),
       ItemAmt: input.items.map((i) => i.amt).join('|'),
     };
+    return encryptPostData(bizParams, cfg.hashKey, cfg.hashIv);
+  }
 
-    const res = await this.post('/Api/invoice_issue', bizParams);
+  /**
+   * 第 2 步：送出（首次與重送都呼叫這支，傳入存檔的同一份 postData）。
+   * 暫時性錯誤會丟 EzpayTransientError，呼叫端保持「開立中」稍後重送。
+   */
+  async sendIssue(saved: { postData: string; merchantOrderNo: string; totalAmt: number }) {
+    const res = await this.send('/Api/invoice_issue', saved.postData);
+
+    if (res.Status === 'LIB10003') {
+      // 多半是前一次其實成功了：用自訂編號 + 金額取回原發票
+      return this.searchByOrderNo(saved.merchantOrderNo, saved.totalAmt);
+    }
     if (res.Status !== 'SUCCESS') {
-      // res.Status 為錯誤代碼，見 error-codes.md
+      // res.Status 為錯誤代碼，見 error-codes.md；NOR10001 / KEY10014 屬暫時性
+      if (res.Status === 'NOR10001' || res.Status === 'KEY10014') {
+        throw new EzpayTransientError(res.Status);
+      }
       throw new Error(`ezPay invoice_issue failed: ${res.Status} ${res.Message}`);
     }
 
@@ -225,13 +258,13 @@ export class EzpayInvoiceService {
       throw new Error('ezPay response CheckCode mismatch');
     }
     return {
-      invoiceNumber: result.InvoiceNumber,    // 只有 Status=1 才有
-      invoiceTransNo: result.InvoiceTransNo,
-      randomNum: result.RandomNum,
+      invoiceNumber: result.InvoiceNumber as string,   // 只有 Status=1 才有
+      invoiceTransNo: result.InvoiceTransNo as string,
+      randomNum: result.RandomNum as string,
     };
   }
 
-  /** 作廢發票 */
+  /** 作廢發票（回應不驗 CheckCode；LIB10005 已作廢過視為成功） */
   async invalidInvoice(invoiceNumber: string, reason: string): Promise<void> {
     const res = await this.post('/Api/invoice_invalid', {
       RespondType: 'JSON',
@@ -240,25 +273,45 @@ export class EzpayInvoiceService {
       InvoiceNumber: invoiceNumber,
       InvalidReason: reason,                   // 限中文 6 字 / 英文 20 字
     });
-    if (res.Status !== 'SUCCESS') {
-      throw new Error(`ezPay invoice_invalid failed: ${res.Status} ${res.Message}`);
-    }
+    if (res.Status === 'SUCCESS' || res.Status === 'LIB10005') return;
+    throw new Error(`ezPay invoice_invalid failed: ${res.Status} ${res.Message}`);
   }
 
-  /** 查詢發票（用發票號碼 + 隨機碼） */
-  async searchInvoice(invoiceNumber: string, randomNum: string) {
+  /** 查詢發票（發票號碼 + 隨機碼） */
+  searchInvoice(invoiceNumber: string, randomNum: string) {
+    return this.search({ SearchType: '0', InvoiceNumber: invoiceNumber, RandomNum: randomNum });
+  }
+
+  /** 查詢發票（自訂編號 + 發票金額）——開立結果不明時用來取回原發票 */
+  async searchByOrderNo(merchantOrderNo: string, totalAmt: number) {
+    const result = await this.search({
+      SearchType: '1',
+      MerchantOrderNo: merchantOrderNo,
+      TotalAmt: totalAmt,
+    });
+    return {
+      invoiceNumber: result.InvoiceNumber as string,
+      invoiceTransNo: result.InvoiceTransNo as string,
+      randomNum: result.RandomNum as string,
+    };
+  }
+
+  private async search(keys: Record<string, string | number>) {
     const res = await this.post('/Api/invoice_search', {
       RespondType: 'JSON',
       Version: '1.3',                          // 查詢固定 1.3
       TimeStamp: Math.floor(Date.now() / 1000),
-      SearchType: '0',                         // 0=發票號碼+隨機碼
-      InvoiceNumber: invoiceNumber,
-      RandomNum: randomNum,
+      ...keys,
     });
     if (res.Status !== 'SUCCESS') {
       throw new Error(`ezPay invoice_search failed: ${res.Status} ${res.Message}`);
     }
-    return JSON.parse(res.Result); // 含 UploadStatus / InvoiceStatus / ItemDetail
+    const result = JSON.parse(res.Result);
+    const cfg = this.getConfig();
+    if (!verifyCheckCode(result, cfg.hashKey, cfg.hashIv)) {
+      throw new Error('ezPay response CheckCode mismatch');
+    }
+    return result; // 含 UploadStatus / InvoiceStatus / ItemDetail
   }
 }
 ```
@@ -281,29 +334,28 @@ export class EzpayInvoiceService {
 
 - 回應 `Status !== 'SUCCESS'` 時，`Status` 即錯誤代碼（見 error-codes.md）。
 - `KEY10002`（解密錯誤）→ 多為 AES 實作問題，**不要重試**，檢查 padding / 金鑰。
-- `NOR10001` / `KEY10014`（網路 / timeout）→ 可重試；重試時用**完全相同的
-  `PostData_`**（平台對相同 `PostData_` 冪等回原發票，不會重複開立）。
-- `LIB10003`（自訂編號重覆）→ `MerchantOrderNo` 已用過，需查既有發票或換編號。
+- 網路錯誤、HTTP 非 2xx、非 JSON 回應、`NOR10001` / `KEY10014` → 暫時性，
+  用**存下來的同一份 `PostData_`** 重送（`sendIssue`），不要重新組參數。
+- `LIB10003`（自訂編號重覆）→ 用 `searchByOrderNo` 取回原發票，不要換編號重開。
 
 ## 6. 安全與隱私
 
 - **不要在 logger 印** `HashKey` / `HashIV` / `PostData_` 全文 / 買受人 PII
   （email / 統編 / 姓名 / 地址）。logger 只記 path、`Status`、`Message`、自訂編號。
-- CheckCode 比對用 `crypto.timingSafeEqual`（已在 §2 實作），先做 length guard。
-- `HashKey` / `HashIV` 透過 ConfigService 或 settings 資料表讀取，**禁止 hardcode**
-  （見 `.claude/rules/config-service.rule.md`）。
+- CheckCode 比對用 `crypto.timingSafeEqual`（已在 §2 實作），先比長度。
+- `HashKey` / `HashIV` 從環境變數或設定資料表讀取，**禁止 hardcode**、禁止進版控。
 
-## 7. zenbu-site commerce 對齊建議
+## 7. 與訂單流程的銜接建議
 
-- ezPay 電子發票屬「訂單後處理」，建議在訂單 `paid` 後（金流 webhook 確認付款）
-  才觸發開立——與 `commerce/payments/` 的訂單金錢計算順序解耦。
-- `MerchantOrderNo` 建議用訂單編號（或訂單編號 + 後綴），確保同商店唯一且可追溯。
-- 開立成功後將 `invoiceNumber` / `invoiceTransNo` / `randomNum` 存到訂單相關 entity，
-  供後續查詢 / 作廢 / 折讓使用。
-- 退貨流程對應 `allowance_issue`（開折讓）；整張取消對應 `invoice_invalid`（作廢）。
+- 發票屬「訂單後處理」：在付款確認後（金流通知確認已付款）才開立；
+  開立失敗**不可**連帶中斷訂單狀態變更，記錄錯誤、交給排程重試或人工處理。
+- `MerchantOrderNo` 建議用 `{訂單編號}_{序號}`：可回溯訂單，作廢後重開換序號不撞號
+  （限英數與 `_`、≤ 20 字）。
+- 開立成功後把 `invoiceNumber` / `invoiceTransNo` / `randomNum` 存在訂單上，
+  供查詢 / 作廢 / 折讓使用。
+- 退貨對應 `allowance_issue`（開折讓）；整張取消對應 `invoice_invalid`（作廢）。
   作廢有期限（奇數月 14 日前、前兩個月），跨期只能走折讓。
-- 財政部上傳是非同步——若需確認上傳結果，可排程（cron）用 `invoice_search` 查
-  `UploadStatus`，與 zenbu-site 既有 cron 機制（`@nestjs/schedule`）整合。
-- ezPay 電子發票與既有 NewebPay 金流同屬藍新集團——若專案已整合 NewebPay
-  （見 `newebpay-mpg` skill），ezPay 發票是獨立服務、獨立 HashKey/HashIV，
-  **不可共用** NewebPay 金流的金鑰。
+- 財政部上傳是非同步——每日 06:00 後排程用 `invoice_search` 查 `UploadStatus`，
+  失敗（3）或逾時（4）通知管理員（見 concepts.md「財政部上傳失敗」）。
+- ezPay 電子發票與 NewebPay 金流同屬藍新集團，但是**獨立服務、獨立 HashKey/HashIV**，
+  不可共用 NewebPay 金流的金鑰（見 `newebpay-mpg` skill）。

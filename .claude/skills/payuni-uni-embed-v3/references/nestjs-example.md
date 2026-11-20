@@ -1,6 +1,6 @@
 # PAYUNi UNi Embed V3 — NestJS / TypeScript 整合範例
 
-> 對應本專案 `apps/api-gateway/src/commerce/payments/payuni/`（已有 UPP 服務 + crypto helper）。
+> 以下路徑為範例配置，非本 repo 既有檔案；假設同專案已有 UPP 服務與 crypto helper。
 > UNi Embed 與 UPP 共用同一組 `MerID / HashKey / HashIV` 與加密 helper。
 
 ## TOC
@@ -489,7 +489,7 @@ describe('PayuniUniEmbedService', () => {
 
   it('uses official sample crypto values', () => {
     // 官方範例：merKey/merIV/data → 預期 SHA256
-    // 詳見 ../payuni-upp-v3/references/examples.md
+    // 詳見 ../payuni-upp-v2/references/examples.md
     // ... 略
   });
 });
