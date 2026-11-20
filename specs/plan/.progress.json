@@ -1,0 +1,36 @@
+{
+  "plan": "2026-11-20-unified-gateway-and-7-providers",
+  "blueprint": "2026-11-20-tdd-blueprint",
+  "branch": "feat/unified-gateway-providers",
+  "baseline": {
+    "measured_at": "2026-11-20",
+    "base_commit": "6d32e74",
+    "command": "docker compose -p d5a5492d5679ff98cc7c025012f4fdfb run --rm --no-deps -e API_MODE=mock -w /var/www/html/wp-content/plugins/power-checkout tests-cli vendor/bin/phpunit --no-coverage",
+    "tests": 2336,
+    "assertions": 7583,
+    "errors": 0,
+    "failures": [
+      "Tests\\Integration\\Invoice\\EzpayAesCryptoTest::test_edge_標準AES16blockPadding會造成解密異常",
+      "Tests\\Integration\\Payment\\LinePayTest::test_LinePay_付款成功_訂單狀態變更為processing",
+      "Tests\\Integration\\Payment\\LinePayTest::test_LinePay_付款成功_付款詳情meta包含LinePay",
+      "Tests\\Integration\\Payment\\LinePayTest::test_LinePay_付款成功_Order_Note包含LINE_Pay"
+    ],
+    "phpstan_errors": [
+      "inc/classes/Domains/Payment/ShoplinePayment/DTOs/RedirectSettingsDTO.php:148 isset.property"
+    ]
+  },
+  "phases": {
+    "step0": "done",
+    "P0": "in_progress",
+    "P1": "pending",
+    "P2": "pending",
+    "P3": "pending",
+    "P4": "pending",
+    "P5": "pending",
+    "P6": "pending",
+    "P7": "pending",
+    "P8": "pending",
+    "P9": "pending"
+  },
+  "last_commit": "6d32e74"
+}
