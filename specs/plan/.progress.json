@@ -25,14 +25,14 @@
         "P1": "done",
         "P2": "done",
         "P3": "done",
-        "P4": "pending",
+        "P4": "done",
         "P5": "pending",
         "P6": "pending",
         "P7": "pending",
         "P8": "pending",
         "P9": "pending"
     },
-    "last_commit": "ebef2e4",
+    "last_commit": "a1d987b",
     "P0_result": {
         "tests": 2397,
         "assertions": 7885,
@@ -114,6 +114,36 @@
             "a263722",
             "81552dd",
             "ebef2e4"
+        ]
+    },
+    "P3_followup": {
+        "commit": "4748957",
+        "change": "LinepayReconcileJob::DEFAULT_DELAY 1500 -> 300 (filter power_checkout_linepay_reconcile_delay kept); Vue copy 25->5 min",
+        "red": "LinepayDirectGateway 10 tests / 2 failures (.tmp/gate/P4pre-red-Payment.log)",
+        "green": "LinepayDirect OK (57 tests, 244 assertions)"
+    },
+    "P4_result": {
+        "tests": 2684,
+        "assertions": 8928,
+        "failures": "baseline 4 only",
+        "new_tests": 115,
+        "red": "154 tests / 100 errors + 13 failures (Class LogisticsTcat* not found) — .tmp/gate/P4-red-Logistics.log",
+        "green_filter": "TcatLogistics|WC_TcatLogisticsShipping|LogisticsProviderMetaContract|LogisticsApiService → OK (154 tests, 402 assertions)",
+        "phpstan_errors": [
+            "RedirectSettingsDTO.php:148 (baseline)"
+        ],
+        "phpcs": "new PHP files 0 errors; ProviderRegister / LogisticsApiService error count == master (0)",
+        "frontend": "pnpm build OK; changed-file eslint 0 errors (blocks unchanged → build:blocks not needed)",
+        "sandbox_probe": ".env.local TCAT_CUSTOMER_ID_TEST / TOKEN_TEST are angle-bracket placeholders; dummy-credential probe of egs.suda.com.tw:8443: OBTStatus → HTTP 200 IsOK=N \"執行失敗 -> E001-...\"; PrintOBT(empty Orders) → E003; DownloadOBT → HTTP 400 JSON E009; ParsingAddress → HTTP 500 empty body. Error code is embedded in Message as Exxx-",
+        "deviations": [
+            "single backend commit (ping endpoint not split — files interdependent)",
+            "no MetaBox (blueprint §9-4)",
+            "ping endpoint generic: LogisticsPingApiService + ISupportsConnectionTest, always registered"
+        ],
+        "commits": [
+            "8f45dfa",
+            "aa32b36",
+            "a1d987b"
         ]
     }
 }
