@@ -26,13 +26,13 @@
         "P2": "done",
         "P3": "done",
         "P4": "done",
-        "P5": "pending",
+        "P5": "done",
         "P6": "pending",
         "P7": "pending",
         "P8": "pending",
         "P9": "pending"
     },
-    "last_commit": "a1d987b",
+    "last_commit": "163b25e",
     "P0_result": {
         "tests": 2397,
         "assertions": 7885,
@@ -144,6 +144,42 @@
             "8f45dfa",
             "aa32b36",
             "a1d987b"
+        ]
+    },
+    "P5_pre_fix": {
+        "commit": "581860d",
+        "change": "LinepayReconcileJob: check 0000 (not yet authenticated) in auto reconcile -> reschedule with filter delay (AS args pending_round), stop when request expired (_pc_linepay_requested_at + 1200s) or MAX_PENDING_ROUNDS=10, note on stop; 0121/0122 not rescheduled; admin manual query unchanged (note only)",
+        "red": "LinepayDirectReconcile 15 tests / 3 errors + 2 failures (.tmp/gate/P5pre-red-Payment.log)",
+        "green": "LinepayDirect OK (64 tests, 259 assertions)"
+    },
+    "P5_result": {
+        "tests": 2806,
+        "assertions": 9264,
+        "failures": "baseline 4 only",
+        "new_tests": 122,
+        "red": "123 tests / 103 errors + 12 failures (Class Hct* / WaybillNumberAllocator not found) — .tmp/gate/P5-red-Logistics.log",
+        "green_filter": "WaybillNumberAllocator|Hct|LogisticsProviderMetaContract → OK (123 tests, 377 assertions); HctTrackCrypto not skipped (container OpenSSL 3.5.7 has des-ede3-cbc)",
+        "phpstan_errors": [
+            "RedirectSettingsDTO.php:148 (baseline)"
+        ],
+        "phpcs": "new PHP files 0 errors 0 warnings; ProviderRegister / LogisticsApiService error count == master (0)",
+        "frontend": "pnpm build OK; changed-file eslint 0 errors (blocks unchanged)",
+        "sandbox_probe": "GET DEV service1.asmx?wsdl (no creds): tempuri.org namespace / SOAPAction confirmed. QueryEDELNO_Json read-only: official test account test/test1 on DEV -> 「測試環境」請勿使用正式公司名稱或密碼; on PROD -> 查無資料 (auth OK) => test/test1 is a PRODUCTION account, so no TransData/Cancel/Return was sent (would hit production). wrong password -> 公司名稱或密碼錯誤. searchGoods read-only with .env.local track params: HTTP 200, response decrypts (des-ede3-cbc) to <rlist /> for unknown waybill.",
+        "credentials": ".env.local HCT_EDI_COMPANY/PASSWORD = public doc test account (prod-only in practice); HCT_EDELNO_RANGE empty; HCT_TRACK_* = real values (zenbu production track query params, identical to skill doc) — not written to code/tests/commits",
+        "deviations": [
+            "ping uses QueryEDELNO_Json instead of addrCompare (addrCompare uses separate USER=TEST2 account, cannot verify EDI credentials)",
+            "label stored at create time (base64 meta) and printed from meta; no GD PNG conversion (HCT image is already PNG per zenbu DEV probe; BMP also accepted)",
+            "DES via des-ede3-cbc triple key (no legacy provider) -> HctTrackCryptoTest not skipped",
+            "query_shipment without track params degrades to pending (no throw); network/decrypt failure throws (admin-triggered)",
+            "waybill range optional: empty -> HCT assigns edelno",
+            "single feat commit for backend (allocator committed separately); frontend separate"
+        ],
+        "commits": [
+            "6444f34",
+            "e4d4769",
+            "ca5c46f",
+            "bbc0f5e",
+            "163b25e"
         ]
     }
 }
