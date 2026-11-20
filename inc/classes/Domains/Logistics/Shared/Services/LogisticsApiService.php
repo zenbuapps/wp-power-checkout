@@ -25,7 +25,9 @@
  *     - 「尚未選店」/「尚未成立物流單」/「僅支援 C2C」→ 403
  *     - 「必須為公開可訪問的 URL」/「已啟用的綠界物流子類型」/「寄貨編號」/「TransCode」/「RtnCode」→ 400
  *   不外洩內部細節（細節已由 provider / ApiClient 寫 order note / log）。
- *   例外帶正規化 ErrorCode（新 provider，如 TcatLogisticsException）→ 改依 ErrorCode::to_http_status() 並回 error_code / raw_code。
+ *   例外帶正規化 ErrorCode（新 provider，如 TcatLogisticsException）→ 改依 ErrorCode::to_http_status() 並回 error_code / raw_code；
+ *   其中原本映射為 502 的 provider 端失敗（NETWORK / PROVIDER）改回 424 Failed Dependency——站點常掛在
+ *   Cloudflare 等 CDN 後，origin 的 502 本文會被改寫成 CDN 錯誤頁，後台看不到診斷訊息（與 LogisticsPingApiService 一致）。
  *
  * @see .claude/skills/ECPay-API-Skill/guides/07-logistics-allinone.md
  */
@@ -499,8 +501,23 @@ final class LogisticsApiService extends ApiBase {
 				'message'    => $e->getMessage(),
 				'data'       => null,
 			],
-			ErrorCode::UNSUPPORTED === $error_code ? 501 : $error_code->to_http_status()
+			self::http_status_for( $error_code )
 		);
+	}
+
+	/**
+	 * 正規化錯誤碼 → HTTP 狀態（UNSUPPORTED 501；provider 端失敗 502 → 424，避免 CDN 改寫本文）
+	 *
+	 * @param ErrorCode $error_code 正規化錯誤碼
+	 * @return int
+	 */
+	private static function http_status_for( ErrorCode $error_code ): int {
+		if (ErrorCode::UNSUPPORTED === $error_code) {
+			return 501;
+		}
+
+		$status = $error_code->to_http_status();
+		return 502 === $status ? LogisticsPingApiService::PROVIDER_FAILURE_STATUS : $status;
 	}
 
 	/**
