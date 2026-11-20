@@ -23,6 +23,12 @@ final class Requester {
 
 	private const TIMEOUT = 60;
 
+	/** @var array<int, string> 寫入 log 前須遮罩的欄位（小寫比對；實際送出的 header / body 不受影響） */
+	private const SECRET_KEYS = [ 'apikey', 'signkey', 'clientkey' ];
+
+	/** @var int 遮罩後保留的尾碼數 */
+	private const MASK_KEEP_TAIL = 4;
+
 	/** @var RedirectSettingsDTO 設定 */
 	public RedirectSettingsDTO $settings;
 
@@ -86,11 +92,13 @@ final class Requester {
 		$this->gateway->logger(
 				"{$this->gateway->title} {$endpoint} 請求參數 #{$this->order->get_id()}",
 				'info',
-				[
-					'api_url'        => $api_url,
-					'request_header' => $request_header,
-					'request_body'   => $request_body,
-				],
+				self::mask_secrets(
+					[
+						'api_url'        => $api_url,
+						'request_header' => $request_header,
+						'request_body'   => $request_body,
+					]
+				),
 				);
 
 		if ( isset( $response_body['code'] ) ) {
@@ -101,7 +109,7 @@ final class Requester {
 				$error ? [
 					'code' => $error->value,
 					'msg'  => $error->label(),
-				] : $response_body
+				] : self::mask_secrets( $response_body )
 				);
 
 			throw new \Exception( (string) ( $error ? $error->label() : $response_body['msg'] ), (int) ( $error ? $error->value : $response_body['code'] ) );
@@ -110,10 +118,51 @@ final class Requester {
 		$this->gateway->logger(
 				"✅ {$this->gateway->title} {$endpoint} 發送請求成功 #{$this->order->get_id()}",
 				'info',
-				$response_body
+				self::mask_secrets( $response_body )
 				);
 
 		return $response_body;
+	}
+
+	/**
+	 * 遮罩 log 內容中的密鑰（apiKey / signKey / clientKey，鍵名不分大小寫、遞迴），只留後 4 碼
+	 *
+	 * WC log 可被有 WooCommerce 狀態頁權限的人讀取，商店密鑰不可完整寫入（P8 fix #2）。
+	 *
+	 * @param array<mixed> $data 要寫進 log 的資料
+	 * @return array<mixed> 遮罩後的副本
+	 */
+	public static function mask_secrets( array $data ): array {
+		foreach ( $data as $key => $value ) {
+			if ( \is_array( $value ) ) {
+				$data[ $key ] = self::mask_secrets( $value );
+				continue;
+			}
+
+			if ( \is_string( $key ) && \in_array( \strtolower( $key ), self::SECRET_KEYS, true ) && \is_scalar( $value ) ) {
+				$data[ $key ] = self::mask_value( (string) $value );
+			}
+		}
+
+		return $data;
+	}
+
+	/**
+	 * 單一密鑰遮罩：長度 ≤ 8 全遮（避免短值被反推），其餘保留後 4 碼
+	 *
+	 * @param string $value 密鑰
+	 * @return string
+	 */
+	private static function mask_value( string $value ): string {
+		if ( '' === $value ) {
+			return '';
+		}
+
+		if ( \strlen( $value ) <= self::MASK_KEEP_TAIL * 2 ) {
+			return '****';
+		}
+
+		return '****' . \substr( $value, -self::MASK_KEEP_TAIL );
 	}
 
 	/** 取得 API 端點 @param string $endpoint 端點 /trade/payment/create @return string 端點 */
