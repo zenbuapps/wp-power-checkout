@@ -52,7 +52,7 @@ final class LogisticsApiService extends ApiBase {
 	 * ⚠️ ECPay / PAYUNi 共用 LogisticsMetaKeys（_pc_logistics_*）；PayNow 用獨立 meta
 	 *   （_pc_paynow_logistics_*），print/cancel/query 委派正常，但貨態 / 選店 callback 反查
 	 *   走 PayNow 自己的 callback class（power-checkout/paynow namespace）。
-	 * 黑貓宅急便直串（tcat_logistics，P4）用獨立 meta（_pc_tcat_logistics_*），排在最後（未指定 provider 時不搶先）。
+	 * 黑貓宅急便直串（tcat_logistics，P4）/ 新竹物流（hct_logistics，P5）用獨立 meta（_pc_{id}_*），排在最後（未指定 provider 時不搶先）。
 	 *
 	 * @var array<int, string>
 	 */
@@ -61,6 +61,7 @@ final class LogisticsApiService extends ApiBase {
 		'payuni_logistics',
 		'paynow_logistics',
 		'tcat_logistics',
+		'hct_logistics',
 	];
 
 	/**

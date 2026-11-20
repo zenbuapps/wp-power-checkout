@@ -97,6 +97,7 @@ final class HctLogisticsProviderTest extends TestCase {
 	 * @group happy
 	 */
 	public function test_建單成功寫入貨號與標籤(): void {
+		\update_option( 'woocommerce_weight_unit', 'kg' );
 		$order = $this->make_hct_order( [ 'weight' => '2.3' ] );
 		$this->fake_hct( 'TransData_Json', 'trans_data_ok' );
 

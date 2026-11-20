@@ -21,6 +21,8 @@ use J7\PowerCheckout\Domains\Logistics\Ecpay\Http\LogisticsCallback;
 use J7\PowerCheckout\Domains\Logistics\Ecpay\Services\BlocksLogisticsIntegration;
 use J7\PowerCheckout\Domains\Logistics\Ecpay\Services\EcpayLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Ecpay\Services\WC_EcpayLogisticsShipping;
+use J7\PowerCheckout\Domains\Logistics\Hct\Services\HctLogisticsProvider;
+use J7\PowerCheckout\Domains\Logistics\Hct\Services\WC_HctLogisticsShipping;
 use J7\PowerCheckout\Domains\Logistics\Paynow\Http\LogisticsCallback as PaynowLogisticsCallback;
 use J7\PowerCheckout\Domains\Logistics\Paynow\Services\PaynowLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Paynow\Services\WC_PaynowLogisticsShipping;
@@ -38,12 +40,13 @@ use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 /** Loader 載入物流方式 */
 final class ProviderRegister {
 
-	/** @var array<string, string> $logistics_providers [id, class]（綠界 / PAYUNi / PayNow / 黑貓宅急便直串並存可切換） */
+	/** @var array<string, string> $logistics_providers [id, class]（綠界 / PAYUNi / PayNow / 黑貓宅急便直串 / 新竹物流並存可切換） */
 	private static array $logistics_providers = [
 		EcpayLogisticsProvider::ID  => EcpayLogisticsProvider::class,
 		PayuniLogisticsProvider::ID => PayuniLogisticsProvider::class,
 		PaynowLogisticsProvider::ID => PaynowLogisticsProvider::class,
 		TcatLogisticsProvider::ID   => TcatLogisticsProvider::class,
+		HctLogisticsProvider::ID    => HctLogisticsProvider::class,
 	];
 
 	/** 註冊 hooks @return void */
@@ -53,6 +56,8 @@ final class ProviderRegister {
 		\add_action( 'woocommerce_checkout_create_order', [ __CLASS__, 'save_checkout_meta' ], 10, 2 );
 		// 物流「測試連線」ping（admin；不需任何物流已啟用，設定頁啟用前即可測試）
 		LogisticsPingApiService::register_hooks();
+		// 新竹物流：設定儲存時同步號段到配號器（不需啟用）
+		HctLogisticsProvider::register_hooks();
 
 		$any_enabled = false;
 		foreach ( self::$logistics_providers as $id => $class_name ) {
@@ -116,6 +121,7 @@ final class ProviderRegister {
 		$methods[ WC_PayuniLogisticsShipping::METHOD_ID ] = WC_PayuniLogisticsShipping::class;
 		$methods[ WC_PaynowLogisticsShipping::METHOD_ID ] = WC_PaynowLogisticsShipping::class;
 		$methods[ WC_TcatLogisticsShipping::METHOD_ID ]   = WC_TcatLogisticsShipping::class;
+		$methods[ WC_HctLogisticsShipping::METHOD_ID ]    = WC_HctLogisticsShipping::class;
 		return $methods;
 	}
 
@@ -133,6 +139,7 @@ final class ProviderRegister {
 		WC_PayuniLogisticsShipping::save_checkout_meta( $order, $data );
 		WC_PaynowLogisticsShipping::save_checkout_meta( $order, $data );
 		WC_TcatLogisticsShipping::save_checkout_meta( $order, $data );
+		WC_HctLogisticsShipping::save_checkout_meta( $order, $data );
 	}
 
 	/**
