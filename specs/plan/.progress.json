@@ -28,11 +28,11 @@
         "P4": "done",
         "P5": "done",
         "P6": "done",
-        "P7": "pending",
+        "P7": "done",
         "P8": "pending",
         "P9": "pending"
     },
-    "last_commit": "63e0a50",
+    "last_commit": "1baaa04",
     "P0_result": {
         "tests": 2397,
         "assertions": 7885,
@@ -212,6 +212,40 @@
             "a0ca59d",
             "7955f3e",
             "63e0a50"
+        ]
+    },
+    "P7_result": {
+        "tests": 3052,
+        "assertions": 10115,
+        "failures": "baseline 4 only",
+        "new_tests": 114,
+        "red": "138 tests / 105 errors + 9 failures (Class Kerrytj* not found) — .tmp/gate/P7-red-Logistics.log",
+        "green_filter": "Kerrytj|WaybillNumberAllocator|LogisticsProviderMetaContract → OK (138 tests, 546 assertions)",
+        "phpstan_errors": [
+            "RedirectSettingsDTO.php:148 (baseline)"
+        ],
+        "phpcs": "new PHP files (impl + tests) 0 errors (warnings only); ProviderRegister / LogisticsApiService error count == master (0)",
+        "frontend": "pnpm build OK; changed-file eslint 0 errors (blocks unchanged)",
+        "sandbox_probe": ".env.local empty → no create/update/pickup sent. Unauthenticated POST EDIEntranceTest/{ShipmentDelivery,UpdateShipmentDelivery,PickupV2} [] → HTTP 401 + WWW-Authenticate Basic realm=api.kerrytj.com + {Message: The requested authorization has been rejected.}; dummy creds → same 401; KerryTracingEDI BLNListTracing no auth → 401 realm=localhost empty body; Report/GetLabelPdf {} no auth → 400 ModelState (出貨日期必填…). Golden fixtures unauthorized.json / label_model_state.json from these probes.",
+        "deviations": [
+            "ping implements ISupportsConnectionTest (dispatch instruction) instead of blueprint §6.7 501: UpdateShipmentDelivery [] verifies Basic Auth without writing data (401 → AUTH)",
+            "can_cancel=false (skill api-reference §5: no cancel API in spec v1.1.0 / Help Page)",
+            "update (UpdateShipmentDelivery) and detail PDF (GetDetailPdf) not in ILogisticsProvider → provider methods update_shipment()/print_detail() + Kerrytj-only admin REST power-checkout/v1/logistics/{id}/kerrytj/{update,detail}, registered only when enabled",
+            "COD rejected (VALIDATION), same as zenbu; AC/DeclaredValue/PaymentType always empty",
+            "name truncated to 12 chars (zenbu test-env measurement), not spec 6; phone > 15 / address > 60 rejected",
+            "pending BLN stored on order before API call; retry reuses it; reused BLN + 託運單號重複 → success (zenbu); new BLN + duplicate → CONFLICT",
+            "allocator keys kerrytj_logistics_{mode}_{ambient|cold} (test progress does not consume prod range)",
+            "query_shipment no cache; tracing host has no test URL (test creds may 401)",
+            "READY_FOR_PICKUP for station/store pickup codes (zenbu used arrived); cold 93 → RETURNED (zenbu)",
+            "file count ~44 incl. 15 fixtures (blueprint estimate 16; >150%) — continued per instruction not to stop",
+            "test commit e013f0e after Red: phpcbf format + harness fixes (explicit rest_api_init hook for singleton, package contents)"
+        ],
+        "credential_scan_note": "feat scan hits = KerrytjLogisticsMetaKeys *_KEY meta key names; test creds are fake values",
+        "commits": [
+            "26ba8e5",
+            "e013f0e",
+            "0b1f922",
+            "1baaa04"
         ]
     }
 }
