@@ -19,7 +19,7 @@
 
 | Provider | 等級 | 結果 | 影片 |
 |---|---|---|---|
-| SHOPLINE Payments 嵌入式 | 完整（目標） | **未通過：外部阻塞**（SLP 沙盒 PCI API 1005）；PC 端 dispatch / 建交易正常；重付被 SLP 拒絕問題**已修並 live 重驗通過**（1e227d2，見 §2.3 / §12） | `shopline_payment_embedded-blocked.webm`、`shopline_payment_embedded-retry.webm`（修正前）、`shopline_payment_embedded-retry-fixed.webm`（修正後） |
+| SHOPLINE Payments 嵌入式 | 完整（目標） | **未通過：外部阻塞**（SLP 沙盒 PCI API 1005）；PC 端 dispatch / 建交易正常；重付被 SLP 拒絕問題**已修並 live 重驗通過**（f666352，見 §2.3 / §12） | `shopline_payment_embedded-blocked.webm`、`shopline_payment_embedded-retry.webm`（修正前）、`shopline_payment_embedded-retry-fixed.webm`（修正後） |
 | LINE Pay 直連 | 降級 | 通過 | `linepay-degraded.webm` |
 | 順豐速運 | **完整**（SIT） | 通過：測試連線 → SIT 建單 → PDF 面單 → 查詢 → 簽章推送更新貨態 | `sf_express-full.webm` |
 | 新竹物流 | 降級（唯讀） | 通過 | `hct_logistics-degraded.webm` |
@@ -54,14 +54,14 @@
 - 結論：**兩組憑證（P8 / zenbu）皆 1005** → 確證為 SHOPLINE 沙盒商店的 SDK / PCI 介面權限問題，非外掛 bug；zenbu commit `e2fbc9e` 訊息裡的「沙盒 4463 拒刷」只是錯誤提示的舉例，不是 zenbu 通過 PCI 的證據。
 - 依計劃停在步驟 2：未起 tunnel、未改站點設定、未建訂單、無影片；成功付款 → processing → 部分退款仍待 SHOPLINE 開通權限後重跑 `04-live/slp-embedded.spec.ts`。
 
-### 2.3 重付同一訂單（referenceOrderId 重複）— **已修（1e227d2），live 重驗通過**
+### 2.3 重付同一訂單（referenceOrderId 重複）— **已修（f666352），live 重驗通過**
 - 訂單 #6664（NT$300）：第一次付款同 2.1 卡在 PCI 1005；等 35 秒（本站 confirm 防雙擊鎖 30 秒）後同一訂單第二次付款：
   - dispatch confirm **HTTP 500 `UNKNOWN`「付款處理失敗，請稍後再試或聯繫商家」**
   - order note：`/trade/payment/create 請求失敗 code 1001 msg 重複下單，交易已存在`
   - `_pc_payment_identity` 仍為第一次的 tradeOrderId
 - 結論：**SLP 拒絕同一 `referenceOrderId` 再次建交易**；嵌入式以 WC 訂單 ID 當 referenceOrderId，第一次付款失敗（卡被拒、3DS 放棄 / 失敗）後，該訂單在嵌入式**永遠無法重付**（與綠界 / 藍新「編號永久唯一」同類問題）。
-- P8 當下未修（需團隊決定 referenceOrderId 策略）；其後已於 `1e227d2` 修正，以下為修正內容與 live 重驗。
-- **修正（`1e227d2`）**：每次 confirm 產生新 referenceOrderId `{order_id}-{attempt}-{6 hex}`（`EmbeddedReference`），送 API 前先寫入訂單 meta `_pc_slp_reference_history`；新格式只有「格式內訂單 ID = 該訂單」**且**「在該訂單歷史內」才判定歸屬（`OrderResolver` / `EmbeddedSyncManager` / `ReturnSyncManager` 同步調整）；SLP 1001 / 1006 改回 409 可讀訊息（不再 500）；已付款訂單 gateway 層 409。
+- P8 當下未修（需團隊決定 referenceOrderId 策略）；其後已於 `f666352` 修正，以下為修正內容與 live 重驗。
+- **修正（`f666352`）**：每次 confirm 產生新 referenceOrderId `{order_id}-{attempt}-{6 hex}`（`EmbeddedReference`），送 API 前先寫入訂單 meta `_pc_slp_reference_history`；新格式只有「格式內訂單 ID = 該訂單」**且**「在該訂單歷史內」才判定歸屬（`OrderResolver` / `EmbeddedSyncManager` / `ReturnSyncManager` 同步調整）；SLP 1001 / 1006 改回 409 可讀訊息（不再 500）；已付款訂單 gateway 層 409。
 - **live 重驗（2026-11-21，訂單 #6666，NT$300）**：`04-live/slp-embedded.spec.ts`「付款未完成後同一訂單重付」**1 passed**（3.5m），log `.tmp/gate/P8-live-slp-retry-fixed.log`
 
 | 項目 | 第 1 次 | 第 2 次 |
@@ -120,7 +120,7 @@
 
 - 影片：`...\tcat_logistics-degraded.webm`（修 bug 後重錄）　等級：降級　結果：**通過**
 - 步驟：設定頁填佔位契客代號 / 授權碼 + 寄件人 → 儲存 → 測試連線 → 200 `credentials_verified:false`；畫面「連線成功（測試站）：台北市信義區信義路五段7號 → 郵號 11-145-52-X（寄件郵號 14552X）」＋ 新提示「地址查詢（ParsingAddress）不驗證契客代號與授權碼，以上結果只代表已連上黑貓；授權碼是否正確請以實際建單確認。」
-- **修 bug（6877c7c）**：首錄時佔位憑證也顯示「連線成功」→ ParsingAddress 實測不驗證授權碼，原畫面會讓管理員誤以為憑證正確。
+- **修 bug（324d5e8）**：首錄時佔位憑證也顯示「連線成功」→ ParsingAddress 實測不驗證授權碼，原畫面會讓管理員誤以為憑證正確。
 - 阻塞：無測試授權碼，無法建單 / 列印 PDF。
 
 ## 8. 嘉里大榮（`kerrytj_logistics`）
@@ -132,19 +132,19 @@
   3. 改為合法號段（常溫 90000000001–90000000100、低溫 800000001–8000001004）→ 儲存成功
   4. 重新進入：「常溫號段狀態 剩餘 100 號，下一號 90000000001」「低溫號段狀態 剩餘 100 號，下一號 8000000013」
   5. 測試連線 → **424** `{"error_code":"AUTH","raw_code":"401","message":"嘉里大榮拒絕連線（測試連線）：帳號或密碼錯誤…"}`，畫面通知「金流 / 發票憑證錯誤，請至設定頁確認金鑰」
-- **修 bug（b03b570）**：首錄時 ping 回 502，Cloudflare 把 origin 502 本文換成自家錯誤頁 → 畫面只剩「發生未預期的錯誤，請稍後再試」。
+- **修 bug（5fd963c）**：首錄時 ping 回 502，Cloudflare 把 origin 502 本文換成自家錯誤頁 → 畫面只剩「發生未預期的錯誤，請稍後再試」。
 - 觀察（未修）：前端 AUTH 友善訊息文案為「金流 / 發票憑證錯誤」，用在物流設定頁不精確（`js/src/utils/error-code` 對照表共用）。
 
 ## 9. 修正的產品 bug
 
 | Commit | 類型 | 內容 |
 |---|---|---|
-| `c80d27a` | test（Red） | `LogisticsPingStatusCodeTest`：ping 失敗不回 5xx（2 tests / 2 failures） |
-| `b03b570` | fix(logistics) | `LogisticsPingApiService` provider 端失敗 502 → **424**（VALIDATION 仍 422），避免 CDN 改寫本文 |
-| `dcebe47` | test（Red） | `TcatLogisticsPingCredentialsTest`：ping 回應須帶 `credentials_verified=false`（1 test / 1 failure） |
-| `6877c7c` | fix(tcat-logistics) | 回應加 `credentials_verified:false`、設定頁加提示 |
+| `1f23127` | test（Red） | `LogisticsPingStatusCodeTest`：ping 失敗不回 5xx（2 tests / 2 failures） |
+| `5fd963c` | fix(logistics) | `LogisticsPingApiService` provider 端失敗 502 → **424**（VALIDATION 仍 422），避免 CDN 改寫本文 |
+| `1ec8767` | test（Red） | `TcatLogisticsPingCredentialsTest`：ping 回應須帶 `credentials_verified=false`（1 test / 1 failure） |
+| `324d5e8` | fix(tcat-logistics) | 回應加 `credentials_verified:false`、設定頁加提示 |
 
-另：`1a1effa` test(e2e) 新增 live-acceptance project 與 7 家 spec。
+另：`00369cc` test(e2e) 新增 live-acceptance project 與 7 家 spec。
 
 ## 10. Mock 測試（API_MODE=mock，wp-env tests-cli）
 
@@ -165,19 +165,19 @@ log：`.tmp/gate/P8-mock-*.log`、`P8-full.log`、`P8-phpstan.log`、`P8-live-*.
 ## 11. 未解決問題
 
 1. **SLP 沙盒 PCI 1005**（外部）：嵌入式無法完成付款 → processing / 退款未驗；需 SHOPLINE 開通沙盒 SDK 權限；D1 以 zenbu-site-2.0 的憑證重驗（實為同一組）仍 1005，見 §2.2.1。
-2. ~~SLP 嵌入式同訂單重付被拒（1001 重複下單）~~ → **已修**（`1e227d2`），live 重驗通過，見 §2.3。
+2. ~~SLP 嵌入式同訂單重付被拒（1001 重複下單）~~ → **已修**（`f666352`），live 重驗通過，見 §2.3。
 3. LINE Pay 人工付款段未跑（需真人 LINE sandbox 帳號，`LIVE_LINEPAY_MANUAL=1`）。
 4. 黑貓PAY / 黑貓宅急便 / 嘉里大榮 / 新竹 皆缺測試憑證或號段，建單類 live 未驗。
-5. ~~前端 AUTH 友善訊息「金流 / 發票憑證錯誤」用於物流設定頁文案不精確~~ → **已修**（`7bec864`），見 §12。
-6. ~~`LogisticsApiService` 其餘端點（create-shipment 等）的 NETWORK / PROVIDER 仍回 502~~ → **已修**（`7e6e7ca`，改回 424），見 §12。
+5. ~~前端 AUTH 友善訊息「金流 / 發票憑證錯誤」用於物流設定頁文案不精確~~ → **已修**（`20a27fc`），見 §12。
+6. ~~`LogisticsApiService` 其餘端點（create-shipment 等）的 NETWORK / PROVIDER 仍回 502~~ → **已修**（`aaa71a2`，改回 424），見 §12。
 
 ## 12. P8 後修正
 
 | Commit | 類型 | 內容 | 驗證 |
 |---|---|---|---|
-| `3efa3cd` → `1e227d2` | test（Red）→ fix(slp-embedded) | 同一訂單重付改用每次嘗試唯一 referenceOrderId（`{order_id}-{attempt}-{hex6}` + `_pc_slp_reference_history` 歸屬判定）；SLP 1001 / 1006 → 409 | `SlpEmbeddedRetryTest` 等（mock）+ **live 重驗通過**（§2.3，訂單 #6666：兩次建立交易皆 HTTP 200、reference 不同、歷史兩筆、無 500） |
-| `fef6b69` → `ced619e` | test（Red）→ fix(slp) | `Requester` 寫入 WC log 前遮罩 apiKey / signKey / clientKey | `SlpRequesterLogMaskTest`（mock） |
-| `5502cdd` → `7bec864` | test（Red）→ fix(logistics-ui) | 物流 API 的 AUTH 錯誤改顯示物流憑證文案（原為「金流 / 發票憑證錯誤」，§11-5） | `tests/js/error-code.test.ts` |
-| `d4067f5` → `7e6e7ca` | test（Red）→ fix(logistics) | 物流 REST 建單 / 查詢 / 列印 / 退貨 provider 失敗改回 424，不再回 502（避免 Cloudflare 改寫本文，§11-6） | `LogisticsApiServiceStatusCodeTest`（mock） |
+| `e7f4f35` → `f666352` | test（Red）→ fix(slp-embedded) | 同一訂單重付改用每次嘗試唯一 referenceOrderId（`{order_id}-{attempt}-{hex6}` + `_pc_slp_reference_history` 歸屬判定）；SLP 1001 / 1006 → 409 | `SlpEmbeddedRetryTest` 等（mock）+ **live 重驗通過**（§2.3，訂單 #6666：兩次建立交易皆 HTTP 200、reference 不同、歷史兩筆、無 500） |
+| `8897f4f` → `209ebf4` | test（Red）→ fix(slp) | `Requester` 寫入 WC log 前遮罩 apiKey / signKey / clientKey | `SlpRequesterLogMaskTest`（mock） |
+| `7393ac5` → `20a27fc` | test（Red）→ fix(logistics-ui) | 物流 API 的 AUTH 錯誤改顯示物流憑證文案（原為「金流 / 發票憑證錯誤」，§11-5） | `tests/js/error-code.test.ts` |
+| `c3bebd8` → `aaa71a2` | test（Red）→ fix(logistics) | 物流 REST 建單 / 查詢 / 列印 / 退貨 provider 失敗改回 424，不再回 502（避免 Cloudflare 改寫本文，§11-6） | `LogisticsApiServiceStatusCodeTest`（mock） |
 
 另：`04-live/slp-embedded.spec.ts` 重付情境由「記錄結果」改為正式斷言（第 2 次 HTTP 200、`_pc_slp_reference_history` 兩筆且不同、格式、tradeOrderId 不同、無 1001、無 5xx），影片名 `shopline_payment_embedded-retry-fixed`。

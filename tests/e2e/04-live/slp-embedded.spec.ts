@@ -3,7 +3,7 @@
  *
  * 1. 非 3DS 成功：訪客 classic 結帳 NT$401（沙盒：非 3 的倍數 + 單數 = 成功）→ order-received SDK 收銀台
  *    → keyboard.type 輸入沙盒測試卡 → 確認付款 → 導回 → processing + transaction id → 後台 WC 原生部分退款成功
- * 2. 付款未完成後同一訂單重付（commit 1e227d2 修正驗證）：NT$300 → 第一次 confirm → pay 失敗（3DS 放棄 / 沙盒 PCI 1005）
+ * 2. 付款未完成後同一訂單重付（commit f666352 修正驗證）：NT$300 → 第一次 confirm → pay 失敗（3DS 放棄 / 沙盒 PCI 1005）
  *    → 第二次 confirm 必須 HTTP 200，且兩次送出的 referenceOrderId（`_pc_slp_reference_history`）不同、歷史共兩筆；
  *    前台不得再出現 500（舊行為：同 referenceOrderId 被 SLP 以 1001 重複下單拒絕 → 500）
  *

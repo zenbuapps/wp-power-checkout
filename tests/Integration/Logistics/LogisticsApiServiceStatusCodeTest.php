@@ -2,7 +2,7 @@
 /**
  * 物流 REST 操作（建單 / 查詢 / 列印 / 退貨…）provider 端失敗不可回 502（P8 fix #4）
  *
- * b03b570 只把「測試連線」ping 的 provider 失敗改為 424：站點經 Cloudflare 等 CDN 時，
+ * 5fd963c 只把「測試連線」ping 的 provider 失敗改為 424：站點經 Cloudflare 等 CDN 時，
  * origin 的 502 本文會被改寫成 CDN 錯誤頁，後台只看到「發生未預期的錯誤」。
  * LogisticsApiService 其他操作以 ErrorCode::to_http_status() 映射，NETWORK / PROVIDER 仍回 502。
  *

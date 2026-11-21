@@ -4,7 +4,7 @@
     "branch": "feat/unified-gateway-providers",
     "baseline": {
         "measured_at": "2026-11-20",
-        "base_commit": "6d32e74",
+        "base_commit": "1b2007a",
         "command": "docker compose -p d5a5492d5679ff98cc7c025012f4fdfb run --rm --no-deps -e API_MODE=mock -w /var/www/html/wp-content/plugins/power-checkout tests-cli vendor/bin/phpunit --no-coverage",
         "tests": 2336,
         "assertions": 7583,
@@ -32,7 +32,7 @@
         "P8": "done",
         "P9": "done"
     },
-    "last_commit": "1baaa04",
+    "last_commit": "4f10179",
     "P0_result": {
         "tests": 2397,
         "assertions": 7885,
@@ -43,12 +43,12 @@
         ],
         "phpcs": "new files 0 errors (1 warning: $void param name); modified files error count == master",
         "commits": [
-            "9412da3",
-            "46017b6",
-            "5e609ac",
-            "a5578e1",
-            "8700139",
-            "2283494"
+            "511f9c1",
+            "ffeed4b",
+            "fe71623",
+            "936074d",
+            "1ed0c95",
+            "7541925"
         ]
     },
     "P1_result": {
@@ -66,11 +66,11 @@
         "sandbox_probe": "POST /api/v1/trade/payment/create (SLP sandbox) with same body shape → 200 status=CREATED + nextAction object (dummy paySession accepted at create stage)",
         "credential_scan_note": "scan hit PENDING_META_KEY = '_pc_slp_embedded_pending' is an order meta key name, not a credential",
         "commits": [
-            "db90ea6",
-            "cc4cf84",
-            "79d3ae9",
-            "01b6251",
-            "812496d"
+            "a24dde0",
+            "cb20666",
+            "393da69",
+            "8e588f4",
+            "61ebed8"
         ]
     },
     "P2_result": {
@@ -88,10 +88,10 @@
         "sandbox_probe": ".env.local TCATPAY_CUST_ID / PASSWORD / HASH_BASE are angle-bracket placeholders → /Token 400 invalid_grant; unauthenticated /api/Collect → HTTP 401 {Message: Authorization has been denied}; no real-credential call possible",
         "credential_scan_note": "scan hits are TcatPayMetaKeys *_KEY constant names (meta keys), not credentials",
         "commits": [
-            "ae6ca4c",
-            "f4c5fe7",
-            "a0677b0",
-            "05b1754"
+            "70d997d",
+            "0dcb1ad",
+            "094196c",
+            "07f4b95"
         ]
     },
     "P3_result": {
@@ -110,14 +110,14 @@
         "legacy_linepaytest": "3 baseline LinePayTest failures test SLP StatusManager (SLP-collected LINE Pay), failing since f71d7ce (#18) currency/amount guards (order currency USD / total 0 vs 100000 cents); unrelated to direct linepay gateway, not modified",
         "credential_scan_note": "Red scan hit = skill authentication.md §3 public cross-check vector secret; feat scan hits = LinepayMetaKeys *_KEY meta key names",
         "commits": [
-            "d5edfb4",
-            "a263722",
-            "81552dd",
-            "ebef2e4"
+            "cb4a1ed",
+            "055f448",
+            "174d88b",
+            "1c04cbe"
         ]
     },
     "P3_followup": {
-        "commit": "4748957",
+        "commit": "2ece01e",
         "change": "LinepayReconcileJob::DEFAULT_DELAY 1500 -> 300 (filter power_checkout_linepay_reconcile_delay kept); Vue copy 25->5 min",
         "red": "LinepayDirectGateway 10 tests / 2 failures (.tmp/gate/P4pre-red-Payment.log)",
         "green": "LinepayDirect OK (57 tests, 244 assertions)"
@@ -141,13 +141,13 @@
             "ping endpoint generic: LogisticsPingApiService + ISupportsConnectionTest, always registered"
         ],
         "commits": [
-            "8f45dfa",
-            "aa32b36",
-            "a1d987b"
+            "cd03d2f",
+            "b31c783",
+            "d6d4f14"
         ]
     },
     "P5_pre_fix": {
-        "commit": "581860d",
+        "commit": "653271a",
         "change": "LinepayReconcileJob: check 0000 (not yet authenticated) in auto reconcile -> reschedule with filter delay (AS args pending_round), stop when request expired (_pc_linepay_requested_at + 1200s) or MAX_PENDING_ROUNDS=10, note on stop; 0121/0122 not rescheduled; admin manual query unchanged (note only)",
         "red": "LinepayDirectReconcile 15 tests / 3 errors + 2 failures (.tmp/gate/P5pre-red-Payment.log)",
         "green": "LinepayDirect OK (64 tests, 259 assertions)"
@@ -175,11 +175,11 @@
             "single feat commit for backend (allocator committed separately); frontend separate"
         ],
         "commits": [
-            "6444f34",
-            "e4d4769",
-            "ca5c46f",
-            "bbc0f5e",
-            "163b25e"
+            "edcf602",
+            "fc541e5",
+            "911cc4d",
+            "f8297e1",
+            "fbf16a3"
         ]
     },
     "P6_result": {
@@ -197,7 +197,7 @@
         "sandbox_probe": "official public sandbox creds read at runtime from skill md (not in code/commits); read-only only, no create/cancel. https://api-ifsp-sit.sf.global: token OK (expireIn 7200); bad appSecret -> 1005 App is not exist; IUOP_QUERY_TRACK unknown waybill -> success=true + trackSummary 訂單不存在或訂單已歸檔; IUOP_QUERY_ORDER unknown -> 123002; IUOP_QUERY_FREIGHT TW10048->TW80141 INT0005 1kg -> 23 NTD; ICMS_QUERY_REGION_BY_POST_CODE 40743 -> Taichung City/Xitun District (matches SfRegion); bad token -> 500 Access denied, token invalid; bad signature -> 2001 Signature is invalid; wrong AES key -> 505 The format of the request body is incorrect; wrong customerCode -> same results as valid (customerCode not verifiable read-only). PC SfCrypto class encrypt/decrypt verified against sandbox.",
         "credential_scan_note": "Red scan hit = SfCryptoTest DEMO_AES_KEY / DEMO_APP_KEY (official SampleCode public vectors, auth-and-crypto.md §0.8); feat scan hits = SfExpressMetaKeys *_KEY meta key names",
         "deviations": [
-            "test commit 49092fa after Red: added 505 case from sandbox probe, moved tamper byte to last-but-one block (original position not guaranteed detectable under CBC), weight unit kg, package contents key, phpcbf format",
+            "test commit ac2a781 after Red: added 505 case from sandbox probe, moved tamper byte to last-but-one block (original position not guaranteed detectable under CBC), weight unit kg, package contents key, phpcbf format",
             "backend split into 2 feat commits (crypto/token/client; provider+push+shipping+register) — WC_SfExpressShipping committed with provider because ProviderRegister references both",
             "ping uses IUOP_QUERY_TRACK on non-existent waybill; customer_code_verified=false (sandbox shows customerCode not validated by read-only APIs)",
             "print downloads PDF server-side (label URL not stored/returned); falls back to HTML link page if not PDF",
@@ -207,11 +207,11 @@
             "COD orders rejected (VALIDATION); shipping rate only for destination TW"
         ],
         "commits": [
-            "4852999",
-            "49092fa",
-            "a0ca59d",
-            "7955f3e",
-            "63e0a50"
+            "2d2d35b",
+            "ac2a781",
+            "c201f67",
+            "6df9110",
+            "a52e3b0"
         ]
     },
     "P7_result": {
@@ -238,14 +238,14 @@
             "query_shipment no cache; tracing host has no test URL (test creds may 401)",
             "READY_FOR_PICKUP for station/store pickup codes (zenbu used arrived); cold 93 → RETURNED (zenbu)",
             "file count ~44 incl. 15 fixtures (blueprint estimate 16; >150%) — continued per instruction not to stop",
-            "test commit e013f0e after Red: phpcbf format + harness fixes (explicit rest_api_init hook for singleton, package contents)"
+            "test commit 87fb66c after Red: phpcbf format + harness fixes (explicit rest_api_init hook for singleton, package contents)"
         ],
         "credential_scan_note": "feat scan hits = KerrytjLogisticsMetaKeys *_KEY meta key names; test creds are fake values",
         "commits": [
-            "26ba8e5",
-            "e013f0e",
-            "0b1f922",
-            "1baaa04"
+            "72536cc",
+            "87fb66c",
+            "c507320",
+            "4f10179"
         ]
     },
     "P8_result": {
@@ -253,7 +253,7 @@
         "report": "specs/plan/2026-11-20-acceptance-report.md",
         "videos_dir": "tests/e2e/acceptance-videos/2026-11-21/ (gitignored)",
         "results": {
-            "shopline_payment_embedded": "BLOCKED (external): SLP sandbox PCI token/generate 1005 No interface access permission (reproduced outside WP); dispatch init/confirm + trade/payment/create OK; retry: fixed@1e227d2 (per-attempt unique referenceOrderId; live-verified on order #6666)",
+            "shopline_payment_embedded": "BLOCKED (external): SLP sandbox PCI token/generate 1005 No interface access permission (reproduced outside WP); dispatch init/confirm + trade/payment/create OK; retry: fixed@f666352 (per-attempt unique referenceOrderId; live-verified on order #6666)",
             "linepay": "degraded PASS (request 0000 -> sandbox-web-pay.line.me loaded)",
             "sf_express": "full PASS on SIT (ping, create SF3180007862096, PDF print, query, signed push -> accepted)",
             "hct_logistics": "degraded PASS (test site rejects prod account 424; prod read-only ping 200)",
@@ -262,8 +262,8 @@
             "kerrytj_logistics": "degraded PASS after fix (range validation, waybill status, ping 424 AUTH)"
         },
         "bugs_fixed": [
-            "b03b570 ping provider failure 502->424 (CDN rewrote body)",
-            "6877c7c tcat ping credentials_verified=false"
+            "5fd963c ping provider failure 502->424 (CDN rewrote body)",
+            "324d5e8 tcat ping credentials_verified=false"
         ],
         "tests": 3055,
         "assertions": 10126,
@@ -272,11 +272,11 @@
             "RedirectSettingsDTO.php:148 (baseline)"
         ],
         "commits": [
-            "c80d27a",
-            "b03b570",
-            "dcebe47",
-            "6877c7c",
-            "1a1effa"
+            "1f23127",
+            "5fd963c",
+            "1ec8767",
+            "324d5e8",
+            "00369cc"
         ],
         "d1_zenbu_credentials": {
             "date": "2026-11-21",
