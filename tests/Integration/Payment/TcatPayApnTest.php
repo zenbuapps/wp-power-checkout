@@ -5,7 +5,7 @@
  * R1：APN checksum = MD5(api_id:trans_id:amount:status:nonce) 不含任何金鑰，任何人可偽造
  *     → APN 只當「觸發」：驗 checksum 後一律以平台查詢（CocsOrderQuery / CvsOrderQuery）確認才標已付款。
  * R2：平台只有收到純文字 `OK` 才停止重送（每 15 分鐘、同狀態最多 3 次）
- *     → 平台查詢逾時 / 10 秒節流內 → 回非 OK（RETRY）讓平台重送；其餘一律回 `OK`。
+ *     → 已收款觸發狀態但平台查詢尚未確認 / 平台查詢逾時 / 10 秒節流內 → 回 503 `RETRY` 讓平台重送；其餘一律回 `OK`。
  *
  * 執行：
  *   vendor/bin/phpunit tests/Integration/Payment/ --filter TcatPayApn --no-coverage
@@ -77,6 +77,8 @@ final class TcatPayApnTest extends TestCase {
 	 */
 	private function assert_retry_ack( \WP_REST_Response $response ): void {
 		$this->assertNotSame( 'OK', $response->get_data(), '必須回非 OK 讓平台重送' );
+		$this->assertSame( 503, $response->get_status() );
+		$this->assertSame( 'RETRY', $response->get_data() );
 	}
 
 	/**
@@ -142,20 +144,50 @@ final class TcatPayApnTest extends TestCase {
 	}
 
 	/**
-	 * Security：checksum 正確但平台查詢回未付 → 不改狀態、回 OK、log
+	 * Security：checksum 正確但平台查詢回未付 → 不改狀態、回 RETRY（503，平台約 15 分鐘後重送）、log、不寫冪等
+	 *
+	 * 平台同一狀態只重送約 3 次：若在平台尚未落庫時就回 OK，真正的付款通知就不會再來。
 	 *
 	 * @group security
 	 */
-	public function test_checksum正確但平台未付_不改狀態(): void {
+	public function test_checksum正確但平台未付_不改狀態並回RETRY(): void {
 		$trade_no = 'PCT1-FORGE';
 		$order    = $this->make_tcat_order( 1000.0, 'pending', 'credit', $trade_no );
 		$this->fake_tcat_cmd( TcatPayApiClient::CMD_COCS_ORDER_QUERY, $this->tcat_fixture( 'cocs_order_query_unpaid', $trade_no ) );
 
 		$response = $this->post_tcat_apn( $this->tcat_apn_payload( $trade_no, 'B' ) );
 
-		$this->assert_ok_ack( $response );
-		$this->assertSame( 'pending', \wc_get_order( $order->get_id() )->get_status() );
+		$this->assert_retry_ack( $response );
+		$fresh = \wc_get_order( $order->get_id() );
+		$this->assertSame( 'pending', $fresh->get_status() );
+		$this->assertSame( [], ( new TcatPayMetaKeys( $fresh ) )->get_processed_status(), '未確認不可寫冪等鍵' );
 		$this->assertStringContainsString( '平台查詢未確認', \implode( "\n", $this->logs ) );
+	}
+
+	/**
+	 * Happy：首次 APN 時平台尚未確認（RETRY）→ 平台重送時已確認 → 認列 processing、回 OK
+	 *
+	 * @group happy
+	 */
+	public function test_平台於重送時確認_認列並回OK(): void {
+		$trade_no = 'PCT1-RESEND';
+		$order    = $this->make_tcat_order( 1000.0, 'pending', 'cvs_ibon', $trade_no );
+		$this->fake_tcat_cmd(
+			TcatPayApiClient::CMD_CVS_ORDER_QUERY,
+			$this->tcat_fixture( 'cvs_order_query_unpaid', $trade_no ),
+			$this->tcat_fixture( 'cvs_order_query_paid', $trade_no )
+		);
+		$payload = $this->tcat_apn_payload( $trade_no, 'B', true );
+
+		$this->assert_retry_ack( $this->post_tcat_apn( $payload ) );
+		$this->assertSame( 'pending', \wc_get_order( $order->get_id() )->get_status() );
+
+		// 平台約 15 分鐘後重送同一則通知（節流早已過期）
+		\delete_transient( 'pc_tcat_pay_apn_' . $order->get_id() );
+		$this->assert_ok_ack( $this->post_tcat_apn( $payload ) );
+
+		$this->assertSame( 'processing', \wc_get_order( $order->get_id() )->get_status() );
+		$this->assertCount( 2, $this->tcat_collect_requests( TcatPayApiClient::CMD_CVS_ORDER_QUERY ) );
 	}
 
 	/**
@@ -191,7 +223,7 @@ final class TcatPayApnTest extends TestCase {
 			$this->tcat_fixture( 'cocs_order_query_authorized', $trade_no )
 		);
 
-		$this->assert_ok_ack( $this->post_tcat_apn( $this->tcat_apn_payload( $trade_no, 'B' ) ) );
+		$this->assert_retry_ack( $this->post_tcat_apn( $this->tcat_apn_payload( $trade_no, 'B' ) ) );
 		$this->assertSame( 'pending', \wc_get_order( $order->get_id() )->get_status() );
 
 		// 節流過後真正的 APN（同狀態）到達
@@ -232,8 +264,8 @@ final class TcatPayApnTest extends TestCase {
 		$order    = $this->make_tcat_order( 1000.0, 'pending', 'credit', $trade_no );
 		$this->fake_tcat_cmd( TcatPayApiClient::CMD_COCS_ORDER_QUERY, $this->tcat_fixture( 'cocs_order_query_unpaid', $trade_no ) );
 
-		$this->assert_ok_ack( $this->post_tcat_apn( $this->tcat_apn_payload( $trade_no, 'B' ) ) );
-		$second = $this->post_tcat_apn( $this->tcat_apn_payload( $trade_no, 'B' ) );
+		$this->assert_retry_ack( $this->post_tcat_apn( $this->tcat_apn_payload( $trade_no, 'B' ) ) );
+		$second =$this->post_tcat_apn( $this->tcat_apn_payload( $trade_no, 'B' ) );
 
 		$this->assertCount( 1, $this->tcat_collect_requests( TcatPayApiClient::CMD_COCS_ORDER_QUERY ) );
 		$this->assert_retry_ack( $second );

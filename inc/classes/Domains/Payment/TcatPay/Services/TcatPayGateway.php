@@ -42,7 +42,7 @@ use J7\WpUtils\Classes\WP;
  *
  * 付款結果三條路，全部以「平台查詢」為唯一事實來源（R1）：
  *  1. APN（背景，POST JSON）：checksum 無金鑰可偽造 → 只當觸發，驗 checksum 後 CocsOrderQuery / CvsOrderQuery 確認；
- *     10 秒節流；平台查詢失敗 / 節流中 → 回非 OK 讓平台 15 分鐘後重送（R2）
+ *     10 秒節流；平台查詢失敗 / 節流中 / 已收款觸發但平台尚未確認 → 回 503 RETRY 讓平台 15 分鐘後重送（R2）
  *  2. COCS 導轉回報（前景，GET + chk）：驗 chk（hash_base）+ 編號屬於本訂單 → 平台查詢確認
  *  3. 後台「查詢補單」order action
  *
@@ -507,7 +507,7 @@ final class TcatPayGateway extends AbstractPaymentGateway implements IGateway {
 	 * @param \WP_REST_Request $request 請求
 	 * @param \WC_Order        $order   訂單
 	 * @return void
-	 * @throws TcatPayRetryLaterException 節流中要求平台重送（平台查詢失敗的 TcatPayApiException 亦同樣向上拋）
+	 * @throws TcatPayRetryLaterException 節流中 / 已收款觸發但平台尚未確認，要求平台重送（平台查詢失敗的 TcatPayApiException 亦同樣向上拋）
 	 */
 	protected function process_callback( \WP_REST_Request $request, \WC_Order $order ): void {
 		$payload  = self::decode_payload( $request ) ?? [];
@@ -540,7 +540,11 @@ final class TcatPayGateway extends AbstractPaymentGateway implements IGateway {
 
 		$detail   = \is_array( $payload['payment_detail'] ?? null ) ? $payload['payment_detail'] : [];
 		$notified = $is_cvs ? ( $payload['pay_amount'] ?? null ) : ( $detail['pay_amount'] ?? null );
-		$this->settle_from_platform( $order, $trade_no, $key, $notified, \__( 'APN 主動通知', 'power_checkout' ) );
+		if ( ! $this->settle_from_platform( $order, $trade_no, $key, $notified, \__( 'APN 主動通知', 'power_checkout' ) ) ) {
+			// 已收款觸發但平台尚未確認：回 RETRY 讓平台約 15 分鐘後重送（同狀態只重送約 3 次，回 OK 就不會再來）。
+			// 冪等鍵不寫（偽造 APN 只會換來一次 RETRY，無法預先污染）；之後仍有 TcatPayReconcileJob 主動補單。
+			throw new TcatPayRetryLaterException( '黑貓PAY APN：平台尚未確認已收款，要求平台稍後重送' );
+		}
 	}
 
 	/**
