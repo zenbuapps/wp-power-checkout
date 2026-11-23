@@ -19,17 +19,21 @@ use J7\PowerCheckout\Domains\Payment\TcatPay\Services\TcatPayGateway;
  * | `_pc_tcat_pay_payment_info` | CVS / ATM 取號資訊（ibon_code / virtual_account / expire_date…） |
  * | `_pc_tcat_pay_payment_detail` | 平台查詢確認已付款時的查詢結果 |
  * | `_pc_tcat_pay_processed_status` | 冪等：已處理的 `"{cust_order_no}:{status}"` |
+ * | `_pc_tcat_pay_reconcile_round` | 自動補單已執行的查詢輪次（TcatPayReconcileJob 退避依據） |
+ * | `_pc_tcat_pay_reconcile_failures` | 自動補單連續查詢失敗次數 |
  */
 final class TcatPayMetaKeys {
 
-	public const TRADE_NO_KEY         = '_pc_tcat_pay_trade_no';
-	public const TRADE_NO_HISTORY_KEY = '_pc_tcat_pay_trade_no_history';
-	public const METHOD_KEY           = '_pc_tcat_pay_method';
-	public const CHARGE_AMOUNT_KEY    = '_pc_tcat_pay_charge_amount';
-	public const PAYMENT_URL_KEY      = '_pc_tcat_pay_payment_url';
-	public const PAYMENT_INFO_KEY     = '_pc_tcat_pay_payment_info';
-	public const PAYMENT_DETAIL_KEY   = '_pc_tcat_pay_payment_detail';
-	public const PROCESSED_STATUS_KEY = '_pc_tcat_pay_processed_status';
+	public const TRADE_NO_KEY           = '_pc_tcat_pay_trade_no';
+	public const TRADE_NO_HISTORY_KEY   = '_pc_tcat_pay_trade_no_history';
+	public const METHOD_KEY             = '_pc_tcat_pay_method';
+	public const CHARGE_AMOUNT_KEY      = '_pc_tcat_pay_charge_amount';
+	public const PAYMENT_URL_KEY        = '_pc_tcat_pay_payment_url';
+	public const PAYMENT_INFO_KEY       = '_pc_tcat_pay_payment_info';
+	public const PAYMENT_DETAIL_KEY     = '_pc_tcat_pay_payment_detail';
+	public const PROCESSED_STATUS_KEY   = '_pc_tcat_pay_processed_status';
+	public const RECONCILE_ROUND_KEY    = '_pc_tcat_pay_reconcile_round';
+	public const RECONCILE_FAILURES_KEY = '_pc_tcat_pay_reconcile_failures';
 
 	/** @var int 冪等陣列保留筆數 */
 	private const MAX_PROCESSED = 50;
@@ -179,6 +183,31 @@ final class TcatPayMetaKeys {
 		}
 		$values[] = $key;
 		$this->order->update_meta_data( self::PROCESSED_STATUS_KEY, \array_slice( $values, -self::MAX_PROCESSED ) );
+		$this->order->save();
+	}
+
+	/** @return int 自動補單已執行的查詢輪次 */
+	public function get_reconcile_round(): int {
+		$value = $this->order->get_meta( self::RECONCILE_ROUND_KEY );
+		return \is_numeric( $value ) ? (int) $value : 0;
+	}
+
+	/** @return int 自動補單連續查詢失敗次數 */
+	public function get_reconcile_failures(): int {
+		$value = $this->order->get_meta( self::RECONCILE_FAILURES_KEY );
+		return \is_numeric( $value ) ? (int) $value : 0;
+	}
+
+	/**
+	 * 寫入自動補單狀態
+	 *
+	 * @param int $round    已執行的查詢輪次
+	 * @param int $failures 連續查詢失敗次數
+	 * @return void
+	 */
+	public function update_reconcile_state( int $round, int $failures ): void {
+		$this->order->update_meta_data( self::RECONCILE_ROUND_KEY, (string) $round );
+		$this->order->update_meta_data( self::RECONCILE_FAILURES_KEY, (string) $failures );
 		$this->order->save();
 	}
 

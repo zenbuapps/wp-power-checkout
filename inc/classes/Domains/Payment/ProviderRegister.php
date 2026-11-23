@@ -63,9 +63,10 @@ final class ProviderRegister {
 			);
 		}
 
-		// 黑貓PAY APN 端點 + block 結帳整合 —— 無條件註冊（同 PayNow：server-to-server 通知端點須恆常可達，
-		// 入帳一律以平台查詢為準；block 整合由 GatewayUtils 守衛，未啟用時 no-op）。
+		// 黑貓PAY APN 端點 + Action Scheduler 補單 hook + block 結帳整合 —— 無條件註冊（同 PayNow：server-to-server
+		// 通知端點須恆常可達，gateway 停用期間在途訂單仍須能補單；入帳一律以平台查詢為準；block 整合由 GatewayUtils 守衛，未啟用時 no-op）。
 		TcatPay\Http\TcatPayCallback::register_hooks();
+		TcatPay\Managers\TcatPayReconcileJob::register_hooks();
 		if ( \did_action( 'woocommerce_blocks_loaded' ) ) {
 			TcatPay\Services\TcatPayGateway::register_checkout_blocks();
 		} else {

@@ -121,13 +121,16 @@ trait TcatPayTestTrait {
 		$this->tcat_http_hooked = true;
 	}
 
-	/** @return void 移除攔截器、清空紀錄、清 token 與節流快取 */
+	/** @return void 移除攔截器、清空紀錄、清補單排程、清 token 與節流快取 */
 	final protected function reset_tcat_pay_http(): void {
 		\remove_filter( 'pre_http_request', [ $this, 'intercept_tcat_http' ], 10 );
 		$this->tcat_http_hooked = false;
 		$this->tcat_token_queue = [];
 		$this->tcat_cmd_queues  = [];
 		$this->tcat_requests    = [];
+		if ( \function_exists( 'as_unschedule_all_actions' ) ) {
+			\as_unschedule_all_actions( 'pc_tcat_pay_reconcile' );
+		}
 		global $wpdb;
 		$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '\\_transient\\_%pc\\_tcat\\_pay%' OR option_name LIKE '\\_transient\\_timeout\\_%pc\\_tcat\\_pay%'" ); // phpcs:ignore
 	}

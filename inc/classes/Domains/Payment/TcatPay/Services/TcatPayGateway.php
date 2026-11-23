@@ -19,6 +19,7 @@ use J7\PowerCheckout\Domains\Payment\TcatPay\DTOs\TcatPaySettingsDTO;
 use J7\PowerCheckout\Domains\Payment\TcatPay\Http\TcatPayApiClient;
 use J7\PowerCheckout\Domains\Payment\TcatPay\Http\TcatPayCallback;
 use J7\PowerCheckout\Domains\Payment\TcatPay\Managers\StatusManager;
+use J7\PowerCheckout\Domains\Payment\TcatPay\Managers\TcatPayReconcileJob;
 use J7\PowerCheckout\Domains\Payment\TcatPay\Shared\Enums\TcatPayApnStatus;
 use J7\PowerCheckout\Domains\Payment\TcatPay\Shared\Enums\TcatPayMethod;
 use J7\PowerCheckout\Domains\Payment\TcatPay\Shared\Exceptions\TcatPayApiException;
@@ -45,6 +46,7 @@ use J7\WpUtils\Classes\WP;
  *     10 秒節流；平台查詢失敗 / 節流中 / 已收款觸發但平台尚未確認 → 回 503 RETRY 讓平台 15 分鐘後重送（R2）
  *  2. COCS 導轉回報（前景，GET + chk）：驗 chk（hash_base）+ 編號屬於本訂單 → 平台查詢確認
  *  3. 後台「查詢補單」order action
+ *  4. Action Scheduler 自動補單 `pc_tcat_pay_reconcile`（建單成功即排程，見 TcatPayReconcileJob）
  *
  * 不做續期收款（ASM-5）。退款依平台 process_code 分流：已請款 CocsOrderRefund（可部分）、
  * 未請款 CocsOrderCancel（僅全額）；CVS / ATM 無退款 API。
@@ -272,6 +274,7 @@ final class TcatPayGateway extends AbstractPaymentGateway implements IGateway {
 			}
 			$meta->update_payment_url( $url );
 			$order->add_order_note( "黑貓PAY 已建立刷卡訂單，交易編號 {$trade_no}" );
+			TcatPayReconcileJob::schedule( $order );
 			return $url;
 		}
 
@@ -279,6 +282,7 @@ final class TcatPayGateway extends AbstractPaymentGateway implements IGateway {
 		$res    = $client->collect( TcatPayApiClient::CMD_CVS_ORDER_APPEND, $params->to_array() );
 		$meta->update_payment_info( self::extract_payment_info( $res ) );
 		$order->add_order_note( "黑貓PAY 已取得{$method->label()}繳費資訊，交易編號 {$trade_no}" );
+		TcatPayReconcileJob::schedule( $order );
 
 		return $this->get_return_url( $order );
 	}
