@@ -1,0 +1,1 @@
+{"returnCode":"0000","returnMessage":"Success.","info":{"paymentUrl":{"web":"https://sandbox-web-pay.line.me/web/payment/wait?transactionReserveId=TESTRESERVE001&locale=zh-TW_LP","app":"line://pay/payment/TESTRESERVE001"},"transactionId":__TX__,"paymentAccessToken":"056579816895"}}

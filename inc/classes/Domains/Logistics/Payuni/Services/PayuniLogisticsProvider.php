@@ -31,6 +31,9 @@ use J7\PowerCheckout\Domains\Logistics\Payuni\Shared\Enums\PayuniSubType;
 use J7\PowerCheckout\Domains\Logistics\Payuni\Shared\Helpers\PayuniCrypto;
 use J7\PowerCheckout\Domains\Logistics\Shared\Enums\LogisticsPaymentScenario;
 use J7\PowerCheckout\Domains\Logistics\Shared\Helpers\LogisticsMetaKeys;
+use J7\PowerCheckout\Domains\Logistics\Shared\DTOs\LogisticsProviderMetaDTO;
+use J7\PowerCheckout\Domains\Logistics\Shared\DTOs\ShipmentCapabilitiesDTO;
+use J7\PowerCheckout\Domains\Logistics\Shared\Enums\DeliveryMethod;
 use J7\PowerCheckout\Domains\Logistics\Shared\Interfaces\ILogisticsProvider;
 use J7\PowerCheckout\Shared\Abstracts\BaseService;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -534,4 +537,27 @@ final class PayuniLogisticsProvider extends BaseService implements ILogisticsPro
 	}
 
 	// endregion
+
+	/**
+	 * Provider meta（能力需與方法實作一致）
+	 *
+	 * PAYUNi 物流：7-ELEVEN 超商 + 黑貓宅配；退貨走 C2B 退貨便。
+	 * cancel_shipment 一律拋「不支援直接取消」→ can_cancel=false。
+	 *
+	 * @return LogisticsProviderMetaDTO
+	 */
+	public function get_provider_meta(): LogisticsProviderMetaDTO {
+		return new LogisticsProviderMetaDTO(
+			id: self::ID,
+			supported_delivery_methods: [ DeliveryMethod::HOME, DeliveryMethod::CVS ],
+			capabilities: new ShipmentCapabilitiesDTO(
+				can_create_shipment: true,
+				can_query_shipment: true,
+				has_cvs_map: true,
+				can_print: true,
+				can_return: true,
+				can_cancel: false,
+			),
+		);
+	}
 }

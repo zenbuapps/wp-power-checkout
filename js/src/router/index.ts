@@ -3,12 +3,15 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 
 export const ROUTER_MAPPER = {
 	shopline_payment_redirect: '/payments/shopline_payment_redirect',
+	shopline_payment_embedded: '/payments/shopline_payment_embedded',
 	ecpay_aio: '/payments/ecpay_aio',
 	ecpay_ecpg: '/payments/ecpay_ecpg',
 	newebpay_mpg: '/payments/newebpay_mpg',
 	payuni_upp: '/payments/payuni_upp',
 	payuni_uni_embed: '/payments/payuni_uni_embed',
 	paynow: '/payments/paynow',
+	tcat_pay: '/payments/tcat_pay',
+	linepay: '/payments/linepay',
 	amego: '/invoices/amego',
 	ecpay: '/invoices/ecpay',
 	ezpay: '/invoices/ezpay',
@@ -17,6 +20,10 @@ export const ROUTER_MAPPER = {
 	ecpay_logistics: '/logistics/ecpay_logistics',
 	payuni_logistics: '/logistics/payuni_logistics',
 	paynow_logistics: '/logistics/paynow_logistics',
+	tcat_logistics: '/logistics/tcat_logistics',
+	hct_logistics: '/logistics/hct_logistics',
+	sf_express: '/logistics/sf_express',
+	kerrytj_logistics: '/logistics/kerrytj_logistics',
 	checkout_enhancement: '/checkout',
 }
 
@@ -27,6 +34,10 @@ const routes = [
 		path: '/payments/shopline_payment_redirect',
 		component: () => import('@/pages/Payments/SLP/index.vue'),
 	}, // 請根據實際路徑調整
+	{
+		path: '/payments/shopline_payment_embedded',
+		component: () => import('@/pages/Payments/ShoplineEmbedded/index.vue'),
+	},
 	{
 		path: '/payments/ecpay_aio',
 		component: () => import('@/pages/Payments/EcpayAio/index.vue'),
@@ -52,6 +63,14 @@ const routes = [
 		component: () => import('@/pages/Payments/Paynow/index.vue'),
 	},
 	{
+		path: '/payments/tcat_pay',
+		component: () => import('@/pages/Payments/TcatPay/index.vue'),
+	},
+	{
+		path: '/payments/linepay',
+		component: () => import('@/pages/Payments/Linepay/index.vue'),
+	},
+	{
 		path: '/logistics',
 		component: () => import('@/pages/Logistics/index.vue'),
 	},
@@ -66,6 +85,22 @@ const routes = [
 	{
 		path: '/logistics/paynow_logistics',
 		component: () => import('@/pages/Logistics/Paynow/index.vue'),
+	},
+	{
+		path: '/logistics/tcat_logistics',
+		component: () => import('@/pages/Logistics/Tcat/index.vue'),
+	},
+	{
+		path: '/logistics/hct_logistics',
+		component: () => import('@/pages/Logistics/Hct/index.vue'),
+	},
+	{
+		path: '/logistics/sf_express',
+		component: () => import('@/pages/Logistics/SfExpress/index.vue'),
+	},
+	{
+		path: '/logistics/kerrytj_logistics',
+		component: () => import('@/pages/Logistics/Kerrytj/index.vue'),
 	},
 	{ path: '/invoices', component: () => import('@/pages/Invoices/index.vue') },
 	{

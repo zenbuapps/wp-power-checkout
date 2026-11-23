@@ -1,0 +1,1 @@
+{"returnCode":"0000","returnMessage":"success","info":[{"transactionId":__TX__,"transactionDate":"2026-11-19T09:00:00Z","transactionType":"PAYMENT","payInfo":[{"method":"CREDIT_CARD","amount":__AMOUNT__}],"productName":"Power Checkout test","currency":"TWD","authorizationExpireDate":"2026-11-19T09:00:00Z","paymentProvider":"TSP","orderId":"__ORDER_ID__","payStatus":"CAPTURE"}]}

@@ -64,7 +64,7 @@ ATM 虛擬帳號與 CVS 超商代碼訂單，於 sandbox 後台 **「交易動�
 - 必須為公開可訪問 URL（不能是 localhost / 內網 IP）
 - 開發本地測試需用 cloudflare tunnel / ngrok 等 reverse proxy
 
-> 本專案已配置 Cloudflare Tunnel `zenbu-site`：`https://zenbu-site.powerhouse.tw → localhost:6060`。詳見 `scripts/start-tunnel.sh`。
+> 建議以 Cloudflare Tunnel 或 ngrok 將本機 port 對外，Notify/Return URL 僅接受 80 / 443。
 
 ## 後台訂單驗證流程（playwright-cli 自動化）
 

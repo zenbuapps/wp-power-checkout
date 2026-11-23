@@ -16,17 +16,21 @@ final class ProviderRegister {
 	/** @var array<string, string> $gateway_services [id, class] */
 	private static array $gateway_services = [
 		ShoplinePayment\Services\RedirectGateway::ID      => ShoplinePayment\Services\RedirectGateway::class,
+		ShoplinePayment\Services\EmbeddedGateway::ID      => ShoplinePayment\Services\EmbeddedGateway::class,
 		EcpayAIO\Services\AioRedirectGateway::ID          => EcpayAIO\Services\AioRedirectGateway::class,
 		Ecpg\Services\EcpgGateway::ID                     => Ecpg\Services\EcpgGateway::class,
 		NewebpayMpg\Services\MpgRedirectGateway::ID       => NewebpayMpg\Services\MpgRedirectGateway::class,
 		Payuni\Services\PayuniUppGateway::ID              => Payuni\Services\PayuniUppGateway::class,
 		PayuniUniEmbed\Services\PayuniUniEmbedGateway::ID => PayuniUniEmbed\Services\PayuniUniEmbedGateway::class,
 		Paynow\Services\PaynowGateway::ID                 => Paynow\Services\PaynowGateway::class,
+		TcatPay\Services\TcatPayGateway::ID               => TcatPay\Services\TcatPayGateway::class,
+		Linepay\Services\LinepayGateway::ID               => Linepay\Services\LinepayGateway::class,
 	];
 
 	/** Register hooks */
 	public static function register_hooks(): void {
 		Shared\Services\PaymentApiService::register_hooks();
+		Shared\Services\PaymentDispatchApiService::register_hooks();
 
 		\add_filter( 'woocommerce_payment_gateways', [ __CLASS__, 'add_method' ] );
 		\add_action( 'woocommerce_refund_created', [ __CLASS__, 'default_refund_reason' ], 10, 2 );
@@ -57,6 +61,26 @@ final class ProviderRegister {
 				'woocommerce_blocks_loaded',
 				[ Paynow\Services\PaynowGateway::class, 'register_checkout_blocks' ]
 			);
+		}
+
+		// 黑貓PAY APN 端點 + Action Scheduler 補單 hook + block 結帳整合 —— 無條件註冊（同 PayNow：server-to-server
+		// 通知端點須恆常可達，gateway 停用期間在途訂單仍須能補單；入帳一律以平台查詢為準；block 整合由 GatewayUtils 守衛，未啟用時 no-op）。
+		TcatPay\Http\TcatPayCallback::register_hooks();
+		TcatPay\Managers\TcatPayReconcileJob::register_hooks();
+		if ( \did_action( 'woocommerce_blocks_loaded' ) ) {
+			TcatPay\Services\TcatPayGateway::register_checkout_blocks();
+		} else {
+			\add_action( 'woocommerce_blocks_loaded', [ TcatPay\Services\TcatPayGateway::class, 'register_checkout_blocks' ] );
+		}
+
+		// LINE Pay 直連：confirmUrl / cancelUrl 導回端點 + Action Scheduler 補單 hook + block 結帳整合 —— 無條件註冊
+		// （gateway 停用期間已送出的付款請求仍須能 confirm / 補單；block 整合由 GatewayUtils 守衛，未啟用時 no-op）。
+		Linepay\Http\LinepayReturnController::register_hooks();
+		Linepay\Managers\LinepayReconcileJob::register_hooks();
+		if ( \did_action( 'woocommerce_blocks_loaded' ) ) {
+			Linepay\Services\LinepayGateway::register_checkout_blocks();
+		} else {
+			\add_action( 'woocommerce_blocks_loaded', [ Linepay\Services\LinepayGateway::class, 'register_checkout_blocks' ] );
 		}
 
 		foreach ( self::$gateway_services as $gateway_id => $gateway_service ) {

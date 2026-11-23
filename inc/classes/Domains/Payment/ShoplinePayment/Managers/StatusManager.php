@@ -20,6 +20,7 @@ namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Managers;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\OrderStatus;
 use J7\PowerCheckout\Domains\Payment\Shared\Helpers\MetaKeys;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Payment\PaymentDTO;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\EmbeddedGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\ResponseStatus;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\StatusSource;
 
@@ -72,6 +73,12 @@ final class StatusManager {
 
 		$status_enum = ResponseStatus::tryFrom($this->_response_dto->status);
 
+		// ①-b 嵌入式重付：先前嘗試的通知只在「付款成功且訂單仍待付款」時認列，其餘只留 note
+		if ($this->is_previous_embedded_attempt($meta_keys) && !$this->can_settle_previous_attempt($status_enum)) {
+			$meta_keys->push_processed_status($processed_key);
+			return;
+		}
+
 		// ② 付款成功前的四道守衛：已處理中 / 終態 / 幣別 / 金額（任一不過 → 維持現狀）
 		if (ResponseStatus::SUCCEEDED === $status_enum && !$this->can_mark_as_paid()) {
 			return;
@@ -96,12 +103,69 @@ final class StatusManager {
 			// processing，多觸發一輪 woocommerce_order_status_*（發票自動開立、通知信）。
 			// date_paid 由 WC 的 maybe_set_date_paid() 於 save() 時自動補上。
 			$this->order->set_transaction_id($this->_response_dto->tradeOrderId);
+
+			// 嵌入式可能有多次嘗試：identity 指回實際付款的那筆，供退款 / 主動查詢對到正確交易
+			if (EmbeddedGateway::ID === $this->order->get_payment_method()) {
+				$meta_keys->update_payment_identity($this->_response_dto->tradeOrderId);
+			}
 		}
 
 		$this->order->update_status($order_status->value);
 
 		// ⑤ 記錄已處理，供下一條路徑跳過
 		$meta_keys->push_processed_status($processed_key);
+	}
+
+
+	/**
+	 * 是否為嵌入式「先前付款嘗試」的通知（同一訂單重付後，tradeOrderId 已不是目前的付款 identity）
+	 *
+	 * 只作用於嵌入式訂單；導轉式行為不變。
+	 *
+	 * @param MetaKeys $meta_keys 訂單 meta helper
+	 * @return bool
+	 */
+	private function is_previous_embedded_attempt( MetaKeys $meta_keys ): bool {
+		if (EmbeddedGateway::ID !== $this->order->get_payment_method()) {
+			return false;
+		}
+
+		$current = $meta_keys->get_payment_identity();
+		return '' !== $current && $current !== $this->_response_dto->tradeOrderId;
+	}
+
+
+	/**
+	 * 先前付款嘗試的通知可否認列；不可時寫 order note（不變更狀態 / 付款詳情 / identity）
+	 *
+	 * - 付款成功 + 訂單仍待付款 → 可認列（後續照常走四道守衛）
+	 * - 付款成功 + 訂單已付款 / 終態 → 疑似重複付款，請人工確認
+	 * - 其他狀態（FAILED / EXPIRED …）→ 舊嘗試結果，不可把重付中的訂單改為 pending / cancelled
+	 *
+	 * @param ResponseStatus|null $status_enum 通知的付款狀態
+	 * @return bool
+	 */
+	private function can_settle_previous_attempt( ?ResponseStatus $status_enum ): bool {
+		if (ResponseStatus::SUCCEEDED === $status_enum && $this->order->needs_payment()) {
+			return true;
+		}
+
+		$this->order->add_order_note(
+			ResponseStatus::SUCCEEDED === $status_enum
+				? \sprintf(
+					'%s ⚠️ 先前付款嘗試通知付款成功，但訂單目前狀態為「%s」，疑似重複付款，請人工確認（tradeOrderId: %s）',
+					$this->source->label(),
+					$this->order->get_status(),
+					$this->_response_dto->tradeOrderId
+				)
+				: \sprintf(
+					'%s 先前付款嘗試通知狀態 %s，非目前交易，訂單狀態不變更（tradeOrderId: %s）',
+					$this->source->label(),
+					$this->_response_dto->status,
+					$this->_response_dto->tradeOrderId
+				)
+		);
+		return false;
 	}
 
 

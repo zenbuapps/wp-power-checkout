@@ -32,6 +32,11 @@ Entry point `js/src/index.ts` creates four independent instances:
    - Fetches SDK token, renders PAYUNi iframe, sends buyer credential to `uni-embed/create-payment`, handles 3DS redirect
    - Not a Vue app — plain TypeScript module called from `index.ts`
 
+6. **ShoplineEmbedded** -- `MountShoplineEmbedded()` from `external/ShoplineEmbedded/`
+   - Mounts on order-received page for SLP embedded payment (`shopline_payment_embedded`); guards itself on `SLP_EMBEDDED_DATA` (`window.power_checkout_slp_embedded_data`, read via `utils/env.ts`) so it is a no-op elsewhere
+   - Loads the official SDK (`window.ShoplinePayments`), POSTs `/pay/{order_id}/dispatch` (init → SDK `createPayment()` → confirm → `payment.pay(nextAction)`); `awaiting_confirmation=yes` means a trade is already in flight → do not render the cashier (double-charge guard)
+   - Plain TypeScript module (types in `external/ShoplineEmbedded/types.ts`)
+
 ## Composition API Only
 
 ```vue
@@ -112,9 +117,16 @@ Memory mode router (`createMemoryHistory`):
 /payments/payuni_upp                    → PAYUNi UPP settings (js/src/pages/Payments/PayuniUpp/index.vue)
 /payments/payuni_uni_embed              → PAYUNi UNi Embed settings (js/src/pages/Payments/PayuniUniEmbed/index.vue)
 /payments/paynow                        → PayNow settings (js/src/pages/Payments/Paynow/index.vue)
+/payments/shopline_payment_embedded     → SLP Embedded settings (js/src/pages/Payments/ShoplineEmbedded/index.vue)
+/payments/tcat_pay                      → 黑貓PAY settings (js/src/pages/Payments/TcatPay/index.vue)
+/payments/linepay                       → LINE Pay direct settings (js/src/pages/Payments/Linepay/index.vue)
 /logistics                              → Logistics list (js/src/pages/Logistics/index.vue)
 /logistics/ecpay_logistics              → ECPay Logistics settings (js/src/pages/Logistics/Ecpay/index.vue)
 /logistics/paynow_logistics             → PayNow Logistics settings (js/src/pages/Logistics/Paynow/index.vue)
+/logistics/tcat_logistics               → 黑貓宅急便 settings (js/src/pages/Logistics/Tcat/index.vue; 測試連線 button)
+/logistics/hct_logistics                → 新竹物流 settings (js/src/pages/Logistics/Hct/index.vue; waybill range + remaining count, 測試連線)
+/logistics/sf_express                   → 順豐 settings (js/src/pages/Logistics/SfExpress/index.vue; 測試連線, push URL, TW→TW warning)
+/logistics/kerrytj_logistics            → 嘉里大榮 settings (js/src/pages/Logistics/Kerrytj/index.vue; ambient/cold ranges, 測試連線)
 /invoices                               → Invoice list
 /invoices/amego                         → Amego settings
 /invoices/ecpay                         → ECPay Invoice settings
@@ -124,6 +136,14 @@ Memory mode router (`createMemoryHistory`):
 ```
 
 `ROUTER_MAPPER` in `router/index.ts` maps provider IDs to routes.
+
+## Error Messages by Domain
+
+`utils/error-code.ts` maps the normalized `error_code` to friendly text. The default table is payment/invoice wording (e.g. AUTH →「金流 / 發票憑證錯誤」); requests whose path is under `logistics/…` use the **logistics** table (`ERROR_DOMAIN.LOGISTICS`: AUTH →「物流憑證錯誤，請檢查帳號密碼」, NETWORK →「連線逾時」; codes not in it fall back to the backend `message`, which is already specific). Add new domain wording by extending `DOMAIN_ERROR_CODE_MESSAGE`, not by hardcoding text in pages. Provider-side failures reach the UI as HTTP **424** with `error_code` / `raw_code` / `message` (never 5xx, so CDN pages cannot swallow the message). The pure logic is covered by `pnpm test:js` (`tests/js/error-code.test.ts`).
+
+## Provider Capability Gating
+
+`GET /settings` returns `data.provider_meta.{payments,logistics}` (capability meta per provider) intended for hiding unsupported buttons (refund / capture / void / print / return) instead of letting the backend answer 501. **Not consumed by any Vue page yet** (no `provider_meta` reference in `js/src`); new pages that expose such buttons should read it from the settings query.
 
 ## Type Declarations
 

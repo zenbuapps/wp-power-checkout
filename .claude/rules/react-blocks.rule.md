@@ -22,6 +22,11 @@ inc/assets/blocks/
   payuni_upp.tsx                   # Active -- PAYUNi UPP V2 redirect gateway
   payuni_uni_embed.tsx             # Active -- PAYUNi UNi Embed V3 embedded gateway
   paynow.tsx                       # Active -- PayNow Component SDK v2 embedded gateway
+  newebpay_mpg.tsx                 # Active -- NewebPay MPG redirect gateway
+  ecpay_logistics.tsx / pc_invoice.tsx # NOT payment methods -- ECPay logistics store picker / invoice form block integration (see ES-module note below)
+  shopline_payment_embedded.tsx    # Active -- SLP embedded gateway (description only; the SDK mounts later on order-received via the Vue bundle `MountShoplineEmbedded()`, not in the block)
+  tcat_pay.tsx                     # Active -- 黑貓PAY; sub-method select (credit / cvs_ibon / atm) via hooks from `@wordpress/element`; disables methods above the per-method limit (UX only, backend re-validates); value returned in onPaymentSetup paymentMethodData `pc_tcat_pay_method` (data from `tcat_pay_data.methods`)
+  linepay.tsx                      # Active -- LINE Pay direct (api-redirect; description only, plain registerPaymentMethod pattern)
   pc_free_shipping_hint.tsx        # Active -- NOT a payment method: free-shipping hint (registerPlugin + ExperimentalOrderMeta slot fill; data from Store API extension power-checkout.free_shipping_hint)
   types/types.d.ts                 # Shared type declarations
 ```
@@ -42,6 +47,8 @@ import { __ } from '@wordpress/i18n'                                 // window.w
 ```
 
 Do NOT add these as npm dependencies -- they are shimmed.
+
+Components that use hooks must create elements with `createElement` / `useState` / `useEffect` from `@wordpress/element` (the same React instance as the WC Blocks renderer; see `ecpay_aio.tsx`, `tcat_pay.tsx`), not a separately bundled React.
 
 ## Enqueuing Block Scripts (ES Module)
 

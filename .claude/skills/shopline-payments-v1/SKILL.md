@@ -1,284 +1,268 @@
-﻿---
+---
 name: shopline-payments-v1
 description: >
-  SHOPLINE Payments v1 API complete technical reference for redirect/regular mode payment integration.
-  Covers Create Session API, Session Query, webhook (Event) verification with HMAC-SHA256,
-  all payment methods (CreditCard, LinePay, VirtualAccount, ApplePay, JKOPay, ChaileaseBNPL),
-  error codes, status codes, and sandbox test data.
-  Use this skill whenever the task involves: import or code referencing shopline, ShoplineService,
-  ShoplineController, shoplinepayments.com, SHOPLINE Payments, SLP API, trade/sessions/create,
-  payment session redirect, webhook sign verification with signKey, or any payment gateway integration
-  for the zenbu-site project's Shopline module.
-  Even if the user doesn't say "Shopline", if the task involves the commerce/payments/shopline/ directory
-  or TWD payment processing with redirect mode, use this skill.
-  This skill covers API v1 only (apiVersion: V1.2 for webhooks).
+  SHOPLINE Payments（SLP）v1 金流完整參考，涵蓋兩種串接：導轉式 redirect / regular mode（trade/sessions/create、
+  sessionUrl）與內嵌式 embedded / SDK / direct mode（前端 JS SDK @shoplinepayments/payment-web、ShoplinePayments()、
+  clientKey、createPayment() 取 paySession、pay(nextAction)、Server trade/payment/create acquirerType SDK），
+  含綁卡 CardBind、快捷 QuickPayment、定期扣款 Recurring、customerToken。共用 merchantId / apiKey / signKey、
+  Webhook HMAC-SHA256 驗簽、session.* / trade.* 事件、請款 capture、取消 cancel、退款 refund、錯誤碼、沙盒測試卡，
+  以及官方 AI 輔助串接工具 MCP（slpayment-mcp、get_slpayment_docs）。
+  Use this skill whenever the task involves SHOPLINE Payments、shoplinepayments.com、SLP API、ShoplineService、
+  ShoplineController、導轉式、內嵌式、embedded checkout、前端付款元件、收銀台、paySession、nextAction、
+  trade/payment/create、signKey 驗簽、ApplePay 網域驗證、LINE Pay、JKOPay、VirtualAccount、ChaileaseBNPL、
+  SHOPLINE MCP、AI 工具串接、mcp server，或任何 SHOPLINE Payments 的 TWD 金流整合。API v1（webhook V1.2）。
 ---
 
-# SHOPLINE Payments v1 (Redirect Mode)
+# SHOPLINE Payments v1（導轉式 + 內嵌式）
 
-> **API Version**: v1 | **Webhook apiVersion**: V1.2 | **Docs**: https://docs.shoplinepayments.com/ | **Last Updated**: 2026-04-30
+> API v1 ｜ Webhook `apiVersion: V1.2` ｜ 官方文件 https://docs.shoplinepayments.com/ ｜ 本 skill 最後同步：2026-11-16
 
-SHOPLINE Payments (SLP) is a Taiwan-focused payment gateway. Redirect mode creates a checkout Session via Server-API, obtains a `sessionUrl`, redirects the customer to Shopline's hosted payment page, and receives results via Webhook Event notifications.
+SHOPLINE Payments（SLP）是 SHOPLINE 的第三方代收付服務，只支援 **TWD**。有兩種串接方式，共用同一組憑證、Webhook、錯誤碼與請款 / 取消 / 退款 / 查詢 API。
 
-## Companion Tool: `shopline-payments-mcp` MCP
+## 兩種模式怎麼選
 
-When this SKILL does not cover a detail (newly released endpoint, edge case in official documentation, or up-to-date integration guide content), use the **`shopline-payments-mcp`** MCP server to fetch the official documentation site directly.
-
-- Tool: `mcp__shopline-payments-mcp__get_slpayment_docs()` -- returns the official docs landing page (HTML)
-- Use cases: confirm latest API changes, fetch official integration flow descriptions, cross-check against this SKILL when in doubt
-- This SKILL takes precedence for everything documented below (parameters, code samples, error codes, sandbox data, pitfalls). The MCP is a fallback for what is not yet captured here.
-
-## Environment
-
-| Environment | Base URL |
-|---|---|
-| Sandbox | `https://api-sandbox.shoplinepayments.com` |
-| Production | `https://api.shoplinepayments.com` |
-
-Sandbox dashboard: `https://login.shoplinepayments.com/zh-Hant/signin/`
-
-## Authentication (HTTP Headers)
-
-Every Server API request requires these headers:
-
-| Header | Type | Required | Description |
-|---|---|---|---|
-| `Content-Type` | String | Yes | Fixed: `application/json` |
-| `merchantId` | String | Yes | SLP-assigned merchant ID |
-| `apiKey` | String | Yes | API key (secret, server-side only) |
-| `requestId` | String(32) | Yes | Unique per HTTP request (use `crypto.randomUUID()`) |
-| `platformId` | String | Platform only | SLP platform ID (only for platform merchants) |
-| `idempotentKey` | String(32) | No | Idempotency key |
-
-**Three credential keys** issued by Shopline:
-- `apiKey` -- Server API authentication
-- `clientKey` -- SDK authentication (not used in redirect mode)
-- `signKey` -- Webhook signature verification
-
-## Amount Format
-
-All amounts are in **cents** (smallest currency unit):
-
-```typescript
-// NT$100 = 10000 cents
-const amount = { value: Math.round(priceInDollars * 100), currency: 'TWD' };
-// NT$1 = 100, NT$99.50 = 9950
-```
-
-**Currency**: Only `TWD` is supported.
-
-## Payment Methods
-
-| Method Key | Name | Notes |
+| | 導轉式（redirect / regular mode） | 內嵌式（embedded / SDK） |
 |---|---|---|
-| `CreditCard` | Credit Card | Visa/MC/JCB; supports installments via `paymentMethodOptions` |
-| `ApplePay` | Apple Pay | Requires domain verification; no `paymentMethodOptions` |
-| `LinePay` | LINE Pay | No `paymentMethodOptions` supported |
-| `VirtualAccount` | ATM Bank Transfer | Virtual bank account; `paymentExpireTime` 1440-86400 min |
-| `JKOPay` | JKO Pay | Default expire 60 min |
-| `ChaileaseBNPL` | Chailease zingla BNPL | Buy-now-pay-later; supports installments |
+| 官方 guide | `/guide/session/`「導轉式付款串接」 | `/guide/normal/`「一般付款串接」、`/guide/quick/`「綁卡/快捷/定期付款串接」 |
+| 交易物件 | **結帳交易 Session**（一筆可產生多筆付款交易 Trade） | **付款交易 Trade**（一筆一種付款方式） |
+| 建立 API | `POST /api/v1/trade/sessions/create`（`mode: "regular"`） | `POST /api/v1/trade/payment/create`（`acquirerType: "SDK"` + `paySession`） |
+| 前端 | 只需 `window.location.href = sessionUrl`；不需 SDK | 引入 JS SDK、留容器、初始化、`createPayment()`、`pay(nextAction)` |
+| 用到的金鑰 | `merchantId` + `apiKey`（Server）+ `signKey`（Webhook） | 另加 `clientKey`（前端 SDK） |
+| 卡號輸入位置 | SLP 託管付款頁 | 特店結帳頁內的 SDK 收銀台（卡資料由 SDK 收集，特店不經手） |
+| PCI 範圍 | 官方文件未載明（SLP 具 PCI DSS Level 1） | 官方文件未載明（卡資訊由 SDK 處理、不經特店 Server） |
+| 前端工作量 | 極低 | 中（付款方式選單、容器、錯誤處理、ApplePay 網域驗證） |
+| 付款方式 | CreditCard（含分期）、VirtualAccount、JKOPay、ApplePay、LinePay、ChaileaseBNPL；**一頁多選**（`allowPaymentMethodList`） | 同 6 種；**SDK 實例一次一種**（`paymentMethod`） |
+| 綁卡 / 快捷 / 定期扣款 | **不支援**（官方：僅一般付款交易） | 支援（`paymentBehavior`） |
+| 手動請款 `autoCapture: false` | Session API 無此欄位 | 支援 |
+| 3DS | SLP 付款頁處理 | SDK `pay(nextAction)` 處理（勿放 iframe） |
+| 主要 Webhook | `session.succeeded` / `session.expired`（+ 視需要 `trade.*`） | `trade.succeeded` / `failed` / `expired` / `cancelled` |
+| 適用 | 想最快上線、不想碰前端、不需存卡 | 結帳頁內完成付款、需綁卡 / 訂閱 / 快捷、需自訂 UI |
 
-Set `allowPaymentMethodList` array to control which methods appear on the payment page. Array order = display order.
+## 共用基礎
 
-## Core API: Create Session (Redirect Mode)
+### 環境
 
-```
-POST {BASE_URL}/api/v1/trade/sessions/create
-```
+| 環境 | Server API Base | SDK `env` |
+|---|---|---|
+| 沙盒 | `https://api-sandbox.shoplinepayments.com` | `'sandbox'` |
+| 正式 | `https://api.shoplinepayments.com` | `'production'`（預設） |
 
-### Minimal TypeScript Example
+### 憑證（後台「設定 → 開發者管理」）
+
+| 憑證 | 用途 | 使用位置 |
+|---|---|---|
+| `merchantId` | 特店 ID（平台模式為子特店 ID） | Server header、SDK 初始化 |
+| `apiKey` | Server-API 認證，**機密，只能放 Server** | Server header |
+| `clientKey` | SDK 通訊憑證，**僅內嵌式需要** | 前端 SDK 初始化 |
+| `signKey` | Webhook 驗簽；**每個 Webhook URL 一把** | Server 驗簽 |
+| `platformId` | 平台特店才有 | Server header、SDK 初始化 |
+
+### Server API 共用 Header
+
+| Header | 型別 | 必填 | 說明 |
+|---|---|---|---|
+| `Content-Type` | String | 是 | `application/json` |
+| `merchantId` | String | 是 | |
+| `apiKey` | String | 是 | |
+| `requestId` | String(32) | 是 | 每個 HTTP 請求唯一 → `randomUUID().replace(/-/g,'')` |
+| `platformId` | String | 平台特店必填 | |
+| `idempotentKey` | String(32) | 否 | 冪等 KEY |
+
+錯誤：HTTP 400 / 429 / 500 → `{ code, msg }`（`references/error-codes.md`）。
+
+### 金額
+
+一律 `{ value: 台幣 × 100, currency: 'TWD' }`：NT$100 → `10000`。SDK 的 `amount` 也是 ×100。
+
+### 共用 API（兩模式皆用付款交易 `tradeOrderId`）
+
+| 用途 | Endpoint | 必填 body |
+|---|---|---|
+| 查詢付款交易 | `POST /api/v1/trade/payment/get` | `tradeOrderId` |
+| 請款（手動請款） | `POST /api/v1/trade/payment/capture` | `referenceOrderId`、`tradeOrderId`、`amount` |
+| 取消授權 | `POST /api/v1/trade/payment/cancel` | `referenceOrderId`、`tradeOrderId` |
+| 建立退款 | `POST /api/v1/trade/refund/create` | `referenceOrderId`（特店**退款**單號）、`tradeOrderId`、`amount`；`reason` 選填 |
+| 查詢退款 | `POST /api/v1/trade/refund/get` | `refundOrderId` |
+
+完整欄位：`references/api-reference.md`。
+
+### Webhook 驗簽（HMAC-SHA256）
+
+Header：`apiVersion`（`V1.2`）、`timestamp`（**毫秒**字串）、`sign`（hex）。Body：`{ id, type, created, data }`。
 
 ```typescript
-import * as crypto from 'crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto'
 
-interface CreateSessionResponse {
-  sessionId: string;     // SLP session order ID
-  referenceId: string;   // Merchant order ID (echo back)
-  status: 'CREATED';     // Always CREATED on success
-  sessionUrl: string;    // Redirect customer to this URL
-  createTime: string;    // Unix timestamp in ms
-  amount: { value: number; currency: string };
+export function verifySlpWebhook(signKey: string, timestamp: string, rawBody: string, sign: string, toleranceMs = 5 * 60_000): boolean {
+  const expected = createHmac('sha256', signKey).update(`${timestamp}.${rawBody}`, 'utf8').digest('hex')
+  const a = Buffer.from(expected), b = Buffer.from(sign.toLowerCase())
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return false
+  const ts = Number(timestamp)
+  return Number.isFinite(ts) && Math.abs(Date.now() - ts) <= toleranceMs   // 容忍值由特店自訂（官方未給數字）
 }
+```
 
-const requestId = crypto.randomUUID();
-const referenceId = `ORD-${Date.now()}`.slice(0, 32);
+- 必須用**原始 body 字串**（NestJS `rawBody: true` / Express `express.raw()`）。
+- 回 HTTP 200 才算成功；否則重試共 16 次（15s → 12h）。handler 必須冪等（以 `id` 去重）。
+- 事件總表與 data 結構：`references/webhook-events.md`。
 
-const res = await fetch(`${BASE_URL}/api/v1/trade/sessions/create`, {
+## 導轉式核心流程
+
+1. Server `POST /api/v1/trade/sessions/create` → 取得 `sessionId`、`sessionUrl`。
+2. 前端 `window.location.href = sessionUrl`（**不要** iframe、不要 `window.open`；直接開網址會因 `document.referrer` 為空而報錯）。
+3. 顧客在 SLP 頁選付款方式付款 → 回到 `returnUrl`（只作顯示，不可當成付款成功依據）。
+4. Webhook `session.succeeded` / `session.expired`，或 `POST /api/v1/trade/sessions/query`（body 只有 `sessionId`）。
+5. 保存 `paymentDetails[].tradeOrderId`（退款要用）。需要卡號前六後四 / ATM 付款人帳號 → 訂閱 `trade.*` 或用 `tradeOrderId` 查 `trade/payment/get`。
+
+```typescript
+import { randomUUID } from 'node:crypto'
+
+const res = await fetch(`${process.env.SLP_API_BASE}/api/v1/trade/sessions/create`, {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    merchantId: MERCHANT_ID,
-    apiKey: API_KEY,
-    requestId,
+    merchantId: process.env.SLP_MERCHANT_ID!,
+    apiKey: process.env.SLP_API_KEY!,
+    requestId: randomUUID().replace(/-/g, ''),
   },
   body: JSON.stringify({
-    referenceId,
+    referenceId: 'ORD20261116001',                 // String(32)，唯一
     amount: { value: 10000, currency: 'TWD' },
-    returnUrl: 'https://example.com/checkout/success',
-    mode: 'regular',
+    returnUrl: 'https://shop.example.com/checkout/result',
+    mode: 'regular',                               // 固定值
     language: 'zh-TW',
-    expireTime: 360,
-    allowPaymentMethodList: ['CreditCard', 'LinePay', 'VirtualAccount'],
+    expireTime: 360,                               // 分鐘，預設 360
+    allowPaymentMethodList: ['CreditCard', 'LinePay', 'VirtualAccount'],   // 順序 = 顯示順序
+    paymentMethodOptions: {
+      CreditCard: { installmentCounts: ['0', '3', '6'] },
+      VirtualAccount: { paymentExpireTime: 4320 },  // 1440–86400
+    },
     order: {
-      products: [{
-        id: 'prod-001', name: 'Product Name', quantity: 1,
-        amount: { value: 10000, currency: 'TWD' },
-      }],
+      products: [{ id: 'SKU-1', name: '商品', quantity: 1, amount: { value: 10000, currency: 'TWD' } }],
       shipping: {
-        shippingMethod: 'delivery', carrier: 'carrier-name',
-        personalInfo: { lastName: 'Wang', firstName: 'Ming', email: 'a@b.com', phone: '+886912345678' },
-        address: { countryCode: 'TW', city: 'Taipei', street: '123 Main St', postcode: '100' },
+        shippingMethod: '宅配', carrier: '黑貓宅配',
+        personalInfo: { lastName: '王', firstName: '小明', phone: '+886912345678' },
+        address: { countryCode: 'TW', city: '台北市', street: '信義路五段7號' },
       },
     },
     billing: {
-      personalInfo: { lastName: 'Wang', firstName: 'Ming', email: 'a@b.com', phone: '+886912345678' },
-      address: { countryCode: 'TW', city: 'Taipei', street: '123 Main St', postcode: '100' },
+      personalInfo: { lastName: '王', firstName: '小明', email: 'buyer@example.com' },
+      address: { countryCode: 'TW', street: '信義路五段7號' },
     },
     customer: {
-      referenceCustomerId: 'cust-001',
-      personalInfo: { lastName: 'Wang', firstName: 'Ming', email: 'a@b.com', phone: '+886912345678' },
+      referenceCustomerId: 'CUST_123456',
+      personalInfo: { lastName: '王', firstName: '小明', email: 'buyer@example.com' },
     },
-    client: { ip: '1.2.3.4' },
+    client: { ip: '203.0.113.10' },
   }),
-});
-
-const data: CreateSessionResponse = await res.json();
-// Redirect customer to data.sessionUrl
+})
+const data = await res.json()
+if (!res.ok) throw new Error(`SLP ${data.code}: ${data.msg}`)
+// data: { sessionId, referenceId, status: 'CREATED', sessionUrl, createTime, amount, paymentDetails? }
 ```
 
-## Webhook Verification (HMAC-SHA256)
+導轉式邊界：一筆 Session 可能對應多筆 Trade；也可能 **Session 已逾時但 Trade 成功**（ATM、通道延遲），Session 不會轉成功 → 要靠 `trade.*` 補單。
 
-Webhooks arrive as POST requests with these **HTTP headers**:
+## 內嵌式核心流程
 
-| Header | Type | Description |
-|---|---|---|
-| `apiVersion` | String | API version, e.g. `V1.2` |
-| `timestamp` | String | Unix timestamp in **milliseconds** |
-| `sign` | String | HMAC-SHA256 hex signature |
-
-### Signature Verification (TypeScript)
+1. 前端：`npm install @shoplinepayments/payment-web`（或 CDN `https://cdn.shoplinepayments.com/sdk/v1/payment-web.js`），準備空容器 `<div id="paymentContainer">`。
+2. `const { payment, error } = await ShoplinePayments({ clientKey, merchantId, paymentMethod, currency: 'TWD', amount, element: '#paymentContainer', env })`。
+3. 顧客點結帳 → **立刻** `const { paySession, error } = await payment.createPayment()`（ApplePay 中間不可有任何 await）。
+4. 前端把 `paySession` 傳到特店 Server → Server `POST /api/v1/trade/payment/create`（`acquirerType: 'SDK'`、`paySession`、`confirm.paymentMethod`、`confirm.paymentBehavior: 'Regular'`…）→ 取得 `tradeOrderId`、`nextAction`。
+5. 前端 `await payment.pay(nextAction)`（無 `nextAction` = 建單失敗）；成功會跳 `returnUrl` 或 3DS 頁；失敗看 `payResult.error`。
+6. 以 Webhook `trade.*` 或 `trade/payment/get` 確認結果。
 
 ```typescript
-import * as crypto from 'crypto';
-
-function verifyWebhookSignature(
-  signKey: string,
-  timestamp: string,
-  rawBody: string,
-  receivedSign: string,
-): boolean {
-  const payload = `${timestamp}.${rawBody}`;
-  const expected = crypto
-    .createHmac('sha256', signKey)
-    .update(payload, 'utf8')
-    .digest('hex');
-  const a = Buffer.from(expected, 'hex');
-  const b = Buffer.from(receivedSign, 'hex');
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
-}
-
-// Reject stale timestamps (recommended: 5 min window)
-const WINDOW_MS = 5 * 60 * 1000;
-const ts = Number(timestamp);
-if (!Number.isFinite(ts) || Math.abs(Date.now() - ts) > WINDOW_MS) {
-  throw new Error('Timestamp out of window');
-}
+// 前端
+const { payment, error } = await ShoplinePayments({
+  clientKey: CLIENT_KEY, merchantId: MERCHANT_ID,
+  paymentMethod: 'CreditCard', currency: 'TWD', amount: 10000,
+  element: '#paymentContainer', env: 'sandbox',
+})
+if (error) return
+submitBtn.addEventListener('click', async () => {
+  const { paySession, error } = await payment.createPayment()
+  if (error) return
+  const { nextAction } = await (await fetch('/api/slp/pay', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paySession }) })).json()
+  if (!nextAction) return
+  const r = await payment.pay(nextAction)
+  if (r && r.error) console.warn(r.error.code)
+})
 ```
-
-### Webhook Body Structure
 
 ```typescript
-interface WebhookPayload {
-  id: string;          // Unique notification ID
-  type: string;        // Event type, e.g. "trade.succeeded"
-  created: number;     // Unix timestamp ms
-  data: Record<string, unknown>;
+// 後端 body 重點（完整欄位見 references/api-reference.md §3）
+{
+  acquirerType: 'SDK',
+  referenceOrderId: 'ORD20261116001',
+  amount: { value: 10000, currency: 'TWD' },
+  language: 'zh-TW',                         // 內嵌式為必填
+  returnUrl: 'https://shop.example.com/checkout/result',
+  paySession,                                // 前端 createPayment() 結果，原樣帶入
+  confirm: { paymentMethod: 'CreditCard', paymentBehavior: 'Regular', autoCapture: true },
+  order: { products: [/*...*/], shipping: {/*...*/} },
+  billing: {/*...*/}, customer: {/*...*/}, client: { ip: '203.0.113.10' },
 }
 ```
 
-## Session Status Flow
+綁卡 / 快捷 / 定期扣款：`references/card-binding-recurring.md`。SDK 所有參數、方法、各付款方式差異、theme、錯誤碼：`references/embedded-sdk.md`。
 
-| Status | Description |
+## 狀態
+
+| 付款交易 `status` | 說明 |
 |---|---|
-| `CREATED` | Session created, awaiting customer payment |
-| `PENDING` | Payment in progress |
-| `SUCCEEDED` | All payments completed successfully |
-| `EXPIRED` | Session expired (default 360 min timeout) |
+| `CREATED` | 建立、校驗中 |
+| `CUSTOMER_ACTION` | 顧客 3DS / 生物辨識 / 掃碼中 |
+| `PROCESSING` | 處理中；`subStatus`：`AUTHORIZED`（手動請款待 capture）、`PENDING_REVIEW`、`RISK_PENDING` |
+| `SUCCEEDED` | 成功（信用卡 = 請款成功） |
+| `FAILED` | 失敗；`subStatus`：`RISK_REJECTED`、`CONFIRM_FAILED`、`CAPTURE_FAILED`、`FAILED` |
+| `CANCELLED` | 已取消 |
+| `EXPIRED` | 逾期（3DS、未付款 6 小時、銀行無回應） |
 
-## Payment (Trade) Status Flow
+結帳交易：`CREATED` / `PENDING` / `SUCCEEDED` / `EXPIRED`。退款：`CREATED` / `PROCESSING` / `SUCCEEDED` / `FAILED`。
 
-| Status | SubStatus | Description |
-|---|---|---|
-| `CREATED` | | Order created, validation passed |
-| `CUSTOMER_ACTION` | | Customer performing 3DS / biometric / QR scan |
-| `PROCESSING` | `AUTHORIZED` | Authorization succeeded, awaiting capture |
-| `PROCESSING` | `PENDING_REVIEW` | Manual review in progress |
-| `PROCESSING` | `RISK_PENDING` | Risk review in progress |
-| `SUCCEEDED` | | Payment/capture succeeded |
-| `FAILED` | `RISK_REJECTED` | Blocked by risk engine |
-| `FAILED` | `CONFIRM_FAILED` | Authorization failed |
-| `FAILED` | `CAPTURE_FAILED` | Capture failed |
-| `CANCELLED` | | Customer or merchant cancelled |
-| `EXPIRED` | | 3DS timeout, SLP 6-hour timeout, bank timeout |
+## 透過 MCP 查官方文件
 
-## Key Webhook Events (Redirect Mode)
+SLP 官方提供 MCP 橋接器（STDIO ↔ HTTP），唯一 tool `get_slpayment_docs` 用來**查文件**，不能操作交易。
+啟動：`npx -y @shoplinepayments/slpayment-developer-mcp@1.0.1`，env `SLPAYMENT_MCP_HTTP_URL=https://ai.shoplinepayments.com/mcp`、`SLPAYMENT_MCP_HTTP_TIMEOUT_MS=30000`，不需 key，Node ≥ 18。
+本 skill 已涵蓋的內容以本 skill 為準；MCP 用來確認新功能或本 skill 標「官方文件未載明」處。Cursor / Claude Desktop / Cline 設定原文、官方範例筆誤與 Claude Code 等價寫法：`references/ai-mcp.md`。
 
-| Event Type | Description | Typical Action |
-|---|---|---|
-| `session.succeeded` | Session fully paid | Mark order as paid |
-| `session.expired` | Session expired | Cancel/expire order |
-| `trade.succeeded` | Payment succeeded | Mark order as paid |
-| `trade.failed` | Payment failed | Mark order as failed |
-| `trade.expired` | Payment expired | Cancel order |
-| `trade.refund.succeeded` | Refund completed | Mark order as refunded |
-| `trade.refund.failed` | Refund failed | Log, manual intervention |
+## 沙盒速查
 
-## Sandbox Test Data
+- 帳號：`slpsandbox2@shopline.com` / `shoplinePayments123.`（Merchant ID `2652289079513847808`）；金鑰需登入後台取得。
+- 測試卡：Visa `4147633700198405` 03/30 CVC `638`（另有 JCB、MasterCard）。
+- 金額（元）為 3 的倍數 → 3DS；否則單數成功、雙數失敗（401 成功、400 失敗）。
+- ApplePay 沙盒 Apple ID：`slpsandbox2+001@shopline.com` / `Aa123456!`。
+- 完整：`references/sandbox-resources.md`。
 
-### Test Credit Cards
+## 陷阱
 
-| Brand | Card Number | Expiry | CVC |
-|---|---|---|---|
-| JCB | `3565586700000200` | `03/30` | `484` |
-| Visa | `4147633700198405` | `03/30` | `638` |
-| MasterCard | `5149147700000300` | `03/30` | `231` |
+1. **金額 ×100**：`value: 100` 是 NT$1。
+2. **路徑**：內嵌式建單是 `trade/payment/create`（不是 `trade/orders/create`）；查詢是 `trade/payment/get`、`trade/refund/get`。
+3. **`mode: 'regular'` 只屬於導轉式 Session API**；內嵌式沒有 `mode`，改用 `acquirerType: 'SDK'`。
+4. **`clientKey` 只給前端 SDK**；`apiKey` 絕不能出現在前端。
+5. **`requestId` 最長 32**：UUID 要去掉 `-`。
+6. `referenceId`（Session）/ `referenceOrderId`（Trade、退款單號）≤ 32 且唯一。
+7. `lastName` 必填、`firstName` 選填；email 與 phone 至少一個；phone 需國碼。
+8. `order.products`、`order.shipping`、`billing`、`customer`、`client` 都**必填**（風控需要）。
+9. `paySession`、`nextAction` 都**不可解析**，原樣傳遞。
+10. ApplePay：點擊與 `createPayment()` 間不可 await；需託管網域驗證檔（沙盒 / 正式不同檔、去 `.txt`）並在後台登記網域。
+11. 信用卡 / ApplePay 必須 HTTPS；3DS 頁不可放 iframe。
+12. `returnUrl` 只是瀏覽器導回，付款結果以 Webhook / 查詢為準。
+13. 退款限 180 天（`1020`）、前一筆退款處理中不可再退（`4706`）、部分付款方式不支援部分退款（`4707`）。結帳交易 Session 不能退款，要對 `tradeOrderId` 退。
+14. 導轉式同時訂閱 `session.*` 與 `trade.*` 會收到兩邊通知，要去重。
+15. `Recurring` 要 `autoConfirm: true`、`paySession: "{}"`、`paymentCustomerId`、`paymentInstrumentId`。
 
-### Amount-Based Test Rules (Sandbox)
+## References
 
-- **3D Secure trigger**: Amount (in TWD) divisible by 3 enters 3DS flow
-- **Non-3D success**: TWD digit (ignoring cents 00) is odd = success
-- **Non-3D failure**: TWD digit (ignoring cents 00) is even = failure
-- Example: NT$401 (value=40100) -> non-3D, success. NT$400 (value=40000) -> non-3D, failure.
-
-### Sandbox Account (primary general merchant)
-
-| Email | Merchant ID | Password |
-|---|---|---|
-| `slpsandbox2@shopline.com` | `2652289079513847808` | `shoplinePayments123.` |
-
-> Full list of 9 sandbox accounts (general / platform / sub-merchant), ApplePay test Apple ID, dashboard URL, amount-based simulation rules, and `.env` mapping: see `references/sandbox-resources.md`.
->
-> The primary credentials above are also wired into the project `.env` as `SHOPLINE_SANDBOX_ADMIN_*` so AI agents can sign into the dashboard via `playwright-cli` to inspect orders.
-
-## Pitfalls and Warnings
-
-1. **Amount is in cents**: `value: 100` = NT$1, not NT$100. Always `Math.round(dollars * 100)`.
-2. **referenceId max 32 chars**: Must be unique per session. Truncate if needed.
-3. **requestId must be unique per HTTP call**: Use `crypto.randomUUID()`.
-4. **lastName is required, firstName is optional**: For CJK names, put family name in `lastName`.
-5. **Webhook raw body**: Must capture raw HTTP body for signature verification. In NestJS, enable `rawBody` middleware.
-6. **Timestamp is milliseconds**: Webhook timestamps are ms, not seconds.
-7. **returnUrl vs webhook URL**: `returnUrl` is browser redirect. Webhooks configured via Shopline dashboard.
-8. **mode must be 'regular'**: For redirect flow. Never use 'direct'.
-9. **Refund window**: 180 days from payment date. After that, error code `1020`.
-10. **Partial refund**: Not all payment methods support it (error `4707`).
-
-## References Guide
-
-| Need | File |
+| 需要 | 檔案 |
 |---|---|
-| All API endpoints with full parameter tables | `references/api-reference.md` |
-| 100+ error codes by category | `references/error-codes.md` |
-| All webhook event types with payload structures | `references/webhook-events.md` |
-| Full sandbox login accounts, ApplePay test ID, amount-based simulation rules, `.env` mapping | `references/sandbox-resources.md` |
+| 所有 Server API 欄位、型別、必填、列舉、共用物件 | `references/api-reference.md` |
+| 前端 JS SDK（載入、初始化參數、方法、各付款方式、theme、相容性、SDK 錯誤碼、完整範例） | `references/embedded-sdk.md` |
+| 綁卡 / 快捷付款 / 定期扣款、會員與付款工具 | `references/card-binding-recurring.md` |
+| Webhook 事件總表、各 data 結構、驗簽、重試、模式別處理 | `references/webhook-events.md` |
+| Server 錯誤碼（146 條）+ SDK 錯誤碼 | `references/error-codes.md` |
+| 沙盒帳號、測試卡、金額規則、ApplePay 測試、分期銀行 | `references/sandbox-resources.md` |
+| 官方 AI 輔助串接工具 MCP | `references/ai-mcp.md` |
+
+不在範圍：平台專用的分帳 split、轉帳 transfer、結算 settle、Connect、KYC / Onboarding（見官方 /api/trade/split/、/connect/、/api/kyc/）。

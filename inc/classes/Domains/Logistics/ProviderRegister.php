@@ -21,6 +21,11 @@ use J7\PowerCheckout\Domains\Logistics\Ecpay\Http\LogisticsCallback;
 use J7\PowerCheckout\Domains\Logistics\Ecpay\Services\BlocksLogisticsIntegration;
 use J7\PowerCheckout\Domains\Logistics\Ecpay\Services\EcpayLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Ecpay\Services\WC_EcpayLogisticsShipping;
+use J7\PowerCheckout\Domains\Logistics\Hct\Services\HctLogisticsProvider;
+use J7\PowerCheckout\Domains\Logistics\Hct\Services\WC_HctLogisticsShipping;
+use J7\PowerCheckout\Domains\Logistics\Kerrytj\Http\KerrytjAdminApiService;
+use J7\PowerCheckout\Domains\Logistics\Kerrytj\Services\KerrytjLogisticsProvider;
+use J7\PowerCheckout\Domains\Logistics\Kerrytj\Services\WC_KerrytjLogisticsShipping;
 use J7\PowerCheckout\Domains\Logistics\Paynow\Http\LogisticsCallback as PaynowLogisticsCallback;
 use J7\PowerCheckout\Domains\Logistics\Paynow\Services\PaynowLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Paynow\Services\WC_PaynowLogisticsShipping;
@@ -29,17 +34,27 @@ use J7\PowerCheckout\Domains\Logistics\Payuni\Services\PayuniLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Payuni\Services\WC_PayuniLogisticsShipping;
 use J7\PowerCheckout\Domains\Logistics\Shared\Services\CartLogisticsApiService;
 use J7\PowerCheckout\Domains\Logistics\Shared\Services\LogisticsApiService;
+use J7\PowerCheckout\Domains\Logistics\Shared\Services\LogisticsPingApiService;
+use J7\PowerCheckout\Domains\Logistics\SfExpress\Http\SfTrackPushCallback;
+use J7\PowerCheckout\Domains\Logistics\SfExpress\Services\SfExpressProvider;
+use J7\PowerCheckout\Domains\Logistics\SfExpress\Services\WC_SfExpressShipping;
+use J7\PowerCheckout\Domains\Logistics\Tcat\Services\TcatLogisticsProvider;
+use J7\PowerCheckout\Domains\Logistics\Tcat\Services\WC_TcatLogisticsShipping;
 use J7\PowerCheckout\Shared\DTOs\BaseSettingsDTO;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 
 /** Loader 載入物流方式 */
 final class ProviderRegister {
 
-	/** @var array<string, string> $logistics_providers [id, class]（綠界 / PAYUNi / PayNow 並存可切換） */
+	/** @var array<string, string> $logistics_providers [id, class]（綠界 / PAYUNi / PayNow / 黑貓宅急便直串 / 新竹物流 / 順豐 / 嘉里大榮並存可切換） */
 	private static array $logistics_providers = [
 		EcpayLogisticsProvider::ID  => EcpayLogisticsProvider::class,
 		PayuniLogisticsProvider::ID => PayuniLogisticsProvider::class,
 		PaynowLogisticsProvider::ID => PaynowLogisticsProvider::class,
+		TcatLogisticsProvider::ID   => TcatLogisticsProvider::class,
+		HctLogisticsProvider::ID    => HctLogisticsProvider::class,
+		SfExpressProvider::ID       => SfExpressProvider::class,
+		KerrytjLogisticsProvider::ID => KerrytjLogisticsProvider::class,
 	];
 
 	/** 註冊 hooks @return void */
@@ -47,6 +62,14 @@ final class ProviderRegister {
 		// WC 運送方式（classic 結帳）— 不論啟用與否皆註冊類別，啟用狀態由運送方式自身設定控制
 		\add_filter( 'woocommerce_shipping_methods', [ __CLASS__, 'add_shipping_method' ] );
 		\add_action( 'woocommerce_checkout_create_order', [ __CLASS__, 'save_checkout_meta' ], 10, 2 );
+		// 物流「測試連線」ping（admin；不需任何物流已啟用，設定頁啟用前即可測試）
+		LogisticsPingApiService::register_hooks();
+		// 新竹物流：設定儲存時同步號段到配號器（不需啟用）
+		HctLogisticsProvider::register_hooks();
+		// 嘉里大榮：設定儲存時同步常溫 / 低溫號段到配號器（不需啟用）
+		KerrytjLogisticsProvider::register_hooks();
+		// 順豐軌跡推送接收端（不需啟用：關掉順豐後在途包裹的貨態仍要更新；未設推送金鑰則整批拒收）
+		SfTrackPushCallback::register_hooks();
 
 		$any_enabled = false;
 		foreach ( self::$logistics_providers as $id => $class_name ) {
@@ -79,6 +102,10 @@ final class ProviderRegister {
 		if (ProviderUtils::is_enabled( PaynowLogisticsProvider::ID )) {
 			PaynowLogisticsCallback::register_hooks();
 		}
+		// 嘉里大榮專屬 admin REST（修改託運資料 / 託運明細 PDF）
+		if (ProviderUtils::is_enabled( KerrytjLogisticsProvider::ID )) {
+			KerrytjAdminApiService::register_hooks();
+		}
 	}
 
 	/**
@@ -109,6 +136,10 @@ final class ProviderRegister {
 		$methods[ WC_EcpayLogisticsShipping::METHOD_ID ]  = WC_EcpayLogisticsShipping::class;
 		$methods[ WC_PayuniLogisticsShipping::METHOD_ID ] = WC_PayuniLogisticsShipping::class;
 		$methods[ WC_PaynowLogisticsShipping::METHOD_ID ] = WC_PaynowLogisticsShipping::class;
+		$methods[ WC_TcatLogisticsShipping::METHOD_ID ]   = WC_TcatLogisticsShipping::class;
+		$methods[ WC_HctLogisticsShipping::METHOD_ID ]    = WC_HctLogisticsShipping::class;
+		$methods[ WC_SfExpressShipping::METHOD_ID ]       = WC_SfExpressShipping::class;
+		$methods[ WC_KerrytjLogisticsShipping::METHOD_ID ] = WC_KerrytjLogisticsShipping::class;
 		return $methods;
 	}
 
@@ -125,6 +156,21 @@ final class ProviderRegister {
 		WC_EcpayLogisticsShipping::save_checkout_meta( $order, $data );
 		WC_PayuniLogisticsShipping::save_checkout_meta( $order, $data );
 		WC_PaynowLogisticsShipping::save_checkout_meta( $order, $data );
+		WC_TcatLogisticsShipping::save_checkout_meta( $order, $data );
+		WC_HctLogisticsShipping::save_checkout_meta( $order, $data );
+		WC_SfExpressShipping::save_checkout_meta( $order, $data );
+		WC_KerrytjLogisticsShipping::save_checkout_meta( $order, $data );
+	}
+
+	/**
+	 * 取得已註冊 provider 的類別（不論是否啟用；ping 等 admin 工具用）
+	 *
+	 * @param string $id provider id
+	 * @return string|null 未註冊回 null
+	 */
+	public static function get_provider_class( string $id ): ?string {
+		$class_name = self::$logistics_providers[ $id ] ?? null;
+		return null !== $class_name && \class_exists( $class_name ) ? $class_name : null;
 	}
 
 	/** @return BaseSettingsDTO[] 取得 provider 設定 dtos（給 SettingApiService GET /settings） */

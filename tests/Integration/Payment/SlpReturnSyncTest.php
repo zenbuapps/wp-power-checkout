@@ -304,6 +304,31 @@ final class SlpReturnSyncTest extends TestCase {
 		$this->assertSame( '', ( new MetaKeys( $fresh ) )->get_payment_identity() );
 	}
 
+	/**
+	 * P8 fix #1：嵌入式重付格式的 reference（{order_id}-{n}-{hex}）只在「本訂單 reference 歷史內」才屬於本訂單；
+	 * 即使 sessionId 命中，也不可放行指向別張訂單的嵌入式 reference。
+	 *
+	 * @test
+	 * @group security
+	 */
+	public function test_matching_session_with_foreign_embedded_reference_is_rejected(): void {
+		$order          = $this->make_slp_order();
+		$victim         = $this->make_slp_order();
+		$trade_order_id = 'TRADE_P8_EMBEDDED_REF';
+		$session_id     = 'se_p8_embedded_ref';
+		$victim_ref     = "{$victim->get_id()}-1-ABCDEF";
+		$victim->update_meta_data( '_pc_slp_reference_history', [ $victim_ref ] );
+		$victim->save();
+		( new MetaKeys( $order ) )->update_identity( $session_id );
+		$this->simulate_return( $order, $trade_order_id );
+		$body              = $this->make_payment_body( $trade_order_id, $victim_ref );
+		$body['sessionId'] = $session_id;
+		$this->mock_http_json( $body );
+
+		$this->assertSame( ReturnSyncResult::MISMATCHED_ORDER, $this->sync( $order ) );
+		$this->assert_order_status( $order, 'pending' );
+	}
+
 	// ========== 冒煙測試（Smoke） ==========
 
 	/**

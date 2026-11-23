@@ -31,6 +31,7 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http\ApiClient;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\RedirectGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\ReturnSyncResult;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\StatusSource;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Helpers\EmbeddedReference;
 
 /** 導回同步查詢與認列 */
 final class ReturnSyncManager {
@@ -128,7 +129,10 @@ final class ReturnSyncManager {
 		$session_matches    = '' !== $session_id && '' !== $stored_session_id
 		&& \hash_equals($stored_session_id, $session_id);
 		// 數字型 referenceOrderId 若明確指向別張訂單，sessionId 命中也不能覆蓋衝突。
-		$reference_conflicts = \ctype_digit($reference_order_id) && !$reference_matches;
+		// 嵌入式每次嘗試唯一的 reference（{order_id}-{attempt}-{hex}）只有在本訂單 reference 歷史內才屬於本訂單；
+		// 導轉式訂單沒有該歷史，因此這類 reference 一律視為衝突（導轉式自身的 RL / 數字型 reference 規則不變）。
+		$reference_conflicts = ( \ctype_digit($reference_order_id) && !$reference_matches )
+		|| ( EmbeddedReference::is_attempt_reference($reference_order_id) && !EmbeddedReference::belongs_to($this->order, $reference_order_id) );
 		if ($reference_conflicts || ( !$reference_matches && !$session_matches )) {
 			$this->gateway->logger(
 				"❌ {$this->gateway->title} 導回同步查詢結果不屬於本訂單 #{$this->order->get_id()}",

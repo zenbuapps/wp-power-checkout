@@ -1,6 +1,6 @@
-# NestJS Service 整合範例（zenbu-site 專案慣例）
+# NestJS Service 整合範例（TypeScript 參考實作，非本 repo 技術棧）
 
-> 對應的真實程式碼：`apps/api-gateway/src/commerce/payments/payuni-logistics/payuni-logistics.service.ts` 與 `payuni-logistics.controller.ts`。
+> 以下路徑為範例配置，非本 repo 既有檔案。
 > 本檔列出 4 個情境的可貼上程式碼。`payuni-crypto.ts` 已存在，重用即可。
 
 ## 0. Settings & Module

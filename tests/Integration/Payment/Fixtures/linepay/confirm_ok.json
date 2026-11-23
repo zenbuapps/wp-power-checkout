@@ -1,0 +1,1 @@
+{"returnCode":"0000","returnMessage":"OK","info":{"orderId":"__ORDER_ID__","transactionId":__TX__,"payInfo":[{"method":"CREDIT_CARD","amount":__AMOUNT__,"maskedCreditCardNumber":"************1111"}],"paymentProvider":"TSP","packages":[{"id":"1","amount":__AMOUNT__,"userFeeAmount":0}]}}

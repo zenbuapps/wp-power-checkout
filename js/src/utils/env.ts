@@ -1,6 +1,7 @@
 import { IEcpgData } from '@/external/EcpgPayment/types'
 import { IPaynowData } from '@/external/PaynowPayment/types'
 import { IPayuniUniData } from '@/external/PayuniUniEmbed/types'
+import { IShoplineEmbeddedData } from '@/external/ShoplineEmbedded/types'
 
 const env = window?.power_checkout_data?.env
 
@@ -42,3 +43,12 @@ export const PAYUNI_UNI_DATA: IPayuniUniData | undefined =
  */
 export const PAYNOW_DATA: IPaynowData | undefined =
 	window?.power_checkout_paynow_data
+
+/**
+ * SHOPLINE Payments 嵌入式（站內付）order-received 頁專屬資料
+ *
+ * 由 EmbeddedGateway::before_order_received 透過 wp_localize_script 掛在 Vue bundle handle 上，
+ * 僅在「訂單以 shopline_payment_embedded 結帳且仍需付款」的 order-received 頁存在，否則為 undefined。
+ */
+export const SLP_EMBEDDED_DATA: IShoplineEmbeddedData | undefined =
+	window?.power_checkout_slp_embedded_data

@@ -26,6 +26,7 @@ namespace Tests\Integration\Payment;
 use J7\PowerCheckout\Domains\Payment\Shared\Helpers\MetaKeys;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http\WebHook;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Managers\OrderResolver;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\EmbeddedGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\RedirectGateway;
 use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -475,5 +476,29 @@ final class SlpOrderResolverTest extends TestCase {
 		$this->assertInstanceOf( \WC_Order::class, $resolved );
 		$this->assertSame( $victim_order->get_id(), $resolved->get_id() );
 		$this->assertNotSame( $attacker_order->get_id(), $resolved->get_id() );
+	}
+
+	/**
+	 * P1（R7）：SLP 嵌入式訂單（shopline_payment_embedded）也在 SLP gateway 白名單內，
+	 * identity 與 referenceOrderId 備援兩條路徑都能 resolve
+	 *
+	 * @test
+	 * @group happy
+	 */
+	public function test_嵌入式訂單可被identity與referenceOrderId路徑resolve(): void {
+		// Given: 嵌入式訂單（confirm 階段已寫入 tradeOrderId）與一筆尚未寫 identity 的嵌入式訂單
+		$trade_order_id = 'TRADE_EMBEDDED_RESOLVE_001';
+		$with_identity  = $this->make_order( EmbeddedGateway::ID, $trade_order_id );
+		$without_ident  = $this->make_order( EmbeddedGateway::ID );
+
+		// When
+		$by_identity  = OrderResolver::resolve( $trade_order_id, (string) $with_identity->get_id() );
+		$by_reference = OrderResolver::resolve( 'TRADE_EMBEDDED_RESOLVE_002', (string) $without_ident->get_id() );
+
+		// Then
+		$this->assertInstanceOf( \WC_Order::class, $by_identity );
+		$this->assertSame( $with_identity->get_id(), $by_identity->get_id() );
+		$this->assertInstanceOf( \WC_Order::class, $by_reference );
+		$this->assertSame( $without_ident->get_id(), $by_reference->get_id() );
 	}
 }

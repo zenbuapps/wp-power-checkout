@@ -110,7 +110,7 @@ export class NewebPayCryptoGcm {
 
 ### When to use which
 
-- **CBC (default)**: All current zenbu-site code. Stable, well-documented, PHP samples match.
+- **CBC (default)**: The safe default. Stable, well-documented, PHP samples match.
 - **GCM (opt-in)**: Only after the wire format is confirmed with NewebPay. Set `EncryptType=1` in TradeInfo, then encrypt with the GCM class. If callbacks fail with `MPG02004`, your encrypt method does not match the declared `EncryptType`.
 
 ## Create Payment Form
@@ -294,7 +294,7 @@ redirectToNewebPay(formUrl, formData);
 
 ## Full NestJS Service Reference
 
-The project implementation is at `apps/api-gateway/src/commerce/payments/newebpay/newebpay.service.ts`.
+Reference implementation shape (paths below are illustrative, not files in this repo):
 
 Key integration points:
 - `CheckoutService.verifySession(token)` — validates checkout session

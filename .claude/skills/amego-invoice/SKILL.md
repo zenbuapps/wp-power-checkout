@@ -14,17 +14,17 @@ description: >
   開立折讓、作廢折讓、發票查詢、發票列表、中獎發票、手機條碼、捐贈碼、載具、
   字軌取號、TrackApiCode、CarrierType、NPOBAN、ProductItem、TaxType、
   /json/f0401、/json/f0501、/json/g0401、/json/g0501、/json/f0401_custom、
-  /json/invoice_query、/json/allowance_query、台灣電子發票串接、e-invoice integration、
-  或在 zenbu-site apps/api-gateway/src/commerce/ 下整合台灣電子發票開立。
-  本 SKILL 為唯一官方 API reference 來源——不要再去翻 invoice.amego.tw。
+  /json/invoice_query、/json/allowance_query、台灣電子發票串接、e-invoice integration。
+  **僅限光貿 Amego 加值中心**；ezPay 發票走 ezpay-invoice、綠界發票走 ecpay-api。
+  本 SKILL 為 Amego 唯一官方 API reference 來源——不要再去翻 invoice.amego.tw。
 ---
 
 # 光貿電子發票（Amego e-invoice）API
 
 光貿電子發票加值中心提供台灣財政部電子發票（MIG 4.0）的開立、作廢、折讓、查詢服務。
 所有 API 採 **POST + `application/x-www-form-urlencoded`**（伺服器時間查詢例外，走 GET），
-回傳 JSON。本專案 zenbu-site 為 NestJS 11 + TypeORM 0.3 後端，金流 / 第三方整合慣例位於
-`apps/api-gateway/src/commerce/`。
+回傳 JSON。本 SKILL 為語言中立的 API 參考；`references/integration.md` 附一份
+NestJS / TypeScript 參考實作，供對照演算法步驟用，**不代表本 repo 的技術棧**。
 
 ## 環境與認證
 
@@ -237,4 +237,4 @@ NestJS service pattern 見 `references/integration.md`。
 | `references/api-reference.md` | 24 支 API 逐欄位 request / response 參數表、JSON 範例、金額計算、零稅率原因 71–79、發票 / 折讓類型代碼（C0401/D0401/A0401…）、字軌狀態、中獎獎項 |
 | `references/error-codes.md` | 通用錯誤碼 + 每支 API 專屬錯誤碼完整對照表 |
 | `references/concepts.md` | 載具規則、捐贈碼、統編檢查、字軌與配號、發票生命週期、MIG 4.0 異動、台灣電子發票背景知識 |
-| `references/integration.md` | NestJS / TypeScript 整合：sign 簽章函式、AmegoService pattern、ConfigService、錯誤處理、輪詢策略、zenbu-site commerce 對齊建議 |
+| `references/integration.md` | NestJS / TypeScript **參考實作**（非本 repo 技術棧）：sign 簽章函式、Service pattern、設定注入、錯誤處理、輪詢策略 |

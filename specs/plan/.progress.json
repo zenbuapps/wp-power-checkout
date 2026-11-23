@@ -1,0 +1,316 @@
+{
+    "plan": "2026-11-20-unified-gateway-and-7-providers",
+    "blueprint": "2026-11-20-tdd-blueprint",
+    "branch": "feat/unified-gateway-providers",
+    "baseline": {
+        "measured_at": "2026-11-20",
+        "base_commit": "1b2007a",
+        "command": "docker compose -p d5a5492d5679ff98cc7c025012f4fdfb run --rm --no-deps -e API_MODE=mock -w /var/www/html/wp-content/plugins/power-checkout tests-cli vendor/bin/phpunit --no-coverage",
+        "tests": 2336,
+        "assertions": 7583,
+        "errors": 0,
+        "failures": [
+            "Tests\\Integration\\Invoice\\EzpayAesCryptoTest::test_edge_標準AES16blockPadding會造成解密異常",
+            "Tests\\Integration\\Payment\\LinePayTest::test_LinePay_付款成功_訂單狀態變更為processing",
+            "Tests\\Integration\\Payment\\LinePayTest::test_LinePay_付款成功_付款詳情meta包含LinePay",
+            "Tests\\Integration\\Payment\\LinePayTest::test_LinePay_付款成功_Order_Note包含LINE_Pay"
+        ],
+        "phpstan_errors": [
+            "inc/classes/Domains/Payment/ShoplinePayment/DTOs/RedirectSettingsDTO.php:148 isset.property"
+        ]
+    },
+    "phases": {
+        "step0": "done",
+        "P0": "done",
+        "P1": "done",
+        "P2": "done",
+        "P3": "done",
+        "P4": "done",
+        "P5": "done",
+        "P6": "done",
+        "P7": "done",
+        "P8": "done",
+        "P9": "done",
+        "P10": "done"
+    },
+    "last_commit": "bd0360c",
+    "P0_result": {
+        "tests": 2397,
+        "assertions": 7885,
+        "failures": "baseline 4 only",
+        "new_tests": 61,
+        "phpstan_errors": [
+            "RedirectSettingsDTO.php:148 (baseline)"
+        ],
+        "phpcs": "new files 0 errors (1 warning: $void param name); modified files error count == master",
+        "commits": [
+            "511f9c1",
+            "ffeed4b",
+            "fe71623",
+            "936074d",
+            "1ed0c95",
+            "7541925"
+        ]
+    },
+    "P1_result": {
+        "tests": 2437,
+        "assertions": 8047,
+        "failures": "baseline 4 only",
+        "new_tests": 40,
+        "red": "111 tests / 40 errors (Class EmbeddedGateway not found) — .tmp/gate/P1-red-Payment.log",
+        "green_filter": "SlpEmbedded|SlpOrderResolver|SlpWebhookResponse|SlpReturnSync|SlpSessionIdentity|ProviderMetaContract|PaymentDispatchApiService|WebhookSignature|RedirectGatewayValidation → OK (144 tests, 522 assertions)",
+        "phpstan_errors": [
+            "RedirectSettingsDTO.php:148 (baseline)"
+        ],
+        "phpcs": "new/modified PHP files 0 errors (ApiClient/OrderResolver/Requester/PaymentDispatchApiService/ProviderRegister error count == master)",
+        "frontend": "pnpm build OK; pnpm build:blocks OK; changed-file eslint 0 errors (7 warnings: no-console / no-explicit-any, same pattern as existing modules)",
+        "sandbox_probe": "POST /api/v1/trade/payment/create (SLP sandbox) with same body shape → 200 status=CREATED + nextAction object (dummy paySession accepted at create stage)",
+        "credential_scan_note": "scan hit PENDING_META_KEY = '_pc_slp_embedded_pending' is an order meta key name, not a credential",
+        "commits": [
+            "a24dde0",
+            "cb20666",
+            "393da69",
+            "8e588f4",
+            "61ebed8"
+        ]
+    },
+    "P2_result": {
+        "tests": 2511,
+        "assertions": 8383,
+        "failures": "baseline 4 only",
+        "new_tests": 74,
+        "red": "110 tests / 74 errors (Class TcatPay... not found) — .tmp/gate/P2-red-Payment.log",
+        "green_filter": "TcatPay|ProviderMetaContract|WebhookPipeline → OK (110 tests, 547 assertions)",
+        "phpstan_errors": [
+            "RedirectSettingsDTO.php:148 (baseline)"
+        ],
+        "phpcs": "new PHP files 0 errors (warnings only); ProviderRegister error count == master",
+        "frontend": "pnpm build OK; pnpm build:blocks OK (tcat_pay.js); changed-file eslint 0 errors",
+        "sandbox_probe": ".env.local TCATPAY_CUST_ID / PASSWORD / HASH_BASE are angle-bracket placeholders → /Token 400 invalid_grant; unauthenticated /api/Collect → HTTP 401 {Message: Authorization has been denied}; no real-credential call possible",
+        "credential_scan_note": "scan hits are TcatPayMetaKeys *_KEY constant names (meta keys), not credentials",
+        "commits": [
+            "70d997d",
+            "0dcb1ad",
+            "094196c",
+            "07f4b95"
+        ]
+    },
+    "P3_result": {
+        "tests": 2569,
+        "assertions": 8641,
+        "failures": "baseline 4 only",
+        "new_tests": 58,
+        "red": "88 tests / 55 errors + 3 failures (Class Linepay\\* not found) — .tmp/gate/P3-red-Payment.log",
+        "green_filter": "LinepayDirect|ProviderMetaContract → OK (88 tests, 437 assertions)",
+        "phpstan_errors": [
+            "RedirectSettingsDTO.php:148 (baseline)"
+        ],
+        "phpcs": "new PHP files 0 errors (1 warning: base64_encode in LinepaySignature, required by algorithm); ProviderRegister error count == master",
+        "frontend": "pnpm build OK; pnpm build:blocks OK (linepay.js); changed-file eslint 0 errors (1 warning no-explicit-any, same as paynow.tsx)",
+        "sandbox_probe": ".env.local LINEPAY_SANDBOX_CHANNEL_ID (10 digits) / SECRET (32 hex) are real values; POST /v4/payments/request → 0000, raw transactionId bare 19-digit number decoded as string(19), paymentUrl.web host sandbox-web-pay.line.me (+app present, locale appended); GET check → 0000 reserved transaction; GET details (unconfirmed) → 1150",
+        "legacy_linepaytest": "3 baseline LinePayTest failures test SLP StatusManager (SLP-collected LINE Pay), failing since f71d7ce (#18) currency/amount guards (order currency USD / total 0 vs 100000 cents); unrelated to direct linepay gateway, not modified",
+        "credential_scan_note": "Red scan hit = skill authentication.md §3 public cross-check vector secret; feat scan hits = LinepayMetaKeys *_KEY meta key names",
+        "commits": [
+            "cb4a1ed",
+            "055f448",
+            "174d88b",
+            "1c04cbe"
+        ]
+    },
+    "P3_followup": {
+        "commit": "2ece01e",
+        "change": "LinepayReconcileJob::DEFAULT_DELAY 1500 -> 300 (filter power_checkout_linepay_reconcile_delay kept); Vue copy 25->5 min",
+        "red": "LinepayDirectGateway 10 tests / 2 failures (.tmp/gate/P4pre-red-Payment.log)",
+        "green": "LinepayDirect OK (57 tests, 244 assertions)"
+    },
+    "P4_result": {
+        "tests": 2684,
+        "assertions": 8928,
+        "failures": "baseline 4 only",
+        "new_tests": 115,
+        "red": "154 tests / 100 errors + 13 failures (Class LogisticsTcat* not found) — .tmp/gate/P4-red-Logistics.log",
+        "green_filter": "TcatLogistics|WC_TcatLogisticsShipping|LogisticsProviderMetaContract|LogisticsApiService → OK (154 tests, 402 assertions)",
+        "phpstan_errors": [
+            "RedirectSettingsDTO.php:148 (baseline)"
+        ],
+        "phpcs": "new PHP files 0 errors; ProviderRegister / LogisticsApiService error count == master (0)",
+        "frontend": "pnpm build OK; changed-file eslint 0 errors (blocks unchanged → build:blocks not needed)",
+        "sandbox_probe": ".env.local TCAT_CUSTOMER_ID_TEST / TOKEN_TEST are angle-bracket placeholders; dummy-credential probe of egs.suda.com.tw:8443: OBTStatus → HTTP 200 IsOK=N \"執行失敗 -> E001-...\"; PrintOBT(empty Orders) → E003; DownloadOBT → HTTP 400 JSON E009; ParsingAddress → HTTP 500 empty body. Error code is embedded in Message as Exxx-",
+        "deviations": [
+            "single backend commit (ping endpoint not split — files interdependent)",
+            "no MetaBox (blueprint §9-4)",
+            "ping endpoint generic: LogisticsPingApiService + ISupportsConnectionTest, always registered"
+        ],
+        "commits": [
+            "cd03d2f",
+            "b31c783",
+            "d6d4f14"
+        ]
+    },
+    "P5_pre_fix": {
+        "commit": "653271a",
+        "change": "LinepayReconcileJob: check 0000 (not yet authenticated) in auto reconcile -> reschedule with filter delay (AS args pending_round), stop when request expired (_pc_linepay_requested_at + 1200s) or MAX_PENDING_ROUNDS=10, note on stop; 0121/0122 not rescheduled; admin manual query unchanged (note only)",
+        "red": "LinepayDirectReconcile 15 tests / 3 errors + 2 failures (.tmp/gate/P5pre-red-Payment.log)",
+        "green": "LinepayDirect OK (64 tests, 259 assertions)"
+    },
+    "P5_result": {
+        "tests": 2806,
+        "assertions": 9264,
+        "failures": "baseline 4 only",
+        "new_tests": 122,
+        "red": "123 tests / 103 errors + 12 failures (Class Hct* / WaybillNumberAllocator not found) — .tmp/gate/P5-red-Logistics.log",
+        "green_filter": "WaybillNumberAllocator|Hct|LogisticsProviderMetaContract → OK (123 tests, 377 assertions); HctTrackCrypto not skipped (container OpenSSL 3.5.7 has des-ede3-cbc)",
+        "phpstan_errors": [
+            "RedirectSettingsDTO.php:148 (baseline)"
+        ],
+        "phpcs": "new PHP files 0 errors 0 warnings; ProviderRegister / LogisticsApiService error count == master (0)",
+        "frontend": "pnpm build OK; changed-file eslint 0 errors (blocks unchanged)",
+        "sandbox_probe": "GET DEV service1.asmx?wsdl (no creds): tempuri.org namespace / SOAPAction confirmed. QueryEDELNO_Json read-only: official test account test/test1 on DEV -> 「測試環境」請勿使用正式公司名稱或密碼; on PROD -> 查無資料 (auth OK) => test/test1 is a PRODUCTION account, so no TransData/Cancel/Return was sent (would hit production). wrong password -> 公司名稱或密碼錯誤. searchGoods read-only with .env.local track params: HTTP 200, response decrypts (des-ede3-cbc) to <rlist /> for unknown waybill.",
+        "credentials": ".env.local HCT_EDI_COMPANY/PASSWORD = public doc test account (prod-only in practice); HCT_EDELNO_RANGE empty; HCT_TRACK_* = real values (zenbu production track query params, identical to skill doc) — not written to code/tests/commits",
+        "deviations": [
+            "ping uses QueryEDELNO_Json instead of addrCompare (addrCompare uses separate USER=TEST2 account, cannot verify EDI credentials)",
+            "label stored at create time (base64 meta) and printed from meta; no GD PNG conversion (HCT image is already PNG per zenbu DEV probe; BMP also accepted)",
+            "DES via des-ede3-cbc triple key (no legacy provider) -> HctTrackCryptoTest not skipped",
+            "query_shipment without track params degrades to pending (no throw); network/decrypt failure throws (admin-triggered)",
+            "waybill range optional: empty -> HCT assigns edelno",
+            "single feat commit for backend (allocator committed separately); frontend separate"
+        ],
+        "commits": [
+            "edcf602",
+            "fc541e5",
+            "911cc4d",
+            "f8297e1",
+            "fbf16a3"
+        ]
+    },
+    "P6_result": {
+        "tests": 2938,
+        "assertions": 9693,
+        "failures": "baseline 4 only",
+        "new_tests": 132,
+        "red": "142 tests / 124 errors + 8 failures (Class SfExpress* not found) — .tmp/gate/P6-red-Logistics.log",
+        "green_filter": "Sf(Crypto|AccessTokenStore|Express|TrackPush|Region)|LogisticsProviderMetaContract → OK (142 tests, 496 assertions)",
+        "phpstan_errors": [
+            "RedirectSettingsDTO.php:148 (baseline)"
+        ],
+        "phpcs": "new PHP files 0 errors (warnings only: base64_* required by algorithm, file_get_contents in test trait); ProviderRegister / LogisticsApiService error count == master (0)",
+        "frontend": "pnpm build OK; changed-file eslint 0 errors (blocks unchanged)",
+        "sandbox_probe": "official public sandbox creds read at runtime from skill md (not in code/commits); read-only only, no create/cancel. https://api-ifsp-sit.sf.global: token OK (expireIn 7200); bad appSecret -> 1005 App is not exist; IUOP_QUERY_TRACK unknown waybill -> success=true + trackSummary 訂單不存在或訂單已歸檔; IUOP_QUERY_ORDER unknown -> 123002; IUOP_QUERY_FREIGHT TW10048->TW80141 INT0005 1kg -> 23 NTD; ICMS_QUERY_REGION_BY_POST_CODE 40743 -> Taichung City/Xitun District (matches SfRegion); bad token -> 500 Access denied, token invalid; bad signature -> 2001 Signature is invalid; wrong AES key -> 505 The format of the request body is incorrect; wrong customerCode -> same results as valid (customerCode not verifiable read-only). PC SfCrypto class encrypt/decrypt verified against sandbox.",
+        "credential_scan_note": "Red scan hit = SfCryptoTest DEMO_AES_KEY / DEMO_APP_KEY (official SampleCode public vectors, auth-and-crypto.md §0.8); feat scan hits = SfExpressMetaKeys *_KEY meta key names",
+        "deviations": [
+            "test commit ac2a781 after Red: added 505 case from sandbox probe, moved tamper byte to last-but-one block (original position not guaranteed detectable under CBC), weight unit kg, package contents key, phpcbf format",
+            "backend split into 2 feat commits (crypto/token/client; provider+push+shipping+register) — WC_SfExpressShipping committed with provider because ProviderRegister references both",
+            "ping uses IUOP_QUERY_TRACK on non-existent waybill; customer_code_verified=false (sandbox shows customerCode not validated by read-only APIs)",
+            "print downloads PDF server-side (label URL not stored/returned); falls back to HTML link page if not PDF",
+            "cancel clears ref (keeps _pc_sf_express_cancelled_ref) so order can be re-created; blocks locally when unified_state != pending",
+            "query_shipment has no cache (IUOP_QUERY_TRACK 600/min); push is primary, ASM-7 no polling",
+            "SfRegion data generated from zenbu tw-admin-divisions.ts (371 districts); zip3 300/600 ambiguous -> require names",
+            "COD orders rejected (VALIDATION); shipping rate only for destination TW"
+        ],
+        "commits": [
+            "2d2d35b",
+            "ac2a781",
+            "c201f67",
+            "6df9110",
+            "a52e3b0"
+        ]
+    },
+    "P7_result": {
+        "tests": 3052,
+        "assertions": 10115,
+        "failures": "baseline 4 only",
+        "new_tests": 114,
+        "red": "138 tests / 105 errors + 9 failures (Class Kerrytj* not found) — .tmp/gate/P7-red-Logistics.log",
+        "green_filter": "Kerrytj|WaybillNumberAllocator|LogisticsProviderMetaContract → OK (138 tests, 546 assertions)",
+        "phpstan_errors": [
+            "RedirectSettingsDTO.php:148 (baseline)"
+        ],
+        "phpcs": "new PHP files (impl + tests) 0 errors (warnings only); ProviderRegister / LogisticsApiService error count == master (0)",
+        "frontend": "pnpm build OK; changed-file eslint 0 errors (blocks unchanged)",
+        "sandbox_probe": ".env.local empty → no create/update/pickup sent. Unauthenticated POST EDIEntranceTest/{ShipmentDelivery,UpdateShipmentDelivery,PickupV2} [] → HTTP 401 + WWW-Authenticate Basic realm=api.kerrytj.com + {Message: The requested authorization has been rejected.}; dummy creds → same 401; KerryTracingEDI BLNListTracing no auth → 401 realm=localhost empty body; Report/GetLabelPdf {} no auth → 400 ModelState (出貨日期必填…). Golden fixtures unauthorized.json / label_model_state.json from these probes.",
+        "deviations": [
+            "ping implements ISupportsConnectionTest (dispatch instruction) instead of blueprint §6.7 501: UpdateShipmentDelivery [] verifies Basic Auth without writing data (401 → AUTH)",
+            "can_cancel=false (skill api-reference §5: no cancel API in spec v1.1.0 / Help Page)",
+            "update (UpdateShipmentDelivery) and detail PDF (GetDetailPdf) not in ILogisticsProvider → provider methods update_shipment()/print_detail() + Kerrytj-only admin REST power-checkout/v1/logistics/{id}/kerrytj/{update,detail}, registered only when enabled",
+            "COD rejected (VALIDATION), same as zenbu; AC/DeclaredValue/PaymentType always empty",
+            "name truncated to 12 chars (zenbu test-env measurement), not spec 6; phone > 15 / address > 60 rejected",
+            "pending BLN stored on order before API call; retry reuses it; reused BLN + 託運單號重複 → success (zenbu); new BLN + duplicate → CONFLICT",
+            "allocator keys kerrytj_logistics_{mode}_{ambient|cold} (test progress does not consume prod range)",
+            "query_shipment no cache; tracing host has no test URL (test creds may 401)",
+            "READY_FOR_PICKUP for station/store pickup codes (zenbu used arrived); cold 93 → RETURNED (zenbu)",
+            "file count ~44 incl. 15 fixtures (blueprint estimate 16; >150%) — continued per instruction not to stop",
+            "test commit 87fb66c after Red: phpcbf format + harness fixes (explicit rest_api_init hook for singleton, package contents)"
+        ],
+        "credential_scan_note": "feat scan hits = KerrytjLogisticsMetaKeys *_KEY meta key names; test creds are fake values",
+        "commits": [
+            "72536cc",
+            "87fb66c",
+            "c507320",
+            "4f10179"
+        ]
+    },
+    "P8_result": {
+        "site": "https://local-turbo.powerhouse.tw (tunnel was offline; started connector with local-turbo-only ingress)",
+        "report": "specs/plan/2026-11-20-acceptance-report.md",
+        "videos_dir": "tests/e2e/acceptance-videos/2026-11-21/ (gitignored)",
+        "results": {
+            "shopline_payment_embedded": "BLOCKED (external): SLP sandbox PCI token/generate 1005 No interface access permission (reproduced outside WP); dispatch init/confirm + trade/payment/create OK; retry: fixed@f666352 (per-attempt unique referenceOrderId; live-verified on order #6666)",
+            "linepay": "degraded PASS (request 0000 -> sandbox-web-pay.line.me loaded)",
+            "sf_express": "full PASS on SIT (ping, create SF3180007862096, PDF print, query, signed push -> accepted)",
+            "hct_logistics": "degraded PASS (test site rejects prod account 424; prod read-only ping 200)",
+            "tcat_pay": "degraded PASS (placeholder creds -> checkout error notice, token 401 note)",
+            "tcat_logistics": "degraded PASS after fix (ParsingAddress does not verify token -> credentials_verified=false)",
+            "kerrytj_logistics": "degraded PASS after fix (range validation, waybill status, ping 424 AUTH)"
+        },
+        "bugs_fixed": [
+            "5fd963c ping provider failure 502->424 (CDN rewrote body)",
+            "324d5e8 tcat ping credentials_verified=false"
+        ],
+        "tests": 3055,
+        "assertions": 10126,
+        "failures": "baseline 4 only",
+        "phpstan_errors": [
+            "RedirectSettingsDTO.php:148 (baseline)"
+        ],
+        "commits": [
+            "1f23127",
+            "5fd963c",
+            "1ec8767",
+            "324d5e8",
+            "00369cc"
+        ],
+        "d1_zenbu_credentials": {
+            "date": "2026-11-21",
+            "source": "zenbu-site-2.0 local Postgres settings payment.shopline_* (read-only; values never printed/stored)",
+            "finding": "zenbu sandbox merchantId/clientKey/apiKey/signKey are byte-identical to power-checkout .env SHOPLINE_SANDBOX_* (already used in P8); only the separate SLP_API_KEY (1003) differs",
+            "minimal_sdk_html": "official CDN SDK only, no WP: init ok, createPayment returns paySession, but PCI bin/query -> 400 1005 No interface access permission (tested from two origins)",
+            "result": "BLOCKED (external): both credential sets -> 1005; confirms SHOPLINE-side sandbox SDK/PCI permission issue",
+            "site_changes": "none (no tunnel, no settings change, no order created)",
+            "video": "none (stopped at step 2 per plan)"
+        }
+    },
+    "P10_result": {
+        "scope": "callback parity audit vs zenbu-site-2.0 (tcat_pay 2 medium + linepay 1 low)",
+        "commits": {
+            "215865c": "fix(tcat-pay): paid-trigger APN unconfirmed by platform -> 503 RETRY",
+            "36c307d": "feat(tcat-pay): Action Scheduler reconcile pc_tcat_pay_reconcile",
+            "bd0360c": "fix(linepay): amount guard falls back to packages, fail closed"
+        },
+        "gates": {
+            "provider_filters": "TcatPay|LinepayDirect OK 155 tests / 645 assertions",
+            "full_suite": "3096 tests / 10300 assertions / 4 failures = baseline",
+            "phpstan": "baseline only RedirectSettingsDTO.php:148",
+            "phpcs": "0 errors on changed inc/ files; 3 pre-existing warnings in TcatPayGateway.php"
+        },
+        "accepted_differences": [
+            "no logistics background polling (ASM-7)",
+            "SLP stale timestamp -> 200",
+            "tcat_pay failure notices do not change status",
+            "tcat_pay P (capture failed) note-only",
+            "SLP embedded no background reconcile",
+            "tcat_pay checksum failure -> OK (zenbu 401) observed, not changed"
+        ],
+        "logs": ".tmp/gate/P10-*.log",
+        "live": "not verified (no tcat_pay test credentials); mock only"
+    }
+}

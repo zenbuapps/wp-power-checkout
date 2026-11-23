@@ -7,7 +7,9 @@ namespace J7\PowerCheckout\Domains\Settings\Services;
 use J7\PowerCheckout\Domains\Checkout\DTOs\CheckoutEnhancementSettingsDTO;
 use J7\PowerCheckout\Domains\Invoice\ProviderRegister;
 use J7\PowerCheckout\Domains\Logistics\ProviderRegister as LogisticsProviderRegister;
+use J7\PowerCheckout\Domains\Logistics\Shared\Services\LogisticsApiService;
 use J7\PowerCheckout\Domains\Receipt\ProviderRegister as ReceiptProviderRegister;
+use J7\PowerCheckout\Domains\Payment\Shared\Interfaces\IPaymentProvider;
 use J7\PowerCheckout\Domains\Payment\Shared\Utils\GatewayUtils;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use J7\PowerCheckout\Shared\Utils\StrHelper;
@@ -71,14 +73,35 @@ final class SettingApiService extends ApiBase {
 				'code'    => 'get_settings_success',
 				'message' => '取得設定成功',
 				'data'    => [
-					'gateways'  => $gateways,
-					'invoices'  => ProviderRegister::get_registered_provider_dtos(),
-					'receipts'  => ReceiptProviderRegister::get_registered_provider_dtos(),
-					'logistics' => LogisticsProviderRegister::get_registered_provider_dtos(),
+					'gateways'      => $gateways,
+					'invoices'      => ProviderRegister::get_registered_provider_dtos(),
+					'receipts'      => ReceiptProviderRegister::get_registered_provider_dtos(),
+					'logistics'     => LogisticsProviderRegister::get_registered_provider_dtos(),
+					'provider_meta' => [
+						'payments'  => self::get_payment_provider_metas( $gateways ),
+						'logistics' => LogisticsApiService::get_enabled_provider_metas(),
+					],
 				],
 			],
 			200
 		);
+	}
+
+	/**
+	 * 各 gateway 的 provider meta（id => meta 陣列；給 Vue 隱藏不支援的按鈕）
+	 *
+	 * @param array<int|string, mixed> $gateways power checkout gateways
+	 * @return array<string, array<string, mixed>>
+	 */
+	private static function get_payment_provider_metas( array $gateways ): array {
+		$metas = [];
+		foreach ( $gateways as $gateway ) {
+			if ( $gateway instanceof IPaymentProvider ) {
+				$meta               = $gateway->get_provider_meta();
+				$metas[ $meta->id ] = $meta->to_array();
+			}
+		}
+		return $metas;
 	}
 
 

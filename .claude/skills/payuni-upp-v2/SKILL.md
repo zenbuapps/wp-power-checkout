@@ -6,7 +6,7 @@ description: >
   (信用卡/分期/紅利/Apple Pay/Google Pay/Samsung Pay/銀聯/ATM 虛擬帳號/超商代碼/
   icash Pay/AFTEE/LINE Pay/街口支付/貨到付款/宅配)、信用卡 Token / 買方 Token、
   優惠券、物流參數、交易查詢/請退款/取消授權、Token 查詢/取消、Sandbox 測試。
-  當程式碼涉及 PAYUNi、統一金流、payuni、UPP、UNiPaypage、台灣金流、
+  當程式碼涉及 PAYUNi、統一金流、payuni、UPP、UNiPaypage、PAYUNi 導轉式支付頁、
   EncryptInfo HashInfo、信用卡分期、超商代碼、ATM 虛擬帳號、LINE Pay、
   街口支付、AFTEE、icash Pay、Apple Pay、Google Pay、Samsung Pay、
   /api/upp、/api/trade/query、/api/trade/close、/api/trade/cancel、

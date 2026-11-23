@@ -36,6 +36,9 @@ use J7\PowerCheckout\Domains\Logistics\Paynow\Shared\Enums\PaynowLogisticService
 use J7\PowerCheckout\Domains\Logistics\Paynow\Shared\Enums\PaynowLogisticsStatus;
 use J7\PowerCheckout\Domains\Logistics\Paynow\Shared\Helpers\PaynowLogisticsMetaKeys;
 use J7\PowerCheckout\Domains\Logistics\Paynow\Shared\Helpers\TripleDesCrypto;
+use J7\PowerCheckout\Domains\Logistics\Shared\DTOs\LogisticsProviderMetaDTO;
+use J7\PowerCheckout\Domains\Logistics\Shared\DTOs\ShipmentCapabilitiesDTO;
+use J7\PowerCheckout\Domains\Logistics\Shared\Enums\DeliveryMethod;
 use J7\PowerCheckout\Domains\Logistics\Shared\Interfaces\ILogisticsProvider;
 use J7\PowerCheckout\Shared\Abstracts\BaseService;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -841,4 +844,27 @@ final class PaynowLogisticsProvider extends BaseService implements ILogisticsPro
 	}
 
 	// endregion
+
+	/**
+	 * Provider meta（能力需與方法實作一致）
+	 *
+	 * PayNow 物流：超商（7-11 / 全家 / 萊爾富）+ 黑貓宅配。
+	 * create_return 一律拋「尚未實作」→ can_return=false。
+	 *
+	 * @return LogisticsProviderMetaDTO
+	 */
+	public function get_provider_meta(): LogisticsProviderMetaDTO {
+		return new LogisticsProviderMetaDTO(
+			id: self::ID,
+			supported_delivery_methods: [ DeliveryMethod::HOME, DeliveryMethod::CVS ],
+			capabilities: new ShipmentCapabilitiesDTO(
+				can_create_shipment: true,
+				can_query_shipment: true,
+				has_cvs_map: true,
+				can_print: true,
+				can_return: false,
+				can_cancel: true,
+			),
+		);
+	}
 }

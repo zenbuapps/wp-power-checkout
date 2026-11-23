@@ -25,6 +25,9 @@ use J7\PowerCheckout\Domains\Logistics\Shared\Enums\LogisticsStatus;
 use J7\PowerCheckout\Domains\Logistics\Shared\Enums\LogisticsSubType;
 use J7\PowerCheckout\Domains\Logistics\Shared\Enums\LogisticsTemperature;
 use J7\PowerCheckout\Domains\Logistics\Shared\Helpers\LogisticsMetaKeys;
+use J7\PowerCheckout\Domains\Logistics\Shared\DTOs\LogisticsProviderMetaDTO;
+use J7\PowerCheckout\Domains\Logistics\Shared\DTOs\ShipmentCapabilitiesDTO;
+use J7\PowerCheckout\Domains\Logistics\Shared\Enums\DeliveryMethod;
 use J7\PowerCheckout\Domains\Logistics\Shared\Interfaces\ILogisticsProvider;
 use J7\PowerCheckout\Shared\Abstracts\BaseService;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -695,4 +698,27 @@ final class EcpayLogisticsProvider extends BaseService implements ILogisticsProv
 	}
 
 	// endregion
+
+	/**
+	 * Provider meta（能力需與方法實作一致）
+	 *
+	 * 綠界全方位物流：超商（FAMI / UNIMART / HILIFE）+ 宅配（HOME）。
+	 * cancel_shipment 僅 C2C 帳號可用（B2C 拋「僅支援 C2C」，REST 403），仍宣告 true。
+	 *
+	 * @return LogisticsProviderMetaDTO
+	 */
+	public function get_provider_meta(): LogisticsProviderMetaDTO {
+		return new LogisticsProviderMetaDTO(
+			id: self::ID,
+			supported_delivery_methods: [ DeliveryMethod::HOME, DeliveryMethod::CVS ],
+			capabilities: new ShipmentCapabilitiesDTO(
+				can_create_shipment: true,
+				can_query_shipment: true,
+				has_cvs_map: true,
+				can_print: true,
+				can_return: true,
+				can_cancel: true,
+			),
+		);
+	}
 }

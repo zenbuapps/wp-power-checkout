@@ -11,6 +11,7 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Session\CreateSe
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Session\QuerySessionDTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Session\SessionDTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Helpers\Requester;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Payment\CreateSdkPaymentDTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Payment\GetPaymentDTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Trade\Payment\PaymentDTO;
 
@@ -96,6 +97,40 @@ final class ApiClient {
 			$timeout
 		);
 		return PaymentDTO::create( $response_body );
+	}
+
+
+	/**
+	 * 建立付款交易（內嵌式 SDK）
+	 *
+	 * 官方明示 nextAction「不要解析、資料類型隨時可變」（R6）：以原始回應 body 重新 decode 為物件後
+	 * 只取 nextAction 節點 encode 回 JSON 字串轉傳前端，不經 assoc array（避免空物件 {} 變成 []）。
+	 * 回應沒有 nextAction 代表建單失敗，不可呼叫 SDK pay()，由呼叫端判斷。
+	 *
+	 * @param CreateSdkPaymentDTO $dto 建立付款交易參數
+	 *
+	 * @see https://docs.shoplinepayments.com/api/trade/payment/
+	 * @return array{trade_order_id: string, status: string, next_action: string|null, payment_msg: string}
+	 * @throws \Exception 請求失敗（連線錯誤或 SLP 回錯誤碼）
+	 *  */
+	public function create_sdk_payment( CreateSdkPaymentDTO $dto ): array {
+		$response_body = $this->requester->post( '/trade/payment/create', $dto->to_array() );
+
+		$next_action = null;
+		$raw         = \json_decode( $this->requester->last_response_body, false );
+		if ( $raw instanceof \stdClass && isset( $raw->nextAction ) && '' !== $raw->nextAction ) {
+			$encoded     = \wp_json_encode( $raw->nextAction );
+			$next_action = \is_string( $encoded ) ? $encoded : null;
+		}
+
+		$payment_msg = $response_body['paymentMsg'] ?? null;
+
+		return [
+			'trade_order_id' => \is_scalar( $response_body['tradeOrderId'] ?? null ) ? (string) $response_body['tradeOrderId'] : '',
+			'status'         => \is_scalar( $response_body['status'] ?? null ) ? (string) $response_body['status'] : '',
+			'next_action'    => $next_action,
+			'payment_msg'    => \is_array( $payment_msg ) ? \implode( ' ', \array_map( 'strval', \array_filter( $payment_msg, 'is_scalar' ) ) ) : '',
+		];
 	}
 
 

@@ -1,0 +1,1 @@
+{"Message":"要求無效。","ModelState":{"request.ConsigneePost":["收貨人郵區必填"],"request.ShipperTel":["寄貨人電話必填"]}}

@@ -6,6 +6,10 @@ import {
 	IUniPaymentGlobal,
 } from '@/external/PayuniUniEmbed/types'
 import { IOrderData } from '@/external/RefundDialog/types'
+import {
+	IShoplineEmbeddedData,
+	IShoplinePaymentsGlobal,
+} from '@/external/ShoplineEmbedded/types'
 
 export {}
 
@@ -87,5 +91,17 @@ declare global {
 
 		/** PayNow Component SDK v2 前端全域物件（由 js.paynow.com.tw/sdk/v2/index.js 注入 window） */
 		PayNow?: IPaynowGlobal
+
+		/**
+		 * SHOPLINE Payments 嵌入式（站內付）order-received 頁專屬資料
+		 *
+		 * 由 EmbeddedGateway::before_order_received 透過 wp_localize_script 掛在 Vue bundle handle，
+		 * 僅在「訂單以 shopline_payment_embedded 結帳且仍需付款」的 order-received 頁存在。
+		 * @see inc/classes/Domains/Payment/ShoplinePayment/Services/EmbeddedGateway.php
+		 */
+		power_checkout_slp_embedded_data?: IShoplineEmbeddedData
+
+		/** SHOPLINE Payments 官方 SDK 全域函式（由 cdn.shoplinepayments.com/sdk/v1/payment-web.js 注入） */
+		ShoplinePayments?: IShoplinePaymentsGlobal
 	}
 }

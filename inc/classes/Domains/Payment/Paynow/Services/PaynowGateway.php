@@ -45,6 +45,10 @@ use J7\PowerCheckout\Domains\Payment\Shared\Interfaces\IPaymentProvider;
 use J7\PowerCheckout\Domains\Payment\Shared\Utils\GatewayUtils;
 use J7\PowerCheckout\Domains\Settings\Services\SettingTabService;
 use J7\PowerCheckout\Plugin;
+use J7\PowerCheckout\Domains\Payment\Shared\DTOs\PaymentCapabilitiesDTO;
+use J7\PowerCheckout\Domains\Payment\Shared\DTOs\ProviderMetaDTO;
+use J7\PowerCheckout\Domains\Payment\Shared\Enums\OrderCreationStrategy;
+use J7\PowerCheckout\Domains\Payment\Shared\Enums\PaymentMode;
 use J7\PowerCheckout\Shared\Enums\Mode;
 use J7\PowerCheckout\Shared\Errors\ErrorCode;
 use J7\PowerCheckout\Shared\Errors\NormalizedError;
@@ -766,5 +770,29 @@ final class PaynowGateway extends AbstractPaymentGateway implements IPaymentProv
 			return \wp_parse_args( \is_array( $option ) ? $option : [], $default_array );
 		}
 		return PaynowSettingsDTO::instance()->to_array();
+	}
+
+	/**
+	 * Provider meta（能力為方法層級宣告，見 PaymentCapabilitiesDTO）
+	 *
+	 * PayNow Component SDK v2（client-sdk）；只覆寫 query_trade（補查付款意圖）。
+	 * 另有 admin action：退款查詢（pc_paynow_refund_query）；PayNow 無請款 / 取消授權端點。
+	 *
+	 * @return ProviderMetaDTO
+	 */
+	public function get_provider_meta(): ProviderMetaDTO {
+		return new ProviderMetaDTO(
+			id: self::ID,
+			payment_mode: PaymentMode::CLIENT_SDK,
+			order_creation_strategy: OrderCreationStrategy::PRE_CREATE_PENDING,
+			capabilities: new PaymentCapabilitiesDTO(
+				refund: true,
+				partial_refund: true,
+				capture: false,
+				void: false,
+				query: true,
+				recurring: false,
+			),
+		);
 	}
 }
