@@ -90,7 +90,10 @@ final class TcatPayGateway extends AbstractPaymentGateway implements IGateway {
 	 * @return array<string, mixed> 取得設定
 	 */
 	public static function get_settings( bool $with_default = true ): array {
-		return TcatPaySettingsDTO::instance()->to_array();
+		return [
+			...TcatPaySettingsDTO::instance()->to_array(),
+			'icon' => Plugin::$url . '/inc/assets/images/icons/tcat.png',
+		];
 	}
 
 	/**

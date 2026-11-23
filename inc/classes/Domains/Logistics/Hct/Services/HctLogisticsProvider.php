@@ -96,7 +96,7 @@ final class HctLogisticsProvider extends BaseService implements ILogisticsProvid
 			HctLogisticsSettingsDTO::instance()->to_array(),
 			[
 				'id'                     => self::ID,
-				'icon'                   => '',
+				'icon'                   => Plugin::$url . '/inc/assets/images/icons/hct.png',
 				'method_title'           => \__( '新竹物流', 'power_checkout' ),
 				'method_description'     => \__( '新竹物流 EDI 直串，宅配到府、列印標籤、查詢貨況。', 'power_checkout' ),
 				'waybill_status'         => self::waybill_allocator()->status(),

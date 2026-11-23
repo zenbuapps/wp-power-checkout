@@ -37,6 +37,7 @@ use J7\PowerCheckout\Domains\Logistics\Tcat\Shared\Helpers\TcatFieldRules;
 use J7\PowerCheckout\Domains\Logistics\Tcat\Shared\Helpers\TcatLogisticsDates;
 use J7\PowerCheckout\Domains\Logistics\Tcat\Shared\Helpers\TcatLogisticsMetaKeys;
 use J7\PowerCheckout\Domains\Logistics\Tcat\Shared\Helpers\TcatStatusMapper;
+use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Shared\Abstracts\BaseService;
 use J7\PowerCheckout\Shared\Errors\ErrorCode;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -87,7 +88,7 @@ final class TcatLogisticsProvider extends BaseService implements ILogisticsProvi
 			TcatLogisticsSettingsDTO::instance()->to_array(),
 			[
 				'id'                 => self::ID,
-				'icon'               => '',
+				'icon'               => Plugin::$url . '/inc/assets/images/icons/tcat.png',
 				'method_title'       => \__( '黑貓宅急便（直串）', 'power_checkout' ),
 				'method_description' => \__( '統一速達黑貓宅急便標準印單 API 直串，宅配到府、下載託運單 PDF、查詢貨態。', 'power_checkout' ),
 			]

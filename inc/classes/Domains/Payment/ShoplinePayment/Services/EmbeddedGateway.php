@@ -83,10 +83,10 @@ final class EmbeddedGateway extends PaymentGateway implements IGateway, IEmbedde
 	public $id = self::ID;
 
 	/** @var string 後台顯示付款方式標題 */
-	public $method_title = 'SHOPLINE Payments 信用卡（站內付）';
+	public $method_title = 'Shopline Payment (嵌入支付)';
 
 	/** @var string 後台顯示付款方式描述 */
-	public $method_description = '顧客於本站內以 SHOPLINE Payments 收銀台輸入信用卡完成付款（支援分期），商店憑證共用 SHOPLINE Payments 導轉式設定';
+	public $method_description = '顧客於本站內以 SHOPLINE Payments 收銀台輸入信用卡完成付款（支援分期），商店憑證共用 Shopline Payment (跳轉支付) 設定';
 
 	// region 可用性
 
@@ -441,7 +441,11 @@ final class EmbeddedGateway extends PaymentGateway implements IGateway, IEmbedde
 	 * @return array<string, mixed>
 	 */
 	public static function get_settings( bool $with_default = true ): array {
-		return EmbeddedSettingsDTO::instance()->to_array();
+		return [
+			...EmbeddedSettingsDTO::instance()->to_array(),
+			// 與導轉式共用同一個 SHOPLINE Payments icon
+			'icon' => RedirectSettingsDTO::DEFAULT_ICON,
+		];
 	}
 
 	/**
