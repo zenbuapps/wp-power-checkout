@@ -42,7 +42,7 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 	public $id = self::ID;
 
 	/** @var string 後台顯示付款方式標題 */
-	public $method_title = 'Shopline Payment 線上付款';
+	public $method_title = 'Shopline Payment (跳轉支付)';
 
 	/** @var string 後台顯示付款方式描述 */
 	public $method_description = '提供信用卡一次付清、分期付款、虛擬帳號轉帳，以及 LINE Pay、街口支付、APPLE PAY 等付款方式';

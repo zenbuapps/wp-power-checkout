@@ -114,7 +114,7 @@ const rules = reactive<FormRules<TFormData>>({
 		style="max-width: 40rem"
 	>
 		<el-alert
-			title="LINE Pay 直連（Online API v4）：使用商家自己向 LINE Pay 申請的 Channel ID / Channel Secret，顧客導向 LINE Pay 付款頁，自動請款。與 SHOPLINE Payments 等「代收 LINE Pay」無關。"
+			title="LINE Pay（Online API v4）：使用商家自己向 LINE Pay 申請的 Channel ID / Channel Secret，顧客導向 LINE Pay 付款頁，自動請款。與 SHOPLINE Payments 等「代收 LINE Pay」無關。"
 			type="info"
 			class="mb-4"
 			:closable="false"

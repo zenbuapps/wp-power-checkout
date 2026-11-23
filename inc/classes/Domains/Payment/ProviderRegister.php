@@ -33,6 +33,7 @@ final class ProviderRegister {
 		Shared\Services\PaymentDispatchApiService::register_hooks();
 
 		\add_filter( 'woocommerce_payment_gateways', [ __CLASS__, 'add_method' ] );
+		\add_filter( 'option_woocommerce_gateway_order', [ __CLASS__, 'keep_slp_gateways_adjacent' ] );
 		\add_action( 'woocommerce_refund_created', [ __CLASS__, 'default_refund_reason' ], 10, 2 );
 		\add_action( 'woocommerce_order_refunded', [ __CLASS__, 'add_order_note__manual_refund' ], 100, 2 );
 		\add_action( 'admin_enqueue_scripts', [ __CLASS__, 'refund_script' ], 20 );
@@ -116,6 +117,48 @@ final class ProviderRegister {
 			$methods[] = $gateway_service;
 		}
 		return $methods;
+	}
+
+	/**
+	 * 讓 Shopline Payment 嵌入支付緊接在跳轉支付後面
+	 *
+	 * WC 依 option `woocommerce_gateway_order`（gateway id => 排序值）排列付款方式；
+	 * 既有站台的排序裡沒有後來新增的嵌入式（會被排到最後），或被手動拖離。
+	 * 讀取時把嵌入式移到跳轉式正後方並重新編號（0..n，避免同值互相覆蓋），
+	 * 後台付款方式列表、WC 付款設定頁與結帳頁都會跟著相鄰。跳轉式不在排序裡時不動。
+	 *
+	 * @param mixed $ordering option 值
+	 * @return mixed
+	 */
+	public static function keep_slp_gateways_adjacent( mixed $ordering ): mixed {
+		$redirect_id = ShoplinePayment\Services\RedirectGateway::ID;
+		$embedded_id = ShoplinePayment\Services\EmbeddedGateway::ID;
+
+		if ( !\is_array( $ordering ) || !isset( $ordering[ $redirect_id ] ) || !\is_numeric( $ordering[ $redirect_id ] ) ) {
+			return $ordering;
+		}
+
+		$numeric = \array_filter( $ordering, static fn ( $value ): bool => \is_numeric( $value ) );
+		\asort( $numeric, SORT_NUMERIC );
+		unset( $numeric[ $embedded_id ] );
+
+		$result = [];
+		$loop   = 0;
+		foreach ( \array_keys( $numeric ) as $gateway_id ) {
+			$result[ $gateway_id ] = $loop++;
+			if ( $redirect_id === $gateway_id ) {
+				$result[ $embedded_id ] = $loop++;
+			}
+		}
+
+		// 非數值的值原樣保留（WC 只採用數值排序）
+		foreach ( $ordering as $key => $value ) {
+			if ( !\array_key_exists( $key, $result ) ) {
+				$result[ $key ] = $value;
+			}
+		}
+
+		return $result;
 	}
 
 	/**

@@ -153,7 +153,7 @@ test.describe('SHOPLINE Payments 嵌入式 live 驗收', () => {
       const productId = await prepare(admin, 401)
 
       await classicGuestCheckout(page, productId, GATEWAY_ID)
-      await caption(page, '訪客結帳 NT$401，選擇 SHOPLINE Payments 信用卡（站內付）')
+      await caption(page, '訪客結帳 NT$401，選擇 Shopline Payment (嵌入支付)')
       await page.waitForTimeout(1_500)
       await classicPlaceOrder(page)
       await page.waitForURL(/order-received/, { timeout: 120_000 })
