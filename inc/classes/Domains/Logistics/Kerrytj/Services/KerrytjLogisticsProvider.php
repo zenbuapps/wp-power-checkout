@@ -91,7 +91,7 @@ final class KerrytjLogisticsProvider extends BaseService implements ILogisticsPr
 			$settings->to_array(),
 			[
 				'id'                     => self::ID,
-				'icon'                   => '',
+				'icon'                   => Plugin::$url . '/inc/assets/images/icons/kerrytj.png',
 				'method_title'           => \__( '嘉里大榮', 'power_checkout' ),
 				'method_description'     => \__( '嘉里大榮物流 EDI 直串，宅配到府（常溫 / 冷藏 / 冷凍）、列印標籤、查詢貨況。', 'power_checkout' ),
 				'ambient_waybill_status' => self::waybill_allocator( KerrytjBlnKind::AMBIENT, $settings->mode )->status(),

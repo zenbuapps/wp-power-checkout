@@ -83,7 +83,7 @@ final class SfExpressProvider extends BaseService implements ILogisticsProvider,
 			SfExpressSettingsDTO::instance()->to_array(),
 			[
 				'id'                 => self::ID,
-				'icon'               => '',
+				'icon'               => Plugin::$url . '/inc/assets/images/icons/sf_express.png',
 				'method_title'       => \__( '順豐速運', 'power_checkout' ),
 				'method_description' => \__( '順豐國際開放平台直串，宅配到府、列印面單、查詢軌跡。', 'power_checkout' ),
 				'track_push_url'     => SfTrackPushCallback::url(),

@@ -93,7 +93,7 @@ const rules = reactive<FormRules<TFormData>>({
 		style="max-width: 40rem"
 	>
 		<el-alert
-			title="SHOPLINE Payments 嵌入式（站內付）：顧客於本站 order-received 頁的 SHOPLINE Payments 收銀台輸入信用卡完成付款（支援分期），付款結果以 SHOPLINE Payments Webhook 為準。"
+			title="Shopline Payment (嵌入支付)：顧客於本站 order-received 頁的 SHOPLINE Payments 收銀台輸入信用卡完成付款（支援分期），付款結果以 SHOPLINE Payments Webhook 為準。"
 			type="info"
 			class="mb-4"
 			:closable="false"

@@ -22,11 +22,14 @@ final class RedirectSettingsDTO extends DTO implements IGatewaySettings {
 
 	// region 基礎通用欄位
 
+	/** @var string SHOPLINE Payments 品牌 icon（導轉式 / 嵌入式共用） */
+	public const DEFAULT_ICON = 'https://img.shoplineapp.com/media/image_clips/62297669a344ad002979d725/original.png';
+
 	/** @var string 付款方式 icon */
-	public string $icon = 'https://img.shoplineapp.com/media/image_clips/62297669a344ad002979d725/original.png';
+	public string $icon = self::DEFAULT_ICON;
 
 	/** @var string 前台顯示付款方式標題 */
-	public string $title = 'Shopline Payment 線上付款';
+	public string $title = 'Shopline Payment (跳轉支付)';
 
 	/** @var string 前台顯示付款方式描述 */
 	public string $description = '提供信用卡一次付清、分期付款、虛擬帳號轉帳，以及 LINE Pay、街口支付、APPLE PAY 等付款方式';

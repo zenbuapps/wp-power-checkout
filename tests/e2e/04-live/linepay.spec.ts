@@ -30,7 +30,7 @@ test('LINE Pay：request 成功並載入 sandbox 付款頁', async ({ page, brow
     const productId = await admin.ensureProduct({ sku: 'pc-live-linepay-150', name: '[PC Live] LINE Pay 150', price: 150, virtual: true })
 
     await classicGuestCheckout(page, productId, GATEWAY_ID)
-    await caption(page, '訪客結帳 NT$150，選擇 LINE Pay（直連）')
+    await caption(page, '訪客結帳 NT$150，選擇 LINE Pay')
     await page.waitForTimeout(1_500)
     await classicPlaceOrder(page)
 

@@ -25,6 +25,7 @@ use J7\PowerCheckout\Domains\Payment\Shared\Enums\WebhookOutcome;
 use J7\PowerCheckout\Domains\Payment\Shared\Helpers\BlocksIntegration;
 use J7\PowerCheckout\Domains\Payment\Shared\Interfaces\IGateway;
 use J7\PowerCheckout\Domains\Payment\Shared\Utils\GatewayUtils;
+use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Shared\Errors\ErrorCode;
 use J7\PowerCheckout\Shared\Errors\NormalizedError;
 use J7\WpUtils\Classes\WP;
@@ -57,10 +58,10 @@ final class LinepayGateway extends AbstractPaymentGateway implements IGateway {
 	public $id = self::ID;
 
 	/** @var string 後台顯示標題 */
-	public $method_title = 'LINE Pay（直連）';
+	public $method_title = 'LINE Pay';
 
 	/** @var string 後台顯示描述 */
-	public $method_description = 'LINE Pay Online API v4 直連（商家自有 Channel ID / Channel Secret），導向 LINE Pay 付款頁，自動請款';
+	public $method_description = 'LINE Pay Online API v4（商家自有 Channel ID / Channel Secret），導向 LINE Pay 付款頁，自動請款';
 
 	/** @var LinepayConfirmResult|null 本次回呼的認列結果（決定 302 導回頁；每次回呼於 verify_callback 重置） */
 	private ?LinepayConfirmResult $callback_result = null;
@@ -75,7 +76,10 @@ final class LinepayGateway extends AbstractPaymentGateway implements IGateway {
 	 * @return array<string, mixed> 取得設定
 	 */
 	public static function get_settings( bool $with_default = true ): array {
-		return LinepaySettingsDTO::instance()->to_array();
+		return [
+			...LinepaySettingsDTO::instance()->to_array(),
+			'icon' => Plugin::$url . '/inc/assets/images/icons/linepay.png',
+		];
 	}
 
 	/**

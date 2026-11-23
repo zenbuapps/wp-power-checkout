@@ -22,7 +22,7 @@ import { BASE_URL, EP, PROVIDERS, EDGE } from '../fixtures/test-data.js'
 
 test.describe('Data Boundary — 資料邊界值測試', () => {
   let opts: ApiOptions
-  let originalSlpTitle = 'Shopline Payment 線上付款'
+  let originalSlpTitle = 'Shopline Payment (跳轉支付)'
 
   test.beforeAll(async ({ request }) => {
     const nonce = getNonce()

@@ -24,7 +24,7 @@ final class EmbeddedSettingsDTO {
 	/** @var array<string, string> 預設值 */
 	private const DEFAULTS = [
 		'enabled'           => 'no',
-		'title'             => 'SHOPLINE Payments 信用卡（站內付）',
+		'title'             => 'Shopline Payment (嵌入支付)',
 		'description'       => '於本站內輸入信用卡完成付款（支援分期），付款由 SHOPLINE Payments 處理',
 		'order_button_text' => '前往付款',
 	];
