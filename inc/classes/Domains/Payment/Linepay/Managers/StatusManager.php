@@ -17,7 +17,8 @@ use J7\PowerCheckout\Domains\Payment\Linepay\Shared\Helpers\LinepayMetaKeys;
  *      0000 → settle()；1172 / 1198 → settle_from_details()（重複 confirm，查明細確認）；
  *      1180 → 逾期 note（EXPIRED）；其他碼 → 失敗 note（FAILED）；傳輸失敗向上拋（呼叫端決定是否重試）
  *  - settle_from_details()：查明細，只有 transactionType=PAYMENT 且 payStatus=CAPTURE 才認列
- *  - settle()：守衛 orderId 與 payInfo 金額 = 快照；通過才 payment_complete(transactionId)
+ *  - settle()：守衛 orderId 與實收金額 = 快照（payInfo 加總；無 payInfo 退回 packages 加總；兩者皆無 → fail closed 不認列）；
+ *    通過才 payment_complete(transactionId)
  *  - 已付款 / 已退款 / 已取消的訂單不再認列，也不打 API（冪等）
  *
  * ⚠️ 不可拿 confirm 當狀態探針：顧客未認證就 confirm 會 1169 且整筆作廢——補單路徑必須先查狀態（見 LinepayReconcileJob）。
@@ -176,7 +177,21 @@ final class StatusManager {
 		$order_id = \is_scalar( $info['orderId'] ?? null ) ? (string) $info['orderId'] : '';
 		$paid     = self::sum_paid( $info );
 
-		if ( ( '' !== $order_id && $order_id !== $meta->get_linepay_order_id() ) || ( null !== $paid && $paid !== $expected ) ) {
+		if ( null === $paid ) {
+			// fail closed：payInfo / packages 都取不到金額時不認列（LINE Pay 規格兩者恆存在，缺漏代表回應異常）
+			$this->order->add_order_note(
+				\sprintf(
+					/* translators: 1: 來源 2: transactionId 3: 應收 */
+					\__( '⚠️ LINE Pay %1$s：回應缺少 payInfo / packages 金額，無法確認金額，未自動完成訂單，請人工確認。transactionId %2$s，應收 %3$d 元', 'power_checkout' ),
+					$source,
+					$tx,
+					$expected
+				)
+			);
+			return LinepayConfirmResult::MISMATCH;
+		}
+
+		if ( ( '' !== $order_id && $order_id !== $meta->get_linepay_order_id() ) || $paid !== $expected ) {
 			$this->order->add_order_note(
 				\sprintf(
 					/* translators: 1: 來源 2: transactionId 3: 應收 4: 實收 */
@@ -184,7 +199,7 @@ final class StatusManager {
 					$source,
 					$tx,
 					$expected,
-					null === $paid ? '-' : (string) $paid
+					(string) $paid
 				)
 			);
 			return LinepayConfirmResult::MISMATCH;
@@ -206,23 +221,34 @@ final class StatusManager {
 	}
 
 	/**
-	 * 付款資訊 payInfo 金額加總（無 payInfo 回 null，不做金額守衛）
+	 * 實收金額：payInfo 金額加總（信用卡 + 點數 + 餘額）；無 payInfo 金額時退回 packages 金額加總；兩者皆無回 null
 	 *
 	 * @param array<string, mixed> $info info
-	 * @return int|null
+	 * @return int|null null = 無法確定金額（呼叫端 fail closed）
 	 */
 	private static function sum_paid( array $info ): ?int {
-		$pay_info = $info['payInfo'] ?? null;
-		if ( ! \is_array( $pay_info ) || [] === $pay_info ) {
+		return self::sum_amounts( $info['payInfo'] ?? null ) ?? self::sum_amounts( $info['packages'] ?? null );
+	}
+
+	/**
+	 * 陣列各列 amount 加總
+	 *
+	 * @param mixed $rows payInfo / packages
+	 * @return int|null 沒有任何數值 amount 時回 null
+	 */
+	private static function sum_amounts( mixed $rows ): ?int {
+		if ( ! \is_array( $rows ) ) {
 			return null;
 		}
-		$sum = 0;
-		foreach ( $pay_info as $row ) {
+		$sum   = 0;
+		$found = false;
+		foreach ( $rows as $row ) {
 			if ( \is_array( $row ) && \is_numeric( $row['amount'] ?? null ) ) {
-				$sum += (int) \round( (float) $row['amount'] );
+				$sum  += (int) \round( (float) $row['amount'] );
+				$found = true;
 			}
 		}
-		return $sum;
+		return $found ? $sum : null;
 	}
 
 	/**

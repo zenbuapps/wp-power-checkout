@@ -234,6 +234,82 @@ final class LinepayDirectConfirmTest extends TestCase {
 	}
 
 	/**
+	 * confirm 0000 回應（自訂 info 內容，用於 payInfo / packages 缺漏情境）
+	 *
+	 * @param \WC_Order $order 訂單
+	 * @param string    $extra info 內 orderId / transactionId 之後的 JSON 片段（含前導逗號，可空）
+	 * @return string
+	 */
+	private function confirm_ok_without_pay_info( \WC_Order $order, string $extra ): string {
+		return '{"returnCode":"0000","returnMessage":"OK","info":{"orderId":"' . $this->linepay_order_id_of( $order )
+			. '","transactionId":' . self::$linepay_tx . $extra . '}}';
+	}
+
+	/**
+	 * Edge：confirm 0000 無 payInfo → 以 packages 金額加總守衛，相符即完成
+	 *
+	 * @group edge
+	 */
+	public function test_confirm無payInfo時以packages金額守衛_相符完成(): void {
+		$order = $this->pending_order();
+		$this->fake_linepay( 'confirm', $this->confirm_ok_without_pay_info( $order, ',"packages":[{"id":"1","amount":600},{"id":"2","amount":400}]' ) );
+
+		$this->linepay_return( 'confirm', $order );
+
+		$this->assertSame( 'processing', \wc_get_order( $order->get_id() )->get_status() );
+	}
+
+	/**
+	 * Security：confirm 0000 無 payInfo 且 packages 金額不符 → 不完成、note 警示
+	 *
+	 * @group security
+	 */
+	public function test_confirm無payInfo且packages金額不符不完成(): void {
+		$order = $this->pending_order();
+		$this->fake_linepay( 'confirm', $this->confirm_ok_without_pay_info( $order, ',"packages":[{"id":"1","amount":1}]' ) );
+
+		$this->linepay_return( 'confirm', $order );
+
+		$this->assertSame( 'pending', \wc_get_order( $order->get_id() )->get_status() );
+		$this->assertStringContainsString( '金額不符', \implode( "\n", $this->linepay_order_notes( $order ) ) );
+	}
+
+	/**
+	 * Security：confirm 0000 但 payInfo / packages 都無法取得金額 → fail closed：不完成、note 警示
+	 *
+	 * @group security
+	 */
+	public function test_confirm無任何金額資訊時不完成(): void {
+		$order = $this->pending_order();
+		$this->fake_linepay( 'confirm', $this->confirm_ok_without_pay_info( $order, ',"payInfo":[],"packages":[{"id":"1"}]' ) );
+
+		$this->linepay_return( 'confirm', $order );
+
+		$this->assertSame( 'pending', \wc_get_order( $order->get_id() )->get_status() );
+		$this->assertStringContainsString( '無法確認金額', \implode( "\n", $this->linepay_order_notes( $order ) ) );
+	}
+
+	/**
+	 * Security：明細補單（1172 → details）無 payInfo 也無 packages → 不完成
+	 *
+	 * @group security
+	 */
+	public function test_明細無金額資訊時不完成(): void {
+		$order = $this->pending_order();
+		$this->fake_linepay( 'confirm', $this->linepay_fixture( 'confirm_1172' ) );
+		$this->fake_linepay(
+			'details',
+			'{"returnCode":"0000","returnMessage":"success","info":[{"transactionId":' . self::$linepay_tx
+				. ',"transactionType":"PAYMENT","orderId":"' . $this->linepay_order_id_of( $order ) . '","payStatus":"CAPTURE"}]}'
+		);
+
+		$this->linepay_return( 'confirm', $order );
+
+		$this->assertSame( 'pending', \wc_get_order( $order->get_id() )->get_status() );
+		$this->assertStringContainsString( '無法確認金額', \implode( "\n", $this->linepay_order_notes( $order ) ) );
+	}
+
+	/**
 	 * Happy：cancelUrl → note「取消」+ 302 order-pay，不打 API
 	 *
 	 * @group happy
