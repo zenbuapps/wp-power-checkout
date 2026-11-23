@@ -181,3 +181,33 @@ log：`.tmp/gate/P8-mock-*.log`、`P8-full.log`、`P8-phpstan.log`、`P8-live-*.
 | `c3bebd8` → `aaa71a2` | test（Red）→ fix(logistics) | 物流 REST 建單 / 查詢 / 列印 / 退貨 provider 失敗改回 424，不再回 502（避免 Cloudflare 改寫本文，§11-6） | `LogisticsApiServiceStatusCodeTest`（mock） |
 
 另：`04-live/slp-embedded.spec.ts` 重付情境由「記錄結果」改為正式斷言（第 2 次 HTTP 200、`_pc_slp_reference_history` 兩筆且不同、格式、tradeOrderId 不同、無 1001、無 5xx），影片名 `shopline_payment_embedded-retry-fixed`。
+
+## 13. P10：callback 處理對齊稽核（vs zenbu-site-2.0）
+
+以 zenbu-site-2.0（`payments/kolet/kolet.service.ts`、`kolet-reconcile.cron.ts`、`payments/linepay/linepay.service.ts`）為參照，逐一比對 PC 各 callback 路徑。發現 2 個 medium（tcat_pay）+ 1 個 low（linepay），皆以 TDD 修正（mock）。
+
+| Commit | 等級 | 類型 | 內容 | 驗證 |
+|---|---|---|---|---|
+| `215865c` | medium | fix(tcat-pay) | APN 為已收款觸發（CVS B/E；COCS B/O/E）但平台查詢**尚未**確認已付款時，原回 `OK`（平台即停止重送，同狀態只重送約 3 次）→ 改拋 `TcatPayRetryLaterException` 回 503 `RETRY`；冪等鍵仍不寫（偽造 APN 只換來一次 RETRY，不可污染） | `TcatPayApnTest`：`test_checksum正確但平台未付_不改狀態並回RETRY`（改寫）、`test_平台於重送時確認_認列並回OK`（新增）、偽造 / 節流兩支改斷言 RETRY |
+| `36c307d` | medium | feat(tcat-pay) | 原無自動補單（zenbu 每分鐘 cron 補單）。新增 AS `pc_tcat_pay_reconcile`（`TcatPayReconcileJob`）：建單成功即排程；只經 `StatusManager::settle_paid()` 認列；credit 5/10/20/40/70 分鐘、CVS / ATM 每 4 小時至繳費期限 +1 天（上限 60 輪）；期滿只留 note、永不取消；查詢失敗 +15 分鐘重試、連續 5 次放棄；filter `power_checkout_tcat_pay_reconcile_delay` | `TcatPayReconcileTest`（15 支：建單排程 ×2、建單失敗不排、平台已收款認列 ×2、已結案 no-op、退避 / 期滿 / 輪次上限、金額不符不認列、查詢失敗重試上限、filter 下限） |
+| `bd0360c` | low | fix(linepay) | `sum_paid()` 在回應缺 `payInfo` 時回 null，金額守衛被跳過 → 退回 `packages` 加總（同 zenbu `sumPaid`）；兩者皆無金額 → fail closed（note「無法確認金額」，不認列） | `LinepayDirectConfirmTest` 新增 4 支（packages 相符 / 不符、confirm 無金額、明細補單無金額） |
+
+**刻意保留的差異（已接受，不改）**
+
+1. 物流不做背景輪詢（ASM-7 決策；貨態以推播觸發 + 手動查詢為準）。
+2. SLP webhook 時間戳過舊 → 回 200（zenbu 拒收）；PC 只在簽章不符回 401，其餘一律 200，避免 SLP 每 60 分鐘無限重試。
+3. tcat_pay 非收款狀態通知（F 授權失敗、D 逾期、M / Q 取消…）只留 note、不改訂單狀態。
+4. tcat_pay 請款失敗 `P` 只留 note（不自動處理）。
+5. SLP 嵌入式不做背景補單（靠共用 webhook + order-received 主動查詢）。
+6. （觀察，未改）tcat_pay APN checksum 驗章失敗：zenbu 回 401（平台會重送），PC 回 `OK`。checksum 無金鑰、驗章失敗多為偽造或格式差異，且漏接已有 P10 自動補單兜底，故維持現狀。
+
+**Gate（mock，wp-env tests-cli）**
+
+| Gate | 範圍 | 結果 |
+|---|---|---|
+| Provider filters | `TcatPay\|LinepayDirect` | OK — Tests: 155, Assertions: 645 |
+| 全套回歸 | `tests/Integration/` | Tests: 3096, Assertions: 10300, Failures: 4 = 基線 4 支（EzpayAesCrypto edge + LinePayTest ×3） |
+| PHPStan level 9 | full tree | 只剩基線 `RedirectSettingsDTO.php:148 isset.property` |
+| PHPCS | 本次變更的 6 個 `inc/` 檔 | 0 error；`TcatPayGateway.php` 3 個 warning 為既有程式碼（非本次變更行） |
+
+log：`.tmp/gate/P10-provider-filters.log`、`P10-full-suite.log`、`P10-phpstan.log`、`P10-phpcs.log`（untracked）。live 未驗：黑貓PAY 仍無測試憑證（§11-4），APN RETRY / 自動補單僅 mock 覆蓋。

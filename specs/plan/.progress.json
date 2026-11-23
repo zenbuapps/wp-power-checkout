@@ -30,9 +30,10 @@
         "P6": "done",
         "P7": "done",
         "P8": "done",
-        "P9": "done"
+        "P9": "done",
+        "P10": "done"
     },
-    "last_commit": "4f10179",
+    "last_commit": "bd0360c",
     "P0_result": {
         "tests": 2397,
         "assertions": 7885,
@@ -287,5 +288,29 @@
             "site_changes": "none (no tunnel, no settings change, no order created)",
             "video": "none (stopped at step 2 per plan)"
         }
+    },
+    "P10_result": {
+        "scope": "callback parity audit vs zenbu-site-2.0 (tcat_pay 2 medium + linepay 1 low)",
+        "commits": {
+            "215865c": "fix(tcat-pay): paid-trigger APN unconfirmed by platform -> 503 RETRY",
+            "36c307d": "feat(tcat-pay): Action Scheduler reconcile pc_tcat_pay_reconcile",
+            "bd0360c": "fix(linepay): amount guard falls back to packages, fail closed"
+        },
+        "gates": {
+            "provider_filters": "TcatPay|LinepayDirect OK 155 tests / 645 assertions",
+            "full_suite": "3096 tests / 10300 assertions / 4 failures = baseline",
+            "phpstan": "baseline only RedirectSettingsDTO.php:148",
+            "phpcs": "0 errors on changed inc/ files; 3 pre-existing warnings in TcatPayGateway.php"
+        },
+        "accepted_differences": [
+            "no logistics background polling (ASM-7)",
+            "SLP stale timestamp -> 200",
+            "tcat_pay failure notices do not change status",
+            "tcat_pay P (capture failed) note-only",
+            "SLP embedded no background reconcile",
+            "tcat_pay checksum failure -> OK (zenbu 401) observed, not changed"
+        ],
+        "logs": ".tmp/gate/P10-*.log",
+        "live": "not verified (no tcat_pay test credentials); mock only"
     }
 }
