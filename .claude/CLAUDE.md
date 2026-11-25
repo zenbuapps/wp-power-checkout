@@ -17,7 +17,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Amego** — Taiwan e-invoice issuance/void
 - **ECPay Invoice** (`ecpay`) — Taiwan e-invoice B2C/B2B via ECPay; AES-128-CBC; parallel with Amego, switchable from admin
 - **ezPay Invoice** (`ezpay`) — Taiwan e-invoice B2C/B2B via NewebPay ezPay; AES-256-CBC (PKCS#7 blocksize=32 + ZERO_PADDING + hex lowercase); CheckCode SHA256; issue/void/allowance (open+void)/query; parallel with Amego & ECPay Invoice, switchable from admin
-- **PAYUNi UPP** (`payuni_upp`) — Redirect-based payment (UNiPaypage V2.0); AES-256-GCM + `hex(base64(cipher):::base64(tag))` + SHA256 HashInfo; supports credit card (one-time/installment), ATM, CVS, icash Pay, LINE Pay, JKoPay, Apple Pay, Google Pay; single NotifyURL endpoint; credit card API refund/capture/void_auth; query trade
+- **PAYUNi UPP** (`payuni_upp`) — Redirect-based payment (UNiPaypage V2.0); AES-256-GCM + `hex(base64(cipher):::base64(tag))` + SHA256 HashInfo; supports credit card (one-time/installment), ATM, CVS, icash Pay, LINE Pay, JKoPay, Apple Pay, Google Pay; NotifyURL + signed ReturnURL sync; per-attempt MerTradeNo (`PCU{order_id}_{ts}` + history); credit card API refund (uncaptured full refund → void auth)/capture/void_auth; query trade; sandbox end-to-end verified (card pay, ATM code, query 補單, capture, void-as-refund)
+- **PAYUNi Logistics** (`payuni_logistics`) — 7-ELEVEN B2C/C2C (ship_map store picker → `/api/logistics/trade` 1.3, print_label) + 黑貓宅配 HOME (`/api/home_delivery/trade` 1.2,託運單 `get_obt_number_pdf`, return `/api/home_delivery/refund`) + C2B 退貨便; same MerID/HashKey/HashIV as PAYUNi payment; status Notify `power-checkout/payuni/logistics/status-notify`; `unified_state` mapping; legacy-exempt from capability 501 check; sandbox verified (B2C/C2C/HOME create + query + HOME PDF)
 - **PAYUNi UNi Embed** (`payuni_uni_embed`) — Embedded payment (UNi Embed V3, iframe 站內付); AES-256-GCM (reuses PayuniCrypto); two-phase: token_get (`/api/iframe/token_get`) then merchant_trade (`/api/iframe/merchant_trade`); 3DS support; credit card only; single NotifyURL endpoint; credit card API refund/capture/void_auth; buyer token (credit_hash/credit_life) stored but never card number/CVC; parallel with payuni_upp
 - **PayNow** (`paynow`) — Embedded payment (立吉富體系 1, Component SDK v2 iframe 站內付); REST PaymentIntent + HMAC-SHA256 Webhook; supports credit card (one-time/installment), ATM, convenience store (ibon/FamiPort), LINE Pay, Apple Pay (excludes ApplePayDeferred); single NotifyURL endpoint; credit card/ATM API refund; query payment intent + refund query admin actions; capture/void_auth no-op (no corresponding endpoint); offline payment two-phase (pending → processing on payment); [GAP: sandbox PublicKey/PrivateKey pending application]
 - **Tcat Pay 黑貓PAY** (`tcat_pay`) — Redirect-style payment (統一客樂得 Kolet); sub-methods chosen at checkout (`pc_tcat_pay_method`): credit (COCS short URL redirect) / ibon CVS code / ATM virtual account (CVS-type = get-code, order stays pending); APN callback is trigger-only (checksum has no secret key) → platform query is the source of truth (paid-trigger APN not yet confirmed by the platform → 503 `RETRY`); Action Scheduler reconcile `pc_tcat_pay_reconcile` re-queries pending orders; credit refund via CocsOrderRefund (partial) / CocsOrderCancel (full, uncaptured); CVS/ATM no refund API; [GAP: no test credentials — only the failure path (token error note) was live-verified; capture/void/refund/APN unverified live]
@@ -401,6 +402,8 @@ ECPay callbacks use `permission_callback: __return_true`; auth is verified insid
 - Provider id resolution list `LogisticsApiService::PROVIDER_IDS` (7 ids; new ones last so they never win when the request carries no provider param) is extensible via filter `power_checkout_logistics_provider_ids`
 - Error → HTTP mapping in `LogisticsApiService` (`exception_response()`; commit `aaa71a2`): exceptions carrying a normalized `ErrorCode` (`error_code` / `raw_code`; the 4 new providers) map via `http_status_for()` = `ErrorCode::to_http_status()` with provider-side `502` rewritten to **424 Failed Dependency** — `NETWORK` / `PROVIDER` (connection / provider failure) → **424**, `UNSUPPORTED` → **501** (same as the capability-check 501), `AUTH` 401, `VALIDATION` 422, `NOT_FOUND` 404, `CONFLICT` / `NUMBER_EXHAUSTED` 409, `SIGNATURE` 400, `UNKNOWN` (unexpected) → **500**. Cloudflare etc. replace origin 5xx bodies, hiding the diagnostic message, hence 424. Legacy providers' plain `\Exception` (no `error_code`: ecpay / payuni / paynow) keep the message-keyword map (404 order not found / 403 state preconditions / 400 otherwise) and never produce 502. No path in `LogisticsApiService` returns 502 any more
 - `ShippingState` (11 values: pending / accepted / in_transit / arrived / ready_for_pickup / picked_up / delivered / returned / failed / expired_unclaimed / cancelled; `is_terminal()`): new providers return `unified_state` from `query_shipment()` alongside their raw status; `LogisticsStatus` (ECPay raw) is untouched
+- **Shared checkout layer** (`ISupportsCheckoutStoreSelection` + `Shared/Services/CheckoutLogisticsIntegration`): a provider implementing `get_checkout_shipping_method_id()` / `get_cvs_sub_types()` / `get_cart_store_selection()` gets classic **and** WooCommerce Blocks checkout support at once — one rate per sub-type (rate id `{method}[:{instance}]:{sub_type}` + rate meta `sub_type`), a「選擇門市」button for CVS sub-types (Blocks `inc/assets/blocks/pc_logistics.tsx` via `ExperimentalOrderShippingPackages`; classic `inc/assets/js/classic-pc-logistics.js`; both read `window.pcLogistics` from `wp_localize_script`), cart-level store selection through `CartLogisticsApiService` (`provider` param) + `CartLogisticsSession` token, Store API cart extension namespace `pc_logistics` (selected store), CVS without a store blocks the order (classic `$errors` / Blocks `RouteException` 400 `power_checkout_store_required`), and order meta written on `woocommerce_checkout_create_order` p20 / `woocommerce_store_api_checkout_order_processed`. Implemented by `payuni_logistics`; ECPay keeps its older dedicated integration (`BlocksLogisticsIntegration`). `CartLogisticsSession` now starts the WC session itself on plain REST requests (previously the cart-level store-selection REST answered「WC session 不可用」)
+- **Status polling fallback** (`Shared/Services/ShipmentStatusPoller`, Action Scheduler hook `pc_logistics_status_poll`, group `power_checkout`, args `{order_id, provider_id}`): scheduled by `LogisticsApiService` after every successful create-shipment; each run calls the provider's `query_shipment()` (providers persist the result themselves) and reads `unified_state` — terminal `ShippingState` → stop, otherwise next interval (per-provider options `status_polling` yes/no default yes, `status_polling_intervals` minutes CSV default `5,30,120,360`, last one repeats, `status_polling_max_days` default 30). Stops on: provider disabled / no `can_query_shipment` / no `unified_state` in the result / max days / 5 consecutive query failures. A verified push calls `ShipmentStatusPoller::mark_push_received()` (meta `_pc_logistics_status_push_at`, unschedules, never re-schedules) — wired in PAYUNi status-notify and SF track-push. Order meta `_pc_logistics_poll_started_at` / `_pc_logistics_poll_round` / `_pc_logistics_poll_failures`. `ProviderRegister::resolve_enabled_provider()` falls back to the class singleton when the container is empty
 - `ISupportsConnectionTest::test_connection()`: read-only API ping, **never writes data**, returns a credential-free summary; used by `POST /logistics/{provider}/ping`. Implemented by tcat_logistics / hct_logistics / sf_express / kerrytj_logistics
 - `WaybillNumberAllocator` (HCT, Kerry TJ): number ranges kept in options `pc_waybill_range_{key}` / `pc_waybill_current_{key}` (autoload no). Allocation is **one atomic SQL** (`UPDATE … SET option_value = LAST_INSERT_ID(value + 1) WHERE value < end`, then `SELECT LAST_INSERT_ID()`), no read-then-write; a number once issued is never reclaimed (also after API timeout, avoiding duplicate waybills); `sync_range()` keeps the current counter if still inside the new range; number format injected via `IWaybillNumberFormat` (`Mod7CheckDigitFormat`, `PlainSerialFormat`)
 
@@ -500,18 +503,24 @@ PayNow ATM refund with missing bank fields is treated as a failure (`ErrorCode::
 
 ## PAYUNi UPP Payment Flow (payuni_upp)
 
-1. `before_process_payment()` writes idempotency key `_pc_payuni_trade_no` (format `PCU{order_id}`) and returns order-received URL — no API call at this stage
-2. `before_order_received()` assembles `PayuniRequestParams` (AES-256-GCM `EncryptInfo` + SHA256 `HashInfo`, Version 2.0) and renders auto-submit form → browser POSTs to PAYUNi `/api/upp`
-3. PAYUNi sends server-to-server POST to `/wp-json/power-checkout/payuni/upp/notify` (NotifyURL)
-4. Callback verification chain: outer `Status=SUCCESS` → `MerID` timing-safe compare → `EncryptInfo`/`HashInfo` present → `HashInfo` `hash_equals` verify → AES-256-GCM decrypt → lookup order by `_pc_payuni_trade_no` → idempotency → `StatusManager`
-5. `StatusManager::update_order_status()` maps `TradeStatus`: `1`(paid) → amount guard → `payment_complete()` → processing; `0`(get code) → write `_pc_payuni_payment_info` + pending; `2`/`3`/`8` → pending + order note
-6. All NotifyURL paths (including `\Throwable`) always return HTTP 200
+1. `before_process_payment()` only marks `_pc_payuni_redirect_pending=yes` and returns the order-received URL — no API call, no trade number yet
+2. `before_order_received()`:
+   - **ReturnURL sync first**: PAYUNi returns the browser with a Form POST carrying the same signed `EncryptInfo`/`HashInfo` as NotifyURL → passed to `PayuniCallback::handle_notify()` (same verification + guards). Settles the order even when NotifyURL cannot reach the site (localhost, firewall). Forged POSTs fail HashInfo
+   - auto-submits the UPP form **only** when redirect is pending (or the order never sent a number). Plain revisits (ATM/CVS code issued, failed payment, refresh, ReturnURL) never re-submit — the old behaviour re-sent the same `PCU{order_id}` (UPP01007 / second trade) and customers never saw their ATM code
+   - each attempt gets a new MerTradeNo `PayuniTradeNo::encode_unique()` = `PCU{order_id}_{timestamp}` (≤25), written to `_pc_payuni_trade_no` + `_pc_payuni_trade_no_history` before rendering; `parse_order_id()` accepts both the new and the legacy `PCU{order_id}` format
+3. thank-you (`woocommerce_thankyou_payuni_upp` → `render_thankyou_payment_info()`): ATM/CVS payment info (bank code / account / store / expiry) or a「前往付款」(order-pay) link for pending orders
+4. PAYUNi sends server-to-server POST to `/wp-json/power-checkout/payuni/upp/notify` (NotifyURL)
+5. Callback verification chain: outer `Status=SUCCESS` → `MerID` timing-safe compare → `EncryptInfo`/`HashInfo` present → `HashInfo` `hash_equals` verify → AES-256-GCM decrypt → lookup order by `_pc_payuni_trade_no` **then** `_pc_payuni_trade_no_history` → idempotency → `StatusManager`
+6. `StatusManager::update_order_status()` maps `TradeStatus`: `1`(paid) → amount guard → `payment_complete()` → processing + `settle_trade_no()` (the paid MerTradeNo becomes current, so query/refund/capture target it); `0`(get code) → write `_pc_payuni_payment_info` + pending; `2`/`3`/`8` → pending + order note
+7. All NotifyURL paths (including `\Throwable`) always return HTTP 200
+
+Sandbox facts (verified 2026-11-25): `/api/trade/query` decrypts to `{Status, Message, Result:[…]}` — trade fields live in `Result[n]` and there is no `MerID`; `QueryTradeClient::query()` flattens the matching row (`flatten_result()`) and fills `MerID` (own signed request) so 查詢補單 works. Business errors (e.g. `CLOSE03001` 關帳狀態不符合, logistics `DEF05019`) return an outer error code **with** a signed EncryptInfo whose inner `Message` holds the reason — clients surface it only after HashInfo verification.
 
 Refund support by payment method (determined by PAYUNi `PaymentType` in `_pc_payuni_payment_detail`, not frontend):
 
 | Payment Method | API Refund |
 |---|---|
-| Credit Card (PaymentType=1) | Yes — Close CloseType=2 (`/api/trade/close`); wpdb TRANSACTION + ROLLBACK + `fail_gateway_refund()` on failure |
+| Credit Card (PaymentType=1) | Yes — routed by trade-query `CloseStatus`: `2`/unknown → Close CloseType=2 (`/api/trade/close`, partial OK); `9` (未請款) → full refund becomes `/api/trade/cancel` (void auth, `_pc_payuni_capture_status='voided'`), partial refund rejected with a「先請款」message; `1`/`7` (請款中) → rejected「請款完成後再退」. wpdb TRANSACTION + ROLLBACK + `fail_gateway_refund()` on failure |
 | ATM / CVS / icash / LINE Pay / JKoPay / etc. | No — `WP_Error('refund_unsupported')`, manual via PAYUNi admin |
 
 Admin order actions (credit card only):
@@ -524,7 +533,7 @@ Admin order actions (credit card only):
 
 Encryption: **AES-256-GCM** `hex(base64(cipher):::base64(tag))`; `HashInfo = strtoupper(sha256(HashKey+EncryptInfo+HashIV))`; distinct from ECPay AES-128-CBC and ezPay AES-256-CBC. `PayuniCrypto` (Payment namespace) is a same-source copy of Logistics `PayuniCrypto`; both must stay in sync.
 
-Environment: sandbox `https://sandbox-api.payuni.com.tw/api/upp` / prod `https://api.payuni.com.tw/api/upp`; test mode uses official public test vector keys.
+Environment: sandbox `https://sandbox-api.payuni.com.tw/api/upp` / prod `https://api.payuni.com.tw/api/upp`; test mode accepts real sandbox credentials (admin inputs stay editable); empty credentials fall back to the official doc test vector (mock-only, cannot reach sandbox).
 
 ---
 
@@ -658,7 +667,23 @@ C2C only: `cancel_shipment()` (C2C cancel), `_pc_logistics_cvs_payment_no` / `_p
 
 All carry `LogisticsID` (original), `GoodsAmount`, `ServerReplyURL` (→ status-callback). On success writes `_pc_logistics_return_ref` (ReturnLogisticsID) + order note. Reverse-logistics status notifications reuse the existing AES-JSON status-callback; `get_order_by_ref()` looks up by both `_pc_logistics_ref` and `_pc_logistics_return_ref`. REST: `POST /logistics/{id}/return`.
 
-PAYUNi logistics and block checkout are deferred.
+---
+
+## PAYUNi Logistics Flow (payuni_logistics)
+
+Implements `ILogisticsProvider` (legacy-exempt from the capability 501 check). Same MerID / HashKey / HashIV as PAYUNi payment; AES-256-GCM (`Logistics\Payuni\Shared\Helpers\PayuniCrypto`, same-source copy of the payment one).
+
+- **7-ELEVEN (sub_type `SEVEN`, `cvs_lgs_type` B2C/C2C)**: `get_store_selection()` → ship_map auto-submit form (`MapReturnURL` = setting or default `power-checkout/payuni/logistics/map-callback` + `pc_oid`/`pc_key`); map-callback merges **query + body** params (binding lives in the query string) and requires `order_key` `hash_equals`; `create_shipment()` → `/api/logistics/trade` 1.3; print → `print_label` form; return → C2B 退貨便 `/api/logistics/refund`
+- **黑貓宅配 (sub_type `HOME`)**: no store picker; `create_shipment()` → `HomeTradeParams` → `/api/home_delivery/trade` 1.2 (TradeAmt 30~20000, address = shipping else billing with state code → county name, ProdDesc ≤20 width, `DeliveryTimeTag` from `home_delivery_time_tag`); print → `get_obt_number_pdf` form (ShipDate = next non-Sunday, DeliveryDate after it, `home_spec`; PAYUNi answers with a second auto-submit form to `cat_file_download` that returns the PDF); return → `/api/home_delivery/refund` (pickup D+1, **D+2 after 16:25** — HOME01128 means the shipment is not yet returnable)
+- All PAYUNi dates use **Taiwan time** (`taipei_now()`), never the site timezone (UTC sites otherwise hit HOME01141 / 「不得為當日」)
+- `create_shipment()` is idempotent (existing `_pc_logistics_ref` → returned as-is)
+- Checkout (classic + Blocks) through the shared `CheckoutLogisticsIntegration`: rates `payuni_logistics[:instance]:SEVEN|HOME` (label = method title +（7-ELEVEN 超商取貨 / 黑貓宅配）); cart-level ship_map with `pc_st` token in `MapReturnURL`; map-callback with `pc_st` writes the session and **302s back to checkout** (order-bound path 302s to the admin order edit page). `MapReturnURL` no longer has to be public (it is the shopper's browser POST); default notify / map URLs use `rest_url()` (site scheme — forcing https broke http sites with `ERR_SSL_PROTOCOL_ERROR`). Live-verified on the sandbox with the real 7-ELEVEN e-map (store 273927) in both Blocks and classic checkout
+- `query_shipment()` writes a changed `ShipStatus` back to `_pc_logistics_status` (+ order note, COD `11` → `collection_paid`), so `ShipmentStatusPoller` keeps the order current without a push URL; status `81`（門市關轉）maps to `in_transit` (not terminal)
+- `query_shipment()` returns raw `status` (`-` → empty), `status_desc` and `unified_state` (`PayuniShipStatus::to_unified_state()`; 32/11 differ for CVS vs HOME). Sandbox may answer 「查無…訂單資料」 for a few seconds right after creation
+- Status Notify `power-checkout/payuni/logistics/status-notify`: HashInfo → decrypt → `ApiType=ShipStatus` → MerID → order by ShipTradeNo/RefundODNO → idempotency → COD pickup `11` → `collection_paid`; always plain-text `OK` 200. `notify_url` / `map_return_url` default to the site's REST endpoints when empty (settings page shows the notify URL to paste into the PAYUNi back office)
+- Sandbox store id: the doc example `916712` was renumbered to `273927` (DEF05019 tells you the new id)
+
+
 
 ---
 
@@ -875,7 +900,10 @@ Existing TW display format (`DefaultSetting::modify_tw_address_formats`) stays a
 | `_pc_logistics_collection_paid` | COD collection completion flag (`yes`) |
 | `_pc_logistics_processed_status` | Idempotency guard array — elements: `"{LogisticsID}:{LogisticsStatus}"` |
 | `_pc_logistics_return_ref` | Reverse-logistics (return) ID (ECPay ReturnLogisticsID); written by `create_return`; also indexed by `get_order_by_ref` for reverse-logistics status callbacks |
-| `_pc_payuni_trade_no` | MerTradeNo idempotency key (format `PCU{order_id}`); written by `before_process_payment`; primary key for NotifyURL order lookup |
+| `_pc_payuni_trade_no` | Current MerTradeNo (`PCU{order_id}_{ts}`; legacy `PCU{order_id}`); written when the UPP form is rendered, overwritten with the **paid** attempt on settle; query / refund / capture use it |
+| `_pc_payuni_trade_no_history` | Every MerTradeNo ever sent (multi-row meta); NotifyURL / ReturnURL lookup fallback so old attempts' ATM/CVS notices still settle |
+| `_pc_logistics_status_push_at` / `_pc_logistics_poll_started_at` / `_pc_logistics_poll_round` / `_pc_logistics_poll_failures` | `ShipmentStatusPoller`: push received (polling off for this order) / first schedule time / completed queries / consecutive failures |
+| `_pc_payuni_redirect_pending` | `yes` after `process_payment`; order-received auto-submits UPP once, then cleared |
 | `_pc_payuni_payment_detail` | PAYUNi payment result detail from NotifyURL decrypted inner payload (includes `TradeNo`, `PaymentType` — used for refund routing) |
 | `_pc_payuni_payment_info` | ATM/CVS get-code info (BankType, PayNo, Store, ExpireDate etc.); written on TradeStatus=0 |
 | `_pc_payuni_capture_status` | Credit card capture/void status (`''` / `'captured'` / `'voided'`) |
@@ -958,6 +986,7 @@ Existing TW display format (`DefaultSetting::modify_tw_address_formats`) stays a
 | `rest_api_init` | Register logistics status-callback + selection-callback endpoints; `PaymentDispatchApiService` (`/pay/{id}/dispatch`); `LogisticsPingApiService` (`/logistics/{provider}/ping`); unconditional `tcat-pay/apn`, `linepay/confirm` + `linepay/cancel`, `sf-express/track-push`; Kerry admin REST when enabled |
 | `pc_linepay_reconcile` (Action Scheduler action, group `power_checkout`) | `LinepayReconcileJob::run( order_id, attempt, pending_round )` — LINE Pay reconcile (no webhook); scheduled at payment request, re-scheduled while customer not yet authenticated |
 | filter `power_checkout_linepay_reconcile_delay` | Reconcile delay seconds `( int $default 300, int $order_id )`; floor 60 |
+| `pc_logistics_status_poll` (Action Scheduler action, group `power_checkout`) | `ShipmentStatusPoller::run( order_id, provider_id )` — logistics status polling fallback (no push URL configured); scheduled after create-shipment, back-off per provider settings, cancelled by a verified push |
 | `pc_tcat_pay_reconcile` (Action Scheduler action, group `power_checkout`) | `TcatPayReconcileJob::run( order_id )` — 黑貓PAY reconcile safety net for missed APNs; scheduled after append, re-scheduled per method back-off; never cancels |
 | filter `power_checkout_tcat_pay_reconcile_delay` | Reconcile delay seconds `( int $default, int $order_id, string $method, int $round )` (default credit 300→1800 back-off / CVS-ATM 14400); floor 60 |
 | filter `power_checkout_logistics_provider_ids` | Extend `LogisticsApiService::PROVIDER_IDS` (new providers / test doubles) |

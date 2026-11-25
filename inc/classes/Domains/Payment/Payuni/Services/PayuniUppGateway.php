@@ -11,6 +11,7 @@ use J7\PowerCheckout\Domains\Payment\Payuni\Http\DoActionClient;
 use J7\PowerCheckout\Domains\Payment\Payuni\Http\PayuniCallback;
 use J7\PowerCheckout\Domains\Payment\Payuni\Http\QueryTradeClient;
 use J7\PowerCheckout\Domains\Payment\Payuni\Managers\StatusManager;
+use J7\PowerCheckout\Domains\Payment\Payuni\Shared\Enums\PayuniPaymentMethod;
 use J7\PowerCheckout\Domains\Payment\Payuni\Shared\Helpers\PayuniMetaKeys;
 use J7\PowerCheckout\Domains\Payment\Payuni\Shared\Helpers\PayuniTradeNo;
 use J7\PowerCheckout\Domains\Payment\Shared\Abstracts\AbstractPaymentGateway;
@@ -56,22 +57,43 @@ final class PayuniUppGateway extends AbstractPaymentGateway implements IGateway 
 	/** @var string 後台顯示付款方式描述 */
 	public $method_description = 'PAYUNi 統一金流 UPP 整合支付頁，支援信用卡、信用卡分期、ATM 虛擬帳號、超商代碼、icash Pay、LINE Pay、街口支付、Apple Pay、Google Pay 等付款方式';
 
+	/** @var string 交易查詢 CloseStatus：未申請請款（只能取消授權） */
+	private const CLOSE_STATUS_NOT_CAPTURED = '9';
+
+	/** @var array<int, string> 交易查詢 CloseStatus：請款申請中 / 處理中（暫時不能退款也不能取消授權） */
+	private const CLOSE_STATUS_IN_PROGRESS = [ '1', '7' ];
+
+	/**
+	 * 查詢 PAYUNi 請款狀態 CloseStatus（查不到 / 查詢失敗回空字串 → 沿用原本的退款流程）
+	 *
+	 * @param \WC_Order $order 訂單
+	 * @return string
+	 */
+	private static function get_close_status( \WC_Order $order ): string {
+		try {
+			return (string) ( ( new QueryTradeClient( $order ) )->query()['CloseStatus'] ?? '' );
+		} catch ( \Throwable ) {
+			return '';
+		}
+	}
+
+	/** @var array<int, bool> 本請求已處理導轉的訂單（true=已輸出表單；false=已嘗試但失敗）；同請求每個 gateway 實例都掛 wp hook，避免同一訂單產生兩個編號 */
+	private static array $redirect_attempts = [];
+
 	/**
 	 * PAYUNi UPP 核心支付邏輯
 	 *
 	 * UPP 不在此階段發 API，僅回傳 order-received URL；實際跳轉在 before_order_received
-	 * 以 auto-form submit 至 PAYUNi /api/upp。此處預寫冪等鍵 MerTradeNo（仿綠界 AIO）。
+	 * 以 auto-form submit 至 PAYUNi /api/upp。
+	 *
+	 * 標記「待導轉」：本方法只在顧客實際發起付款時執行（classic / block 結帳、order-pay 重新付款），
+	 * order-received 頁據此以新的 MerTradeNo 導轉 PAYUNi 一次。
 	 *
 	 * @param \WC_Order $order 訂單
 	 * @return string order-received URL
 	 */
 	protected function before_process_payment( \WC_Order $order ): string {
-		$meta_keys = new PayuniMetaKeys( $order );
-
-		// 冪等：已寫入 MerTradeNo 則沿用（避免重複付款時更新單號觸發 PAYUNi UPP01007）
-		if ( '' === $meta_keys->get_trade_no() ) {
-			$meta_keys->update_trade_no( PayuniTradeNo::generate( $order->get_id() ) );
-		}
+		( new PayuniMetaKeys( $order ) )->mark_redirect_pending();
 
 		return $this->get_return_url( $order );
 	}
@@ -79,22 +101,42 @@ final class PayuniUppGateway extends AbstractPaymentGateway implements IGateway 
 	/**
 	 * 第三方金流頁面 render 前（order-received）
 	 *
-	 * 冪等檢查（已寫入 MerTradeNo 則沿用）→ 組裝 PayuniRequestParams →
-	 * render auto-form template POST 至 PAYUNi /api/upp。
+	 * 1. PAYUNi 付款後以 ReturnURL（前景 Form POST）帶加密結果導回本頁：先以 NotifyURL 相同的驗章 / 解密 /
+	 *    金額防竄改流程同步訂單狀態（Notify 被防火牆擋或延遲時，顧客仍能立即看到結果）。
+	 * 2. 只有顧客剛發起付款（process_payment 留下待導轉旗標），或此訂單從未送出過編號，才自動導轉 PAYUNi。
+	 *    單純重訪（ATM / 超商取號後導回、付款失敗導回、重新整理、上一頁）不自動導轉——否則會用同一編號
+	 *    重送（UPP01007）或替取號訂單再建一筆交易，顧客也永遠看不到繳費資訊。
+	 *    thank-you 頁改由 {@see self::render_thankyou_payment_info()} 顯示繳費資訊或「前往付款」。
+	 * 3. 每次導轉都用新的 MerTradeNo（PayuniTradeNo::encode_unique），舊編號保留於歷史，其通知仍能反查本訂單。
 	 *
 	 * @param \WC_Order $order 訂單
 	 * @return void
 	 */
 	protected function before_order_received( \WC_Order $order ): void {
+		$order_id = $order->get_id();
+		if ( isset( self::$redirect_attempts[ $order_id ] ) ) {
+			return;
+		}
+
+		$this->sync_from_return_post( $order );
+		if ( ! $order->needs_payment() ) {
+			return;
+		}
+
 		try {
 			$meta_keys = new PayuniMetaKeys( $order );
-
-			$request_params = PayuniRequestParams::instance( $order );
-
-			// 寫入冪等鍵 MerTradeNo（若尚未寫入；instance() 內已以 order_id 衍生相同值）
-			if ( '' === $meta_keys->get_trade_no() ) {
-				$meta_keys->update_trade_no( $request_params->MerTradeNo );
+			if ( '' !== $meta_keys->get_trade_no() && ! $meta_keys->is_redirect_pending() ) {
+				return;
 			}
+
+			// 先佔位：即使下方組參數失敗，同一請求的其他 gateway 實例也不再重試建單
+			self::$redirect_attempts[ $order_id ] = false;
+
+			$trade_no       = PayuniTradeNo::encode_unique( $order_id, $meta_keys->get_used_trade_nos() );
+			$request_params = PayuniRequestParams::instance( $order, $trade_no );
+
+			// 參數組裝成功才記錄本次編號（目前編號 + 歷史）並清除待導轉旗標
+			$meta_keys->start_payment_attempt( $trade_no );
 
 			$settings = PayuniSettingsDTO::instance();
 
@@ -106,9 +148,128 @@ final class PayuniUppGateway extends AbstractPaymentGateway implements IGateway 
 					'url'    => $settings->api_url,
 				]
 			);
+			self::$redirect_attempts[ $order_id ] = true;
 		} catch ( \Throwable $e ) {
 			$this->logger( "❌ {$this->title} 建單時發生錯誤<br>{$e->getMessage()}", 'error', [], 5 );
 		}
+	}
+
+	/**
+	 * ReturnURL 前景導回同步：PAYUNi 以 Form POST 帶回加密結果時，走與 NotifyURL 相同的驗證與狀態更新
+	 *
+	 * 安全：HashInfo（含 HashKey 的 SHA256）驗章 + AES-256-GCM 解密 + MerID / 金額 / 冪等防線全部沿用
+	 * {@see PayuniCallback::handle_notify()}；偽造的 POST 無法通過驗章。結果仍以 NotifyURL 為準，
+	 * 兩條路徑誰先到誰處理，另一條被冪等擋下。
+	 *
+	 * 永不拋例外（thank-you 頁不得 500）。
+	 *
+	 * @param \WC_Order $order 訂單（同步後會刷新狀態）
+	 * @return void
+	 */
+	private function sync_from_return_post( \WC_Order $order ): void {
+		// phpcs:disable WordPress.Security.NonceVerification.Missing -- PAYUNi 跨站 Form POST，以 HashInfo 驗章取代 nonce
+		if ( ! isset( $_POST['EncryptInfo'], $_POST['HashInfo'] ) ) {
+			return;
+		}
+
+		$params = [];
+		foreach ( [ 'Status', 'MerID', 'Version', 'EncryptInfo', 'HashInfo' ] as $key ) {
+			$params[ $key ] = isset( $_POST[ $key ] ) && \is_string( $_POST[ $key ] )
+			? \sanitize_text_field( \wp_unslash( $_POST[ $key ] ) )
+			: '';
+		}
+		// phpcs:enable WordPress.Security.NonceVerification.Missing
+
+		try {
+			PayuniCallback::instance()->handle_notify( $params );
+		} catch ( \Throwable $e ) {
+			Plugin::logger(
+				'PAYUNi UPP ReturnURL 同步失敗',
+				'warning',
+				[
+					'order_id' => $order->get_id(),
+					'error'    => $e->getMessage(),
+				]
+			);
+		}
+
+		// handle_notify 以另一個訂單物件更新狀態，重新讀取本頁訂單狀態
+		$fresh = \wc_get_order( $order->get_id() );
+		if ( $fresh instanceof \WC_Order ) {
+			$order->set_status( $fresh->get_status() );
+		}
+	}
+
+	/**
+	 * [thank-you 頁] 顯示 ATM / 超商取號繳費資訊，或待付款訂單的「前往付款」連結（woocommerce_thankyou_payuni_upp）
+	 *
+	 *  - 已取號：顯示繳費資訊（PAYUNi 導回後顧客在本站唯一看得到帳號 / 代碼的地方）。
+	 *  - 尚未取號、仍待付款：單純重訪不再自動導轉（見 before_order_received），提供 order-pay 連結重新付款。
+	 *  - 已付款 / 本請求已輸出自動導轉表單 → 不顯示。
+	 *
+	 * @param int $order_id 訂單 ID
+	 * @return void
+	 */
+	public static function render_thankyou_payment_info( int $order_id ): void {
+		if ( true === ( self::$redirect_attempts[ $order_id ] ?? false ) ) {
+			return;
+		}
+
+		$order = \wc_get_order( $order_id );
+		if ( ! $order instanceof \WC_Order || self::ID !== $order->get_payment_method() || ! $order->needs_payment() ) {
+			return;
+		}
+
+		$payment_info = ( new PayuniMetaKeys( $order ) )->get_payment_info();
+		if ( $payment_info ) {
+			echo self::get_payment_info_html( $payment_info ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- 內容已逐欄 escape
+			return;
+		}
+
+		if ( ! $order->has_status( 'pending' ) ) {
+			return; // failed 訂單 WC 模板已自帶付款按鈕
+		}
+
+		\printf(
+			'<div class="woocommerce-info pc-payuni-upp-pending-payment">%1$s <a href="%2$s" class="button pay">%3$s</a></div>',
+			\esc_html__( '這筆訂單還沒完成付款。要重新付款或改用其他付款方式，請按「前往付款」。', 'power_checkout' ),
+			\esc_url( $order->get_checkout_payment_url() ),
+			\esc_html__( '前往付款', 'power_checkout' )
+		);
+	}
+
+	/**
+	 * 組前台取號繳費資訊 HTML（逐欄 escape）
+	 *
+	 * @param array<string, mixed> $payment_info StatusManager 寫入的 _pc_payuni_payment_info
+	 * @return string HTML
+	 */
+	private static function get_payment_info_html( array $payment_info ): string {
+		$is_atm = PayuniPaymentMethod::ATM->payment_type() === (int) ( $payment_info['PaymentType'] ?? 0 );
+
+		$code_label = $is_atm ? \__( '轉帳帳號', 'power_checkout' ) : \__( '繳費代碼', 'power_checkout' );
+		$rows       = [
+			\__( '付款方式', 'power_checkout' ) => $is_atm ? \__( 'ATM 轉帳', 'power_checkout' ) : \__( '超商代碼繳費', 'power_checkout' ),
+			\__( '銀行代碼', 'power_checkout' ) => (string) ( $payment_info['BankType'] ?? '' ),
+			\__( '繳費超商', 'power_checkout' ) => (string) ( $payment_info['Store'] ?? '' ),
+			$code_label                     => (string) ( $payment_info['PayNo'] ?? '' ),
+			\__( '繳費期限', 'power_checkout' ) => (string) ( $payment_info['ExpireDate'] ?? '' ),
+		];
+
+		$items = '';
+		foreach ( $rows as $label => $value ) {
+			if ( '' === $value ) {
+				continue;
+			}
+			$items .= \sprintf( '<li>%1$s：<strong>%2$s</strong></li>', \esc_html( (string) $label ), \esc_html( $value ) );
+		}
+
+		return \sprintf(
+			'<section class="woocommerce-order-details pc-payuni-upp-payment-info"><h2 class="woocommerce-order-details__title">%1$s</h2><p>%2$s</p><ul>%3$s</ul></section>',
+			\esc_html__( '繳費資訊', 'power_checkout' ),
+			\esc_html__( '請在繳費期限內完成付款，付款後訂單狀態會自動更新。', 'power_checkout' ),
+			$items
+		);
 	}
 
 	/** [Admin] 在後台 order detail 頁地址下方顯示資訊 */
@@ -232,8 +393,34 @@ final class PayuniUppGateway extends AbstractPaymentGateway implements IGateway 
 
 			$amount   = (float) $refund->get_amount(); // 金額一律來自 WC refund 物件，非前端
 			$reason   = (string) $refund->get_reason();
-			$response = ( new DoActionClient( $order ) )->refund( $order, $amount );
-			$trade_no = (string) ( $response['TradeNo'] ?? ( new PayuniMetaKeys( $order ) )->get_payment_detail()['TradeNo'] ?? '' );
+			$client   = new DoActionClient( $order );
+			$trade_no = (string) ( ( new PayuniMetaKeys( $order ) )->get_payment_detail()['TradeNo'] ?? '' );
+
+			// 依請款狀態分流：PAYUNi 只有「已請款」的交易能退款（CloseType=2），未請款要改成取消授權
+			$close_status = self::get_close_status( $order );
+			if ( self::CLOSE_STATUS_NOT_CAPTURED === $close_status ) {
+				if ( $order->get_remaining_refund_amount() > 0 ) {
+					throw new \Exception( 'PAYUNi 這筆刷卡還沒請款，只能全額退款（會改成取消授權）。要部分退款，請先在訂單動作執行「PAYUNi 信用卡請款」，請款完成後再退' );
+				}
+				$client->cancel_auth( $trade_no );
+				( new PayuniMetaKeys( $order ) )->update_capture_status( 'voided' );
+				$order->add_order_note(
+					\sprintf(
+						'✅ PAYUNi 信用卡尚未請款，已改為取消授權（全額 %1$d 元），TradeNo：%2$s。退款原因：%3$s',
+						(int) \ceil( $amount ),
+						$trade_no,
+						$reason
+					)
+				);
+				$wpdb->query( 'COMMIT' ); // phpcs:ignore
+				return;
+			}
+			if ( \in_array( $close_status, self::CLOSE_STATUS_IN_PROGRESS, true ) ) {
+				throw new \Exception( 'PAYUNi 正在處理這筆刷卡的請款，請款完成後（通常隔一個工作天）再退款' );
+			}
+
+			$response = $client->refund( $order, $amount );
+			$trade_no = (string) ( $response['TradeNo'] ?? $trade_no );
 
 			$order->add_order_note(
 				\sprintf(
@@ -556,6 +743,9 @@ final class PayuniUppGateway extends AbstractPaymentGateway implements IGateway 
 
 		// 整合區塊結帳
 		\add_action( 'woocommerce_blocks_loaded', [ __CLASS__, 'register_checkout_blocks' ] );
+
+		// thank-you 頁：取號繳費資訊 / 待付款「前往付款」
+		\add_action( 'woocommerce_thankyou_' . self::ID, [ __CLASS__, 'render_thankyou_payment_info' ] );
 
 		// 後台訂單操作：查詢補單（對帳）/ 信用卡請款（Close CloseType=1）/ 信用卡取消授權（Cancel）
 		\add_filter( 'woocommerce_order_actions', [ __CLASS__, 'add_order_actions' ], 10, 2 );

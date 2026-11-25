@@ -45,3 +45,18 @@ export const PAYUNI_LGS_TYPE_OPTIONS = [
 	{ value: EPayuniLgsType.B2C, label: 'B2C 大宗寄倉' },
 	{ value: EPayuniLgsType.C2C, label: 'C2C 店到店' },
 ] as const
+
+/** 黑貓宅配希望配達時段選項（對齊 PAYUNi DeliveryTimeTag） */
+export const PAYUNI_HOME_DELIVERY_TIME_OPTIONS = [
+	{ value: '04', label: '不指定' },
+	{ value: '01', label: '13 點前' },
+	{ value: '02', label: '14 ~ 18 點' },
+] as const
+
+/** 黑貓託運單包裹尺寸選項（對齊 PAYUNi Spec；冷凍 / 冷藏最大 120 公分） */
+export const PAYUNI_HOME_SPEC_OPTIONS = [
+	{ value: '1', label: '60 公分' },
+	{ value: '2', label: '90 公分' },
+	{ value: '3', label: '120 公分' },
+	{ value: '4', label: '150 公分（僅常溫）' },
+] as const

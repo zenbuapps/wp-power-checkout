@@ -170,6 +170,8 @@ final class LogisticsApiService extends ApiBase {
 			$request,
 			static function ( ILogisticsProvider $provider, \WC_Order $order ): array {
 				$result = $provider->create_shipment( $order );
+				// 建單成功 → 排程自動查詢貨態（沒設推播網址時的保底；收到推播會自動取消）
+				ShipmentStatusPoller::schedule( $order, $provider->get_provider_meta()->id );
 				return [
 					'message' => \__( '物流單成立成功', 'power_checkout' ),
 					'data'    => $result,

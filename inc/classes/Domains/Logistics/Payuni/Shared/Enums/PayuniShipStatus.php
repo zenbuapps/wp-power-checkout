@@ -15,6 +15,8 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Logistics\Payuni\Shared\Enums;
 
+use J7\PowerCheckout\Domains\Logistics\Shared\Enums\ShippingState;
+
 /** PAYUNi 物流貨態（代表性碼；原始碼一律以字串儲存於 order meta） */
 enum PayuniShipStatus: string {
 	/** 未處理（剛建立物流單，尚未取得出貨單編號） */
@@ -50,5 +52,29 @@ enum PayuniShipStatus: string {
 	 */
 	public static function is_pickup_completed( string $status_code ): bool {
 		return \in_array( $status_code, self::PICKUP_COMPLETED_CODES, true );
+	}
+
+	/**
+	 * PAYUNi 原始貨態碼 → 統一貨態 ShippingState
+	 *
+	 * 剛建單時 query 回 "-"（尚無貨態），視為 pending；未知碼保守回 pending（不誤判終態）。
+	 *
+	 * @param string $status_code PAYUNi ShipStatus 原始碼
+	 * @param bool   $is_cvs      是否為超商取貨（32 待取貨只在超商出現；宅配 31 即為配送中）
+	 * @return ShippingState
+	 */
+	public static function to_unified_state( string $status_code, bool $is_cvs = true ): ShippingState {
+		return match ( \trim( $status_code ) ) {
+			'91', '92', '98', '21' => ShippingState::PENDING,
+			'22'                   => ShippingState::ACCEPTED,
+			'31', '81'             => ShippingState::IN_TRANSIT, // 81 門市關轉：重選門市後繼續配送，不是終點
+			'32'                   => $is_cvs ? ShippingState::READY_FOR_PICKUP : ShippingState::ARRIVED,
+			'11'                   => $is_cvs ? ShippingState::PICKED_UP : ShippingState::DELIVERED,
+			'33', '43', '44', '46' => ShippingState::FAILED,
+			'41'                   => ShippingState::CANCELLED,
+			'52'                   => ShippingState::EXPIRED_UNCLAIMED,
+			'51', '53', '55', '56', '82' => ShippingState::RETURNED,
+			default                => ShippingState::PENDING,
+		};
 	}
 }

@@ -110,6 +110,8 @@ final class TrackPushManager {
 				if (!$meta->is_track_processed( $key )) {
 					TrackStatusManager::apply( $order, $event, '推送' );
 					$meta->mark_track_processed( $key );
+					// 推送已在更新貨態：取消這張單的自動查詢
+					\J7\PowerCheckout\Domains\Logistics\Shared\Services\ShipmentStatusPoller::mark_push_received( $order );
 				}
 				return \array_merge( [ 'code' => '0' ], $ack, [ 'msg' => '成功' ] );
 			} catch ( \Throwable $e ) {

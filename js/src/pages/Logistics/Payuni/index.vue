@@ -9,10 +9,15 @@ import apiClient from '@/api'
 import TrimmedInput from '@/components/TrimmedInput.vue'
 import { env } from '@/index'
 import {
+	PAYUNI_HOME_DELIVERY_TIME_OPTIONS,
+	PAYUNI_HOME_SPEC_OPTIONS,
 	PAYUNI_LGS_TYPE_OPTIONS,
 	PAYUNI_SUB_TYPE_OPTIONS,
 } from '@/pages/Logistics/Payuni/Shared/enums'
-import { TFormData } from '@/pages/Logistics/Payuni/Shared/types'
+import {
+	TFormData,
+	TSettingsResponse,
+} from '@/pages/Logistics/Payuni/Shared/types'
 
 const gatewayId = 'payuni_logistics'
 const isLocal = env?.IS_LOCAL ?? false
@@ -23,7 +28,7 @@ const { isPending, data } = useQuery({
 		await apiClient.get<{
 			code: string
 			message: string
-			data: TFormData
+			data: TSettingsResponse
 		}>(`settings/${gatewayId}`),
 	select: (res) => res.data?.data,
 })
@@ -51,10 +56,19 @@ const form = reactive<TFormData>({
 	sender_name: '',
 	sender_mobile: '',
 
-	// --- Notify URL --- //
-	notify_url: '',
-	map_return_url: '',
+	// --- 黑貓宅配 --- //
+	home_delivery_time_tag: '04',
+	home_spec: '1',
+
+	// --- 物流狀態自動查詢 --- //
+	status_polling: 'yes',
+	status_polling_intervals: '5,30,120,360',
+	status_polling_max_days: '30',
 })
+
+// 後端算好的通知網址（唯讀，給商家貼到 PAYUNi 後台）
+const notifyUrl = computed(() => data.value?.notify_url ?? '')
+const isHomeEnabled = computed(() => form.enabled_methods.includes('HOME'))
 
 watch(
 	data,
@@ -95,7 +109,7 @@ const { mutate: save, isPending: isSavePending } = useMutation({
 	},
 })
 
-// 正式模式才強制憑證必填（測試模式由 DTO 補官方測試向量金鑰）
+// 正式模式才強制憑證必填（測試模式可填沙盒憑證，留空由 DTO 補官方文件測試金鑰）
 const rules = computed<FormRules<TFormData>>(() => {
 	if (isTestMode.value) {
 		return {}
@@ -204,6 +218,44 @@ const rules = computed<FormRules<TFormData>>(() => {
 			</el-radio-group>
 		</el-form-item>
 
+		<template v-if="isHomeEnabled">
+			<el-divider>黑貓宅配</el-divider>
+
+			<el-form-item prop="home_delivery_time_tag" label="希望配達時段">
+				<el-radio-group v-model="form.home_delivery_time_tag">
+					<el-radio
+						v-for="opt in PAYUNI_HOME_DELIVERY_TIME_OPTIONS"
+						:key="opt.value"
+						:value="opt.value"
+					>
+						{{ opt.label }}
+					</el-radio>
+				</el-radio-group>
+			</el-form-item>
+
+			<el-form-item prop="home_spec">
+				<template #label>
+					<span class="flex gap-x-2 items-center">
+						<span>包裹尺寸</span>
+						<el-tooltip
+							content="列印託運單時帶給黑貓的包裹尺寸（長 + 寬 + 高）。冷凍、冷藏包裹最大 120 公分，選 150 會自動改成 120"
+							placement="top"
+						>
+							<el-icon><InfoFilled /></el-icon>
+						</el-tooltip>
+					</span>
+				</template>
+				<el-select v-model="form.home_spec" style="width: 12rem">
+					<el-option
+						v-for="opt in PAYUNI_HOME_SPEC_OPTIONS"
+						:key="opt.value"
+						:label="opt.label"
+						:value="opt.value"
+					/>
+				</el-select>
+			</el-form-item>
+		</template>
+
 		<el-divider>寄件人資訊</el-divider>
 
 		<el-form-item prop="sender_name" label="寄件人姓名">
@@ -213,7 +265,72 @@ const rules = computed<FormRules<TFormData>>(() => {
 			<el-input v-model="form.sender_mobile" clearable />
 		</el-form-item>
 
+		<el-divider>物流狀態自動更新</el-divider>
+
+		<el-alert
+			type="info"
+			class="mb-4"
+			:closable="false"
+			show-icon
+			title="沒在 PAYUNi 後台設定貨態通知網址時，系統收不到物流狀態變化。開啟後，建立物流單後會自動定期向 PAYUNi 查詢；包裹送達、被取走、退回或取消就停止。收到 PAYUNi 的通知後，那張單也會自動停止查詢。"
+		/>
+
+		<el-form-item label="自動查詢物流狀態">
+			<el-switch
+				v-model="form.status_polling"
+				active-value="yes"
+				inactive-value="no"
+			/>
+		</el-form-item>
+
+		<template v-if="form.status_polling === 'yes'">
+			<el-form-item prop="status_polling_intervals">
+				<template #label>
+					<span class="flex gap-x-2 items-center">
+						<span>查詢間隔（分鐘）</span>
+						<el-tooltip
+							content="用逗號隔開，依序使用；最後一個數字會一直重複。預設 5,30,120,360 = 建單後 5 分鐘查第一次，再隔 30 分鐘、2 小時，之後每 6 小時查一次"
+							placement="top"
+						>
+							<el-icon><InfoFilled /></el-icon>
+						</el-tooltip>
+					</span>
+				</template>
+				<el-input
+					v-model="form.status_polling_intervals"
+					placeholder="5,30,120,360"
+					style="width: 16rem"
+				/>
+			</el-form-item>
+
+			<el-form-item prop="status_polling_max_days" label="最多查幾天">
+				<el-input-number
+					:model-value="Number(form.status_polling_max_days) || 30"
+					:min="1"
+					:max="180"
+					@update:model-value="
+						(value: number | undefined) =>
+							(form.status_polling_max_days = String(value ?? 30))
+					"
+				/>
+			</el-form-item>
+		</template>
+
 		<el-divider>API 設定</el-divider>
+
+		<el-alert
+			v-if="notifyUrl"
+			type="info"
+			class="mb-4"
+			:closable="false"
+			show-icon
+		>
+			<template #title>
+				請到 PAYUNi
+				後台「物流設定」把貨態通知網址設成下面這個，訂單才會自動更新物流狀態：
+			</template>
+			<code class="break-all select-all">{{ notifyUrl }}</code>
+		</el-alert>
 
 		<el-form-item
 			:class="{
@@ -224,7 +341,7 @@ const rules = computed<FormRules<TFormData>>(() => {
 				<span class="flex gap-x-2 items-center">
 					<span>啟用測試模式</span>
 					<el-tooltip
-						content="開發人員專用，啟用後將使用 PAYUNi 官方測試向量金鑰"
+						content="開發人員專用：改連 PAYUNi 沙盒（sandbox-api.payuni.com.tw）。可填沙盒帳號實測；憑證留空時只能跑本機模擬"
 						placement="top"
 					>
 						<el-icon><InfoFilled /></el-icon>
@@ -259,15 +376,33 @@ const rules = computed<FormRules<TFormData>>(() => {
 					</el-tooltip>
 				</span>
 			</template>
-			<TrimmedInput v-model="form.mer_id" :disabled="isTestMode" clearable />
+			<TrimmedInput
+				v-model="form.mer_id"
+				:placeholder="
+					isTestMode ? '測試模式可填 PAYUNi 沙盒帳號；留空只能跑本機模擬' : ''
+				"
+				clearable
+			/>
 		</el-form-item>
 
 		<el-form-item :required="!isTestMode" prop="hash_key" label="HashKey">
-			<TrimmedInput v-model="form.hash_key" :disabled="isTestMode" clearable />
+			<TrimmedInput
+				v-model="form.hash_key"
+				:placeholder="
+					isTestMode ? '測試模式可填 PAYUNi 沙盒帳號；留空只能跑本機模擬' : ''
+				"
+				clearable
+			/>
 		</el-form-item>
 
 		<el-form-item :required="!isTestMode" prop="hash_iv" label="HashIV">
-			<TrimmedInput v-model="form.hash_iv" :disabled="isTestMode" clearable />
+			<TrimmedInput
+				v-model="form.hash_iv"
+				:placeholder="
+					isTestMode ? '測試模式可填 PAYUNi 沙盒帳號；留空只能跑本機模擬' : ''
+				"
+				clearable
+			/>
 		</el-form-item>
 
 		<el-form-item class="[&_.el-form-item\_\_content]:justify-center">

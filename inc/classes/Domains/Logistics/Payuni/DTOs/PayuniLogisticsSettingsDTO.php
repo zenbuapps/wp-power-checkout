@@ -19,6 +19,7 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Logistics\Payuni\DTOs;
 
+use J7\PowerCheckout\Domains\Logistics\Payuni\Http\PayuniLogisticsCallback;
 use J7\PowerCheckout\Domains\Logistics\Payuni\Services\PayuniLogisticsProvider;
 use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Shared\DTOs\BaseSettingsDTO;
@@ -79,12 +80,35 @@ final class PayuniLogisticsSettingsDTO extends BaseSettingsDTO {
 
 	// endregion
 
-	// region Notify URL（公開可訪問，僅 80/443 port）
+	// region 黑貓宅配
 
-	/** @var string 貨態 Notify URL（後台設定於 PAYUNi 後台；用於前置驗證公開可訪問） */
+	/** @var string 希望配達時段（01=13 時前 / 02=14-18 時 / 04=不指定） */
+	public string $home_delivery_time_tag = '04';
+
+	/** @var string 託運單包裹尺寸（1=60cm / 2=90cm / 3=120cm / 4=150cm；冷凍冷藏不支援 4） */
+	public string $home_spec = '1';
+
+	// endregion
+
+	// region 貨態自動查詢（沒設通知網址時的保底；ShipmentStatusPoller 讀這三個 option）
+
+	/** @var string 是否自動定期查詢物流狀態（yes / no；收到推播會自動停止該單的查詢） */
+	public string $status_polling = 'yes';
+
+	/** @var string 查詢間隔（分鐘，逗號分隔；最後一個間隔重複使用） */
+	public string $status_polling_intervals = '5,30,120,360';
+
+	/** @var string 最多自動查詢幾天 */
+	public string $status_polling_max_days = '30';
+
+	// endregion
+
+	// region Notify URL（公開可訪問，僅 80/443 port；留空 = 本站 REST 端點）
+
+	/** @var string 貨態 Notify URL（填到 PAYUNi 後台；留空時用本站 power-checkout/payuni/logistics/status-notify） */
 	public string $notify_url = '';
 
-	/** @var string 門市地圖回傳 URL（MapReturnURL，需公開可訪問） */
+	/** @var string 門市地圖回傳 URL（MapReturnURL；留空時用本站 power-checkout/payuni/logistics/map-callback） */
 	public string $map_return_url = '';
 
 	// endregion
@@ -122,6 +146,10 @@ final class PayuniLogisticsSettingsDTO extends BaseSettingsDTO {
 	 */
 	protected function after_init(): void {
 		$this->icon = Plugin::$url . '/inc/assets/images/icons/payuni.png';
+
+		// 未自訂時一律指向本站 REST 端點（舊版沒有輸入欄位，留空會讓 MapReturnURL 變成相對路徑，選完門市回不來）
+		$this->notify_url     = $this->notify_url ?: PayuniLogisticsCallback::get_status_notify_url();
+		$this->map_return_url = $this->map_return_url ?: PayuniLogisticsCallback::get_map_return_url();
 
 		if (Mode::TEST === $this->mode) {
 			$this->api_url = 'https://sandbox-api.payuni.com.tw';

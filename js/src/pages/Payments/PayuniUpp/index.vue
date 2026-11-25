@@ -289,24 +289,41 @@ const rules = reactive<FormRules<TFormData>>({
 			<template #label>
 				<span class="flex gap-x-2 items-center">
 					<span>商店代號 MerID</span>
-					<el-tooltip content="PAYUNi 統一金流商家後台分配的商店代號" placement="top">
+					<el-tooltip
+						content="PAYUNi 統一金流商家後台分配的商店代號"
+						placement="top"
+					>
 						<el-icon><InfoFilled /></el-icon>
 					</el-tooltip>
 				</span>
 			</template>
 			<TrimmedInput
 				v-model="form.merchant_id"
-				:disabled="isTestMode"
+				:placeholder="
+					isTestMode ? '測試模式可填 PAYUNi 沙盒帳號；留空只能跑本機模擬' : ''
+				"
 				clearable
 			/>
 		</el-form-item>
 
 		<el-form-item :required="!isTestMode" prop="hash_key" label="HashKey">
-			<TrimmedInput v-model="form.hash_key" :disabled="isTestMode" clearable />
+			<TrimmedInput
+				v-model="form.hash_key"
+				:placeholder="
+					isTestMode ? '測試模式可填 PAYUNi 沙盒帳號；留空只能跑本機模擬' : ''
+				"
+				clearable
+			/>
 		</el-form-item>
 
 		<el-form-item :required="!isTestMode" prop="hash_iv" label="HashIV">
-			<TrimmedInput v-model="form.hash_iv" :disabled="isTestMode" clearable />
+			<TrimmedInput
+				v-model="form.hash_iv"
+				:placeholder="
+					isTestMode ? '測試模式可填 PAYUNi 沙盒帳號；留空只能跑本機模擬' : ''
+				"
+				clearable
+			/>
 		</el-form-item>
 
 		<el-divider>付款方式</el-divider>

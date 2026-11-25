@@ -245,11 +245,14 @@ final class DoActionClient {
 			throw new \Exception( $msg );
 		}
 
-		// 外層 Status 非 SUCCESS（PAYUNi 報錯，無 EncryptInfo）→ 直接拒絕
+		// 外層 Status 非 SUCCESS → 直接拒絕。業務錯誤時 PAYUNi 仍會附已簽章的 EncryptInfo，原因只在內層 Message
 		$outer_status = (string) ( $decoded['Status'] ?? '' );
 		if ( self::STATUS_SUCCESS !== $outer_status ) {
 			$message = (string) ( $decoded['Message'] ?? '' );
-			$msg     = "PAYUNi {$action_zh} API 回應 Status={$outer_status}：{$message}";
+			if ( '' === $message ) {
+				$message = $this->inner_message( $decoded );
+			}
+			$msg = "PAYUNi {$action_zh} API 回應 Status={$outer_status}：{$message}";
 			$this->order->add_order_note( "❌ {$action_zh}失敗：{$msg}" );
 			throw new \Exception( $msg );
 		}
@@ -272,6 +275,29 @@ final class DoActionClient {
 
 		// 無 EncryptInfo（MOCK / 簡化 fixture）→ 直接回外層 decoded
 		return $decoded;
+	}
+
+	/**
+	 * 從已簽章的內層取錯誤原因（驗章不過或解密失敗一律回空字串，絕不採信未驗章內容）
+	 *
+	 * @param array<mixed> $decoded 外層回應
+	 * @return string
+	 */
+	private function inner_message( array $decoded ): string {
+		$encrypt_info = (string) ( $decoded['EncryptInfo'] ?? '' );
+		$hash_info    = (string) ( $decoded['HashInfo'] ?? '' );
+		if ( '' === $encrypt_info || '' === $hash_info ) {
+			return '';
+		}
+		try {
+			$crypto = new PayuniCrypto( $this->settings->hash_key, $this->settings->hash_iv );
+			if ( ! $crypto->verify_hash( $encrypt_info, $hash_info ) ) {
+				return '';
+			}
+			return (string) ( $crypto->decrypt( $encrypt_info )['Message'] ?? '' );
+		} catch ( \Throwable ) {
+			return '';
+		}
 	}
 
 	/**

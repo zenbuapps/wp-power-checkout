@@ -33,6 +33,8 @@ use J7\PowerCheckout\Domains\Logistics\Payuni\Http\PayuniLogisticsCallback;
 use J7\PowerCheckout\Domains\Logistics\Payuni\Services\PayuniLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Payuni\Services\WC_PayuniLogisticsShipping;
 use J7\PowerCheckout\Domains\Logistics\Shared\Services\CartLogisticsApiService;
+use J7\PowerCheckout\Domains\Logistics\Shared\Services\CheckoutLogisticsIntegration;
+use J7\PowerCheckout\Domains\Logistics\Shared\Services\ShipmentStatusPoller;
 use J7\PowerCheckout\Domains\Logistics\Shared\Services\LogisticsApiService;
 use J7\PowerCheckout\Domains\Logistics\Shared\Services\LogisticsPingApiService;
 use J7\PowerCheckout\Domains\Logistics\SfExpress\Http\SfTrackPushCallback;
@@ -48,12 +50,12 @@ final class ProviderRegister {
 
 	/** @var array<string, string> $logistics_providers [id, class]（綠界 / PAYUNi / PayNow / 黑貓宅急便直串 / 新竹物流 / 順豐 / 嘉里大榮並存可切換） */
 	private static array $logistics_providers = [
-		EcpayLogisticsProvider::ID  => EcpayLogisticsProvider::class,
-		PayuniLogisticsProvider::ID => PayuniLogisticsProvider::class,
-		PaynowLogisticsProvider::ID => PaynowLogisticsProvider::class,
-		TcatLogisticsProvider::ID   => TcatLogisticsProvider::class,
-		HctLogisticsProvider::ID    => HctLogisticsProvider::class,
-		SfExpressProvider::ID       => SfExpressProvider::class,
+		EcpayLogisticsProvider::ID   => EcpayLogisticsProvider::class,
+		PayuniLogisticsProvider::ID  => PayuniLogisticsProvider::class,
+		PaynowLogisticsProvider::ID  => PaynowLogisticsProvider::class,
+		TcatLogisticsProvider::ID    => TcatLogisticsProvider::class,
+		HctLogisticsProvider::ID     => HctLogisticsProvider::class,
+		SfExpressProvider::ID        => SfExpressProvider::class,
 		KerrytjLogisticsProvider::ID => KerrytjLogisticsProvider::class,
 	];
 
@@ -70,6 +72,11 @@ final class ProviderRegister {
 		KerrytjLogisticsProvider::register_hooks();
 		// 順豐軌跡推送接收端（不需啟用：關掉順豐後在途包裹的貨態仍要更新；未設推送金鑰則整批拒收）
 		SfTrackPushCallback::register_hooks();
+
+		// 共用結帳整合（傳統 + Blocks 選子類型 / 選門市 / 下單寫 meta）；執行時才判斷哪些 provider 已啟用
+		CheckoutLogisticsIntegration::register_hooks();
+		// 共用貨態自動查詢（沒設推播網址時的保底；Action Scheduler）
+		ShipmentStatusPoller::register_hooks();
 
 		$any_enabled = false;
 		foreach ( self::$logistics_providers as $id => $class_name ) {
@@ -133,12 +140,12 @@ final class ProviderRegister {
 	 * @return array<int|string, string>
 	 */
 	public static function add_shipping_method( array $methods ): array {
-		$methods[ WC_EcpayLogisticsShipping::METHOD_ID ]  = WC_EcpayLogisticsShipping::class;
-		$methods[ WC_PayuniLogisticsShipping::METHOD_ID ] = WC_PayuniLogisticsShipping::class;
-		$methods[ WC_PaynowLogisticsShipping::METHOD_ID ] = WC_PaynowLogisticsShipping::class;
-		$methods[ WC_TcatLogisticsShipping::METHOD_ID ]   = WC_TcatLogisticsShipping::class;
-		$methods[ WC_HctLogisticsShipping::METHOD_ID ]    = WC_HctLogisticsShipping::class;
-		$methods[ WC_SfExpressShipping::METHOD_ID ]       = WC_SfExpressShipping::class;
+		$methods[ WC_EcpayLogisticsShipping::METHOD_ID ]   = WC_EcpayLogisticsShipping::class;
+		$methods[ WC_PayuniLogisticsShipping::METHOD_ID ]  = WC_PayuniLogisticsShipping::class;
+		$methods[ WC_PaynowLogisticsShipping::METHOD_ID ]  = WC_PaynowLogisticsShipping::class;
+		$methods[ WC_TcatLogisticsShipping::METHOD_ID ]    = WC_TcatLogisticsShipping::class;
+		$methods[ WC_HctLogisticsShipping::METHOD_ID ]     = WC_HctLogisticsShipping::class;
+		$methods[ WC_SfExpressShipping::METHOD_ID ]        = WC_SfExpressShipping::class;
 		$methods[ WC_KerrytjLogisticsShipping::METHOD_ID ] = WC_KerrytjLogisticsShipping::class;
 		return $methods;
 	}
@@ -171,6 +178,33 @@ final class ProviderRegister {
 	public static function get_provider_class( string $id ): ?string {
 		$class_name = self::$logistics_providers[ $id ] ?? null;
 		return null !== $class_name && \class_exists( $class_name ) ? $class_name : null;
+	}
+
+	/**
+	 * 取得已啟用的物流 provider 實例（容器優先；容器沒有時以類別單例補上，例如請求中途才啟用）
+	 *
+	 * @param string $id provider id
+	 * @return \J7\PowerCheckout\Domains\Logistics\Shared\Interfaces\ILogisticsProvider|null 未啟用 / 不存在回 null
+	 */
+	public static function resolve_enabled_provider( string $id ): ?\J7\PowerCheckout\Domains\Logistics\Shared\Interfaces\ILogisticsProvider {
+		if (!ProviderUtils::is_enabled( $id )) {
+			return null;
+		}
+		$provider = ProviderUtils::get_provider( $id );
+		if ($provider instanceof \J7\PowerCheckout\Domains\Logistics\Shared\Interfaces\ILogisticsProvider) {
+			return $provider;
+		}
+		$class_name = self::get_provider_class( $id );
+		if (null === $class_name || !\method_exists( $class_name, 'instance' )) {
+			return null;
+		}
+		$instance = $class_name::instance();
+		return $instance instanceof \J7\PowerCheckout\Domains\Logistics\Shared\Interfaces\ILogisticsProvider ? $instance : null;
+	}
+
+	/** @return array<int, string> 已註冊的物流 provider id（依註冊順序） */
+	public static function get_provider_ids(): array {
+		return \array_keys( self::$logistics_providers );
 	}
 
 	/** @return BaseSettingsDTO[] 取得 provider 設定 dtos（給 SettingApiService GET /settings） */

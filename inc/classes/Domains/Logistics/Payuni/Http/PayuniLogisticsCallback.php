@@ -35,7 +35,9 @@ use J7\PowerCheckout\Domains\Logistics\Payuni\Services\PayuniLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Payuni\Shared\Enums\PayuniShipStatus;
 use J7\PowerCheckout\Domains\Logistics\Payuni\Shared\Helpers\PayuniCrypto;
 use J7\PowerCheckout\Domains\Logistics\Shared\Enums\LogisticsPaymentScenario;
+use J7\PowerCheckout\Domains\Logistics\Shared\Helpers\CartLogisticsSession;
 use J7\PowerCheckout\Domains\Logistics\Shared\Helpers\LogisticsMetaKeys;
+use J7\PowerCheckout\Domains\Logistics\Shared\Services\ShipmentStatusPoller;
 use J7\PowerCheckout\Plugin;
 use J7\WpUtils\Classes\ApiBase;
 use J7\WpUtils\Traits\SingletonTrait;
@@ -163,6 +165,9 @@ final class PayuniLogisticsCallback extends ApiBase {
 
 		$meta = new LogisticsMetaKeys( $order );
 
+		// 已驗章的推播：商家有設通知網址，取消這張單的自動查詢
+		ShipmentStatusPoller::mark_push_received( $order );
+
 		// 安全清單 4：防重（已處理過該 ShipTradeNo + ShipStatus → 冪等略過）
 		if ($meta->is_processed( $ship_trade_no, $ship_status )) {
 			Plugin::logger(
@@ -215,21 +220,46 @@ final class PayuniLogisticsCallback extends ApiBase {
 	 * @return \WP_REST_Response
 	 */
 	public function post_logistics_map_callback_callback( \WP_REST_Request $request ): \WP_REST_Response {
+		$redirect = '';
 		try {
+			// 訂單綁定 pc_oid / pc_key 編在 MapReturnURL 的 query string，加密門市資料在 POST body，兩者合併
+			// （只讀 body 時永遠拿不到 pc_oid，選好的門市不會寫進訂單）
 			/** @var array<string, mixed> $params */
-			$params = $request->get_body_params();
+			$params = \array_merge(
+				(array) $request->get_query_params(),
+				(array) $request->get_body_params()
+			);
 
 			$parsed = PayuniLogisticsProvider::instance()->parse_store_selection( $params );
 
-			// 反查訂單並驗證 order_key 綁定（防 IDOR）。
-			$order = $this->resolve_verified_order( $params );
+			// A. 結帳頁（下單前）：MapReturnURL 帶 pc_st session 權杖 → 驗證後寫回該 session，再回結帳頁
+			$token = (string) ( $params['pc_st'] ?? '' );
+			if ('' !== $token && !isset( $params['pc_oid'] )) {
+				$ok = CartLogisticsSession::store_by_token(
+					$token,
+					[
+						'store_id'   => (string) ( $parsed['store_id'] ?? '' ),
+						'store_name' => (string) ( $parsed['store_name'] ?? '' ),
+						'store_addr' => (string) ( $parsed['store_addr'] ?? '' ),
+						'sub_type'   => (string) ( $parsed['sub_type'] ?? '' ),
+					]
+				);
+				if (!$ok) {
+					Plugin::logger( 'PAYUNi 物流門市回呼 session 權杖驗證失敗（逾時或偽造）', 'warning' );
+				}
+				$redirect = \function_exists( 'wc_get_checkout_url' ) ? \wc_get_checkout_url() : \home_url( '/' );
+			} else {
+				// B. 已有訂單（後台補選店）：反查訂單並驗證 order_key 綁定（防 IDOR）
+				$order = $this->resolve_verified_order( $params );
 
-			if ($order instanceof \WC_Order) {
-				$meta = new LogisticsMetaKeys( $order );
-				$meta->update_store_id( (string) ( $parsed['store_id'] ?? '' ) );
-				$meta->update_store_name( (string) ( $parsed['store_name'] ?? '' ) );
-				$meta->update_store_addr( (string) ( $parsed['store_addr'] ?? '' ) );
-				$meta->update_provider_id( PayuniLogisticsProvider::ID );
+				if ($order instanceof \WC_Order) {
+					$meta = new LogisticsMetaKeys( $order );
+					$meta->update_store_id( (string) ( $parsed['store_id'] ?? '' ) );
+					$meta->update_store_name( (string) ( $parsed['store_name'] ?? '' ) );
+					$meta->update_store_addr( (string) ( $parsed['store_addr'] ?? '' ) );
+					$meta->update_provider_id( PayuniLogisticsProvider::ID );
+					$redirect = $order->get_edit_order_url();
+				}
 			}
 		} catch ( \Throwable $e ) {
 			Plugin::logger(
@@ -237,6 +267,13 @@ final class PayuniLogisticsCallback extends ApiBase {
 				'warning',
 				[ 'error' => $e->getMessage() ]
 			);
+		}
+
+		// 這是顧客 / 管理員瀏覽器的前景 POST：選完門市導回原本的頁面（回 JSON 會讓人卡在空白頁）
+		if ('' !== $redirect) {
+			$response = new \WP_REST_Response( null, 302 );
+			$response->header( 'Location', \wp_validate_redirect( $redirect, \home_url( '/' ) ) );
+			return $response;
 		}
 
 		return new \WP_REST_Response( [ 'status' => 'ok' ], 200 );
@@ -274,12 +311,13 @@ final class PayuniLogisticsCallback extends ApiBase {
 
 	/** @return string 貨態 Notify URL（PAYUNi 後台設定用） */
 	public static function get_status_notify_url(): string {
-		return \site_url( 'wp-json/power-checkout/payuni/logistics/status-notify', 'https' );
+		// 用站台自己的 scheme（http 站台強制 https 會讓 PAYUNi 導回時連線失敗）
+		return \rest_url( 'power-checkout/payuni/logistics/status-notify' );
 	}
 
 	/** @return string 門市地圖回傳 URL（MapReturnURL） */
 	public static function get_map_return_url(): string {
-		return \site_url( 'wp-json/power-checkout/payuni/logistics/map-callback', 'https' );
+		return \rest_url( 'power-checkout/payuni/logistics/map-callback' );
 	}
 
 	/**
@@ -297,6 +335,17 @@ final class PayuniLogisticsCallback extends ApiBase {
 			],
 			$base_url
 		);
+	}
+
+	/**
+	 * 將結帳頁 session 權杖（pc_st）編入 MapReturnURL query（下單前沒有訂單）
+	 *
+	 * @param string $base_url 設定中的 MapReturnURL
+	 * @param string $token    CartLogisticsSession 產生的權杖
+	 * @return string
+	 */
+	public static function build_cart_map_return_url( string $base_url, string $token ): string {
+		return \add_query_arg( [ 'pc_st' => $token ], $base_url );
 	}
 
 	/**
