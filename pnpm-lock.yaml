@@ -31,9 +31,9 @@ overrides:
   js-yaml@>=3.0.0 <3.15.2: 3.15.2
   js-yaml@>=4.0.0 <4.3.2: 4.3.2
   linkify-it@>=5.0.0 <5.0.2: 5.0.2
-  lodash-es@>=4.0.0 <4.18.0: 4.18.0
-  lodash.template@>=4.0.0 <4.18.0: 4.18.0
-  lodash@>=4.0.0 <4.18.0: 4.18.0
+  lodash-es@>=4.0.0 <4.18.1: 4.18.1
+  lodash.template@>=4.0.0 <4.18.1: 4.18.1
+  lodash@>=4.0.0 <4.18.1: 4.18.1
   markdown-it@>=14.0.0 <14.3.3: 14.3.3
   minimatch@>=9.0.0 <9.0.7: 9.0.7
   nanoid@>=3.0.0 <3.3.18: 3.3.18
@@ -142,8 +142,8 @@ importers:
         specifier: ^2.12.5
         version: 2.18.1(@babel/core@7.29.6)(@babel/template@7.29.7)(@types/react@18.3.28)(react@18.3.1)
       lodash-es:
-        specifier: 4.18.0
-        version: 4.18.0
+        specifier: 4.18.1
+        version: 4.18.1
       nanoid:
         specifier: ^5.1.16
         version: 5.1.16
@@ -6761,16 +6761,15 @@ packages:
     resolution: {integrity: sha512-iPZK6eYjbxRu3uB4/WZ3EsEIMJFMqAoopl3R+zuq0UjcAm/MO6KCweDgPfP3elTztoKP3KtnVHxTn2NHBSDVUw==}
     engines: {node: '>=10'}
 
-  lodash-es@4.18.0:
-    resolution: {integrity: sha512-koAgswPPA+UTaPN64Etp+PGP+WT6oqOS2NMi5yDkMaiGw9qY4VxQbQF0mtKMyr4BlTznWyzePV5UpECTJQmSUA==}
-    deprecated: Bad release. Please use lodash-es@4.17.23 instead.
+  lodash-es@4.18.1:
+    resolution: {integrity: sha512-J8xewKD/Gk22OZbhpOVSwcs60zhd95ESDwezOFuA3/099925PdHJ7OFHNTGtajL3AlZkykD32HykiMo+BIBI8A==}
 
   lodash-unified@1.0.3:
     resolution: {integrity: sha512-WK9qSozxXOD7ZJQlpSqOT+om2ZfcT4yO+03FuzAHD0wF6S0l0090LRPDx3vhTTLZ8cFKpBn+IOcVXK6qOcIlfQ==}
     peerDependencies:
       '@types/lodash-es': '*'
-      lodash: 4.18.0
-      lodash-es: 4.18.0
+      lodash: 4.18.1
+      lodash-es: 4.18.1
 
   lodash._reinterpolate@3.0.0:
     resolution: {integrity: sha512-xYHt68QRoYGjeeM/XOE1uJtvXQAgvszfBhjV4yvsQH0u2i9I6cI6c6/eG4Hh3UAOVn0y/xAXwmTzEay49Q//HA==}
@@ -6834,9 +6833,9 @@ packages:
   lodash.once@4.1.1:
     resolution: {integrity: sha512-Sb487aTOCr9drQVL8pIxOzVhafOjZN9UU54hiN8PU3uAiSV7lx1yYNpbNmex2PK6dSJoNTSJUUswT651yww3Mg==}
 
-  lodash.template@4.18.0:
-    resolution: {integrity: sha512-VbCU2mYTHF/JUjasKG50ozrbli//eixCFmKBiAfvmz0cGt7iywc087M7zxflSoEQFS0Xtv0RqpE8ko8BXv3TOQ==}
-    deprecated: Bad release. Please use lodash.template@4.5.0 instead.
+  lodash.template@4.18.1:
+    resolution: {integrity: sha512-5urZrLnV/VD6zHK5KsVtZgt7H19v51mIzoS0aBNH8yp3I8tbswrEjOABOPY8m8uB7NuibubLrMX+Y0PXsU9X+w==}
+    deprecated: This package is deprecated. Use https://socket.dev/npm/package/eta instead.
 
   lodash.templatesettings@4.2.0:
     resolution: {integrity: sha512-stgLz+i3Aa9mZgnjr/O+v9ruKZsPsndy7qPZOchbqk2cnTU1ZaldKK+v7m54WoKIyxiuMZTKT2H81F8BeAc3ZQ==}
@@ -6853,9 +6852,8 @@ packages:
   lodash.uniqby@4.7.0:
     resolution: {integrity: sha512-e/zcLx6CSbmaEgFHCA7BnoQKyCtKMxnuWrJygbwPs/AIn+IMKl66L8/s+wBUn5LRw2pZx3bUHibiV1b6aTWIww==}
 
-  lodash@4.18.0:
-    resolution: {integrity: sha512-l1mfj2atMqndAHI3ls7XqPxEjV2J9ZkcNyHpoZA3r2T1LLwDB69jgkMWh71YKwhBbK0G2f4WSn05ahmQXVxupA==}
-    deprecated: Bad release. Please use lodash@4.17.21 instead.
+  lodash@4.18.1:
+    resolution: {integrity: sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==}
 
   log-symbols@3.0.0:
     resolution: {integrity: sha512-dSkNGuI7iG3mfvDzUuYZyvk5dD9ocYCYzNU6CYDE6+Xqd+gwme6Z00NS3dUh8mq/73HaEtT7m6W+yUPtU6BZnQ==}
@@ -10222,7 +10220,7 @@ snapshots:
 
   '@ant-design/charts-util@0.0.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      lodash: 4.18.0
+      lodash: 4.18.1
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 
@@ -10288,7 +10286,7 @@ snapshots:
       '@antv/g': 6.3.1
       '@antv/g2': 5.4.8
       '@antv/g2-extension-plot': 0.2.2
-      lodash: 4.18.0
+      lodash: 4.18.1
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 
@@ -10320,7 +10318,7 @@ snapshots:
       lodash.isobject: 3.0.2
       lodash.merge: 4.6.2
       lodash.omitby: 4.6.0
-      lodash.template: 4.18.0
+      lodash.template: 4.18.1
       lodash.union: 4.6.0
       lodash.unionby: 4.8.0
       lodash.uniq: 4.5.0
@@ -10364,8 +10362,8 @@ snapshots:
       '@umijs/use-params': 1.0.9(react@18.3.1)
       antd: 5.26.1(luxon@3.7.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       classnames: 2.5.1
-      lodash: 4.18.0
-      lodash-es: 4.18.0
+      lodash: 4.18.1
+      lodash-es: 4.18.1
       path-to-regexp: 8.4.0
       rc-resize-observer: 1.4.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       rc-util: 5.44.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -10394,8 +10392,8 @@ snapshots:
       antd: 5.26.1(luxon@3.7.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       classnames: 2.5.1
       dayjs: 1.11.13
-      lodash: 4.18.0
-      lodash-es: 4.18.0
+      lodash: 4.18.1
+      lodash-es: 4.18.1
       rc-util: 5.44.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
@@ -12242,7 +12240,7 @@ snapshots:
 
   '@nodeutils/defaults-deep@1.1.0':
     dependencies:
-      lodash: 4.18.0
+      lodash: 4.18.1
 
   '@nolyfill/is-core-module@1.0.39': {}
 
@@ -12962,8 +12960,8 @@ snapshots:
       '@tanstack/react-query': 4.39.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@types/react': 18.3.28
       '@types/react-dom': 18.3.7(@types/react@18.3.28)
-      lodash: 4.18.0
-      lodash-es: 4.18.0
+      lodash: 4.18.1
+      lodash-es: 4.18.1
       papaparse: 5.5.3
       pluralize: 8.0.0
       qs: 6.16.1
@@ -13004,8 +13002,8 @@ snapshots:
       gray-matter: 4.0.3
       http-proxy-middleware: 3.0.7
       jscodeshift: 0.15.2(@babel/preset-env@7.29.0(@babel/core@7.29.6))
-      lodash: 4.18.0
-      lodash-es: 4.18.0
+      lodash: 4.18.1
+      lodash-es: 4.18.1
       marked: 4.3.0
       node-fetch: 2.7.0(encoding@0.1.13)
       package-manager-detector: 0.1.2
@@ -13042,8 +13040,8 @@ snapshots:
       '@types/react-dom': 18.3.7(@types/react@18.3.28)
       graphql: 15.10.1
       graphql-tag: 2.12.6(graphql@15.10.1)
-      lodash: 4.18.0
-      lodash-es: 4.18.0
+      lodash: 4.18.1
+      lodash-es: 4.18.1
       pluralize: 8.0.0
       prettier: 2.8.8
       prism-react-renderer: 1.3.5(react@18.3.1)
@@ -13097,7 +13095,7 @@ snapshots:
       fast-glob: 3.3.3
       ini: 5.0.0
       js-yaml: 4.3.2
-      lodash-es: 4.18.0
+      lodash-es: 4.18.1
       release-it: 19.2.4(@types/node@20.19.37)
       semver: 7.7.4
 
@@ -14637,7 +14635,7 @@ snapshots:
       dayjs: 1.11.13
       intersection-observer: 0.12.2
       js-cookie: 2.2.1
-      lodash: 4.18.0
+      lodash: 4.18.1
       react: 18.3.1
       resize-observer-polyfill: 1.5.1
       screenfull: 5.2.0
@@ -14799,7 +14797,7 @@ snapshots:
       graceful-fs: 4.2.11
       is-stream: 2.0.1
       lazystream: 1.0.1
-      lodash: 4.18.0
+      lodash: 4.18.1
       normalize-path: 3.0.0
       readable-stream: 4.7.0
 
@@ -16119,9 +16117,9 @@ snapshots:
       '@vueuse/core': 12.0.0(typescript@5.5.4)
       async-validator: 4.2.5
       dayjs: 1.11.20
-      lodash: 4.18.0
-      lodash-es: 4.18.0
-      lodash-unified: 1.0.3(@types/lodash-es@4.17.12)(lodash-es@4.18.0)(lodash@4.18.0)
+      lodash: 4.18.1
+      lodash-es: 4.18.1
+      lodash-unified: 1.0.3(@types/lodash-es@4.17.12)(lodash-es@4.18.1)(lodash@4.18.1)
       memoize-one: 6.0.0
       normalize-wheel-es: 1.2.0
       vue: 3.5.42(typescript@5.5.4)
@@ -17680,7 +17678,7 @@ snapshots:
       cli-cursor: 3.1.0
       cli-width: 3.0.0
       figures: 3.2.0
-      lodash: 4.18.0
+      lodash: 4.18.1
       mute-stream: 0.0.8
       ora: 5.4.1
       run-async: 2.4.1
@@ -18173,13 +18171,13 @@ snapshots:
     dependencies:
       p-locate: 5.0.0
 
-  lodash-es@4.18.0: {}
+  lodash-es@4.18.1: {}
 
-  lodash-unified@1.0.3(@types/lodash-es@4.17.12)(lodash-es@4.18.0)(lodash@4.18.0):
+  lodash-unified@1.0.3(@types/lodash-es@4.17.12)(lodash-es@4.18.1)(lodash@4.18.1):
     dependencies:
       '@types/lodash-es': 4.17.12
-      lodash: 4.18.0
-      lodash-es: 4.18.0
+      lodash: 4.18.1
+      lodash-es: 4.18.1
 
   lodash._reinterpolate@3.0.0: {}
 
@@ -18221,7 +18219,7 @@ snapshots:
 
   lodash.once@4.1.1: {}
 
-  lodash.template@4.18.0:
+  lodash.template@4.18.1:
     dependencies:
       lodash._reinterpolate: 3.0.0
       lodash.templatesettings: 4.2.0
@@ -18238,7 +18236,7 @@ snapshots:
 
   lodash.uniqby@4.7.0: {}
 
-  lodash@4.18.0: {}
+  lodash@4.18.1: {}
 
   log-symbols@3.0.0:
     dependencies:
@@ -22223,7 +22221,7 @@ snapshots:
       eslint-visitor-keys: 3.4.3
       espree: 9.6.1
       esquery: 1.7.0
-      lodash: 4.18.0
+      lodash: 4.18.1
       semver: 7.7.4
     transitivePeerDependencies:
       - supports-color
