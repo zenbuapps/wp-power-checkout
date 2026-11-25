@@ -37,11 +37,13 @@ use J7\PowerCheckout\Domains\Logistics\Shared\DTOs\LogisticsProviderMetaDTO;
 use J7\PowerCheckout\Domains\Logistics\Shared\DTOs\ShipmentCapabilitiesDTO;
 use J7\PowerCheckout\Domains\Logistics\Shared\Enums\DeliveryMethod;
 use J7\PowerCheckout\Domains\Logistics\Shared\Interfaces\ILogisticsProvider;
+use J7\PowerCheckout\Domains\Logistics\Shared\Interfaces\ISupportsCheckoutStoreSelection;
+use J7\PowerCheckout\Domains\Logistics\Shared\Helpers\CartLogisticsSession;
 use J7\PowerCheckout\Shared\Abstracts\BaseService;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 
 /** PAYUNi 統一金流物流服務提供者 */
-final class PayuniLogisticsProvider extends BaseService implements ILogisticsProvider {
+final class PayuniLogisticsProvider extends BaseService implements ILogisticsProvider, ISupportsCheckoutStoreSelection {
 	use \J7\WpUtils\Traits\SingletonTrait;
 
 	public const ID = 'payuni_logistics';
@@ -111,9 +113,6 @@ final class PayuniLogisticsProvider extends BaseService implements ILogisticsPro
 		// 前置驗證 2：訂單必須存在
 		$this->assert_order_exists( $order );
 
-		// 前置驗證 3：MapReturnURL 不可為 localhost（須公開可訪問）
-		$this->assert_public_reply_url( $settings->map_return_url );
-
 		// 前置驗證 4：sub_type 必須為已啟用的 PAYUNi 物流子類型
 		if (!\in_array( $sub_type, $this->get_supported_methods(), true )) {
 			throw new \Exception(
@@ -150,6 +149,58 @@ final class PayuniLogisticsProvider extends BaseService implements ILogisticsPro
 
 		return [ 'redirect_target' => $html ];
 	}
+
+	// region 結帳頁選店（ISupportsCheckoutStoreSelection）
+
+	/** @return string 結帳頁運送方式 id */
+	public function get_checkout_shipping_method_id(): string {
+		return WC_PayuniLogisticsShipping::METHOD_ID;
+	}
+
+	/** @return array<int, string> 需選門市的子類型（7-ELEVEN） */
+	public function get_cvs_sub_types(): array {
+		return [ PayuniSubType::SEVEN->value ];
+	}
+
+	/**
+	 * 購物車（下單前）選店：ship_map 門市地圖，以 session 權杖綁定當前購物車
+	 *
+	 * MapReturnURL 帶 pc_st（CartLogisticsSession 權杖），選店回呼以權杖 timing-safe 驗證後寫回 session。
+	 *
+	 * @param array<string, mixed> $ctx 上下文（sub_type）
+	 * @return array<string, mixed> 含 redirect_target
+	 * @throws \Exception 未啟用 / 子類型不合法
+	 */
+	public function get_cart_store_selection( array $ctx = [] ): array {
+		if (!ProviderUtils::is_enabled( self::ID )) {
+			throw new \Exception( \__( 'PAYUNi 統一金流物流未啟用', 'power_checkout' ) );
+		}
+
+		$sub_type = (string) ( $ctx['sub_type'] ?? PayuniSubType::SEVEN->value );
+		if (PayuniSubType::SEVEN->value !== $sub_type || !\in_array( $sub_type, $this->get_supported_methods(), true )) {
+			throw new \Exception( \__( '僅 7-ELEVEN 超商取貨需要門市選擇', 'power_checkout' ) );
+		}
+
+		$settings = PayuniLogisticsSettingsDTO::instance();
+		$token    = CartLogisticsSession::issue_token();
+
+		$params = ShipMapParams::parse(
+			[
+				'MerKeyNo'     => 'cart',
+				'GoodsType'    => 1,
+				'LgsType'      => $settings->cvs_lgs_type,
+				'ShipType'     => PayuniSubType::SEVEN->ship_type(),
+				'MapType'      => 1,
+				'MapReturnURL' => PayuniLogisticsCallback::build_cart_map_return_url( $settings->map_return_url, $token ),
+				'Tag'          => 2,
+				'MobileTag'    => 'N',
+			]
+		);
+
+		return [ 'redirect_target' => ( new PayuniLogisticsApiClient( null ) )->ship_map( $params ) ];
+	}
+
+	// endregion
 
 	/**
 	 * 解析門市選店回呼（ship_map MapJson；無 TempLogisticsID）
@@ -376,6 +427,18 @@ final class PayuniLogisticsProvider extends BaseService implements ILogisticsPro
 		$status = (string) ( $decrypted['ShipStatus'] ?? '' );
 		$status = '-' === $status ? '' : $status;
 
+		// 查到新貨態就寫回訂單（自動查詢 / 手動查詢都靠這裡更新；與推播同一組 meta）
+		if ('' !== $status && $status !== $meta->get_status()) {
+			$meta->update_status( $status );
+			if (LogisticsPaymentScenario::COD->value === $meta->get_payment_scenario() && PayuniShipStatus::is_pickup_completed( $status )) {
+				$meta->update_collection_paid( 'yes' );
+			}
+			$desc = (string) ( $decrypted['ShipStatusDesc'] ?? '' );
+			$order->add_order_note(
+				\sprintf( '📦 PAYUNi 物流狀態（查詢）：%1$s %2$s（ShipTradeNo：%3$s）', $status, '-' === $desc ? '' : $desc, $ref )
+			);
+		}
+
 		return [
 			'logistics_id'  => (string) ( $decrypted['ShipTradeNo'] ?? $ref ),
 			'status'        => $status,
@@ -561,29 +624,6 @@ final class PayuniLogisticsProvider extends BaseService implements ILogisticsPro
 	private function assert_order_exists( \WC_Order $order ): void {
 		if ($order->get_id() <= 0) {
 			throw new \InvalidArgumentException( \__( '找不到訂單', 'power_checkout' ) );
-		}
-	}
-
-	/**
-	 * 驗證 reply URL 為公開可訪問（非 localhost / 127.0.0.1）
-	 *
-	 * @param string $url reply URL
-	 * @return void
-	 * @throws \Exception URL 為 localhost
-	 */
-	private function assert_public_reply_url( string $url ): void {
-		$host = (string) \wp_parse_url( $url, PHP_URL_HOST );
-		$host = \strtolower( $host );
-
-		$is_local = \in_array( $host, [ 'localhost', '127.0.0.1', '::1' ], true )
-		|| \str_ends_with( $host, '.localhost' )
-		|| \str_ends_with( $host, '.local' )
-		|| \str_ends_with( $host, '.test' );
-
-		if ($is_local) {
-			throw new \Exception(
-				\__( 'MapReturnURL / NotifyURL 必須為公開可訪問的 URL（不可為 localhost）', 'power_checkout' )
-			);
 		}
 	}
 

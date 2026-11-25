@@ -180,6 +180,12 @@ final class CartLogisticsSession {
 		if (!\function_exists( 'WC' )) {
 			return null;
 		}
+		// 一般 REST 請求（例：結帳頁按「選擇門市」打 power-checkout/v1/logistics/store-selection）WooCommerce 不會
+		// 自動啟動 session，要自己從顧客的 session cookie 接上，否則權杖存不進顧客的購物車 session
+		if (null === \WC()->session && \class_exists( '\WC_Session_Handler' )) {
+			\WC()->initialize_session();
+		}
+
 		/** @var \WC_Session_Handler|\WC_Session|null $session */
 		$session = \WC()->session;
 		if ($session instanceof \WC_Session_Handler) {

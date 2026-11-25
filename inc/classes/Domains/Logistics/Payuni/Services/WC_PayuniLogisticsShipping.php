@@ -60,7 +60,7 @@ final class WC_PayuniLogisticsShipping extends \WC_Shipping_Method {
 		$this->init_form_fields();
 		$this->init_settings();
 
-		$this->title   = (string) $this->get_option( 'title', \__( 'PAYUNi 7-11 超商取貨 / 黑貓宅配', 'power_checkout' ) );
+		$this->title   = (string) $this->get_option( 'title', \__( 'PAYUNi 物流', 'power_checkout' ) );
 		$this->enabled = (string) $this->get_option( 'enabled', 'yes' );
 		$this->cost    = (string) $this->get_option( 'cost', $this->cost );
 
@@ -86,8 +86,8 @@ final class WC_PayuniLogisticsShipping extends \WC_Shipping_Method {
 			'title'   => [
 				'title'       => \__( '名稱', 'power_checkout' ),
 				'type'        => 'text',
-				'description' => \__( '結帳頁顯示的運送方式名稱。', 'power_checkout' ),
-				'default'     => \__( 'PAYUNi 7-11 超商取貨 / 黑貓宅配', 'power_checkout' ),
+				'description' => \__( '結帳頁顯示的運送方式名稱，後面會自動加上（7-ELEVEN 超商取貨）或（黑貓宅配）。', 'power_checkout' ),
+				'default'     => \__( 'PAYUNi 物流', 'power_checkout' ),
 				'desc_tip'    => true,
 			],
 			'cost'    => [
@@ -112,15 +112,21 @@ final class WC_PayuniLogisticsShipping extends \WC_Shipping_Method {
 	 */
 	public function calculate_shipping( $package = [] ): void {
 		$cost = (float) $this->cost;
+		$base = $this->title ?: $this->method_title;
 
-		$this->add_rate(
-			[
-				'id'      => $this->get_rate_id(),
-				'label'   => $this->title ?: $this->method_title,
-				'cost'    => $cost,
-				'package' => $package,
-			]
-		);
+		// 每個啟用的子類型一個 rate：顧客選哪個 rate 就決定 sub_type（傳統 / Blocks 結帳共用）
+		foreach ( $this->get_supported_sub_types() as $sub_type ) {
+			$this->add_rate(
+				[
+					'id'        => $this->get_rate_id( $sub_type ),
+					'label'     => \sprintf( '%1$s（%2$s）', $base, PayuniSubType::from( $sub_type )->label() ),
+					'cost'      => $cost,
+					'package'   => $package,
+					// rate meta 會被 WC 搬進訂單運送項目，Store API 也會輸出給 Blocks 前端
+					'meta_data' => [ 'sub_type' => $sub_type ],
+				]
+			);
+		}
 	}
 
 	/**
@@ -163,9 +169,19 @@ final class WC_PayuniLogisticsShipping extends \WC_Shipping_Method {
 
 		$meta = new LogisticsMetaKeys( $order );
 
-		$sub_type = isset($_POST['_pc_logistics_sub_type']) // phpcs:ignore WordPress.Security.NonceVerification.Missing
-		? \sanitize_text_field( \wp_unslash( (string) $_POST['_pc_logistics_sub_type'] ) ) // phpcs:ignore WordPress.Security.NonceVerification.Missing
-		: '';
+		// 優先取選定 rate 的 sub_type（rate meta 搬進運送項目），退化相容舊版 POST 欄位
+		$sub_type = '';
+		foreach ( $order->get_shipping_methods() as $shipping_item ) {
+			if (self::METHOD_ID === $shipping_item->get_method_id()) {
+				$sub_type = (string) $shipping_item->get_meta( 'sub_type' );
+				break;
+			}
+		}
+		if ('' === $sub_type) {
+			$sub_type = isset($_POST['_pc_logistics_sub_type']) // phpcs:ignore WordPress.Security.NonceVerification.Missing
+			? \sanitize_text_field( \wp_unslash( (string) $_POST['_pc_logistics_sub_type'] ) ) // phpcs:ignore WordPress.Security.NonceVerification.Missing
+			: '';
+		}
 		// 安全：僅寫入已啟用的合法子類型（白名單）
 		$method = new self();
 		if ('' !== $sub_type && \in_array( $sub_type, $method->get_supported_sub_types(), true )) {

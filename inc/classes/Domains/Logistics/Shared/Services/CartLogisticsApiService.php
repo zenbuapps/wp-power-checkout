@@ -20,6 +20,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Logistics\Shared\Services;
 
 use J7\PowerCheckout\Domains\Logistics\Ecpay\Services\EcpayLogisticsProvider;
+use J7\PowerCheckout\Domains\Logistics\Shared\Interfaces\ISupportsCheckoutStoreSelection;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use J7\WpUtils\Classes\ApiBase;
 use J7\WpUtils\Traits\SingletonTrait;
@@ -108,11 +109,19 @@ final class CartLogisticsApiService extends ApiBase {
 	 * 解析委派的物流 provider（cart 級選店）
 	 *
 	 * @param \WP_REST_Request $request 請求
-	 * @return EcpayLogisticsProvider
+	 * @return EcpayLogisticsProvider|ISupportsCheckoutStoreSelection
 	 * @throws \Exception Provider 未啟用 / 不支援 cart 級選店
 	 */
-	private function resolve_provider( \WP_REST_Request $request ): EcpayLogisticsProvider {
+	private function resolve_provider( \WP_REST_Request $request ): EcpayLogisticsProvider|ISupportsCheckoutStoreSelection {
 		$requested = (string) ( $request->get_param( 'provider' ) ?? '' );
+
+		// 走共用結帳整合的 provider（實作 ISupportsCheckoutStoreSelection，例：payuni_logistics）
+		if ('' !== $requested) {
+			$shared = CheckoutLogisticsIntegration::find_provider( $requested );
+			if (null !== $shared) {
+				return $shared;
+			}
+		}
 
 		// 指定 provider：須在已知清單（目前僅 ecpay_logistics 支援 cart 級 RWD 選店）
 		if ('' !== $requested && !\in_array( $requested, self::PROVIDER_IDS, true )) {

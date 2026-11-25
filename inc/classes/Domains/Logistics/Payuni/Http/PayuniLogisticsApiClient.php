@@ -93,8 +93,8 @@ final class PayuniLogisticsApiClient {
 
 	/** Constructor */
 	public function __construct(
-		/** @var \WC_Order 訂單（用於 order note 記錄） */
-		private readonly \WC_Order $order,
+		/** @var \WC_Order|null 訂單（用於 order note 記錄；結帳頁選店時還沒有訂單） */
+		private readonly ?\WC_Order $order,
 	) {
 		$this->settings = PayuniLogisticsSettingsDTO::instance();
 		$this->crypto   = new PayuniCrypto(
@@ -367,14 +367,14 @@ final class PayuniLogisticsApiClient {
 			$code    = (string) ( $body['Status'] ?? 'UNKNOWN' );
 			$message = (string) ( $body['Message'] ?? '' );
 			$msg     = "PAYUNi 物流建立 / 查詢失敗（{$code}）" . ( '' !== $message ? "：{$message}" : '' );
-			$this->order->add_order_note( "❌ {$msg}" );
+			$this->order?->add_order_note( "❌ {$msg}" );
 			throw new \Exception( $msg );
 		}
 
 		// 第一道：HashInfo 驗簽（timing-safe；防竄改）
 		if (!$this->crypto->verify_hash( $encrypt_info, $received_hash )) {
 			$msg = 'PAYUNi 物流回應 HashInfo 驗簽失敗';
-			$this->order->add_order_note( "❌ {$msg}" );
+			$this->order?->add_order_note( "❌ {$msg}" );
 			throw new \Exception( $msg );
 		}
 
@@ -389,7 +389,7 @@ final class PayuniLogisticsApiClient {
 			$message = (string) ( $inner['Message'] ?? $body['Message'] ?? '' );
 			$message = '' !== $message ? $message : '未提供原因';
 			$msg     = "PAYUNi 物流建立 / 查詢失敗（{$code}）：{$message}";
-			$this->order->add_order_note( "❌ {$msg}" );
+			$this->order?->add_order_note( "❌ {$msg}" );
 			throw new \Exception( $msg );
 		}
 
@@ -410,7 +410,7 @@ final class PayuniLogisticsApiClient {
 		$envelope = $this->build_envelope( $data, $version );
 
 		Plugin::logger(
-			"PAYUNi 物流請求 #{$this->order->get_id()}",
+			'PAYUNi 物流請求 #' . ( $this->order?->get_id() ?? 0 ),
 			'info',
 			[ 'url' => $url ]
 		);
@@ -430,7 +430,7 @@ final class PayuniLogisticsApiClient {
 
 		if (\is_wp_error( $response )) {
 			$msg = "PAYUNi 物流連線失敗：{$response->get_error_message()}";
-			$this->order->add_order_note( "❌ {$msg}" );
+			$this->order?->add_order_note( "❌ {$msg}" );
 			throw new \Exception( $msg );
 		}
 
@@ -521,6 +521,13 @@ final class PayuniLogisticsApiClient {
 	 * @return array<string, mixed>
 	 */
 	private function mock_query_response( string $ship_trade_no, string $lgs_type ): array {
+		/**
+		 * 僅 MOCK 模式：讓測試指定查詢回來的貨態（例如 11 已取貨）
+		 *
+		 * @param string $ship_status 預設 31（配送中）
+		 */
+		$ship_status = (string) \apply_filters( 'power_checkout_payuni_logistics_mock_ship_status', '31', $ship_trade_no );
+
 		return [
 			'Status'         => 'SUCCESS',
 			'Message'        => '查詢成功',
@@ -528,8 +535,8 @@ final class PayuniLogisticsApiClient {
 			'ShipTradeNo'    => $ship_trade_no,
 			'LgsType'        => $lgs_type,
 			'ShipType'       => 1,
-			'ShipStatus'     => '31',
-			'ShipStatusDesc' => '配送中',
+			'ShipStatus'     => $ship_status,
+			'ShipStatusDesc' => '31' === $ship_status ? '配送中' : 'MOCK 貨態',
 			'StoreID'        => '916712',
 			'StoreName'      => 'MOCK 敦安門市',
 		];

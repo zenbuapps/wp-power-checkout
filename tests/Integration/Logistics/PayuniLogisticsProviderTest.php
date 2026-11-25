@@ -153,10 +153,13 @@ final class PayuniLogisticsProviderTest extends TestCase {
 	}
 
 	/**
+	 * MapReturnURL 是顧客瀏覽器的前景 POST（不是 PAYUNi 伺服器回呼），本機 / 內網網址顧客的瀏覽器也連得到，
+	 * 不再要求公開網址（貨態 NotifyURL 才需要公開）
+	 *
 	 * @test
-	 * @group error
+	 * @group edge
 	 */
-	public function test_選店_map_return_url為localhost時失敗(): void {
+	public function test_選店_map_return_url為localhost時仍可開門市地圖(): void {
 		$this->enable_payuni( [ 'map_return_url' => 'http://localhost/callback' ] );
 		$order    = $this->create_wc_order(
 			[
@@ -166,11 +169,9 @@ final class PayuniLogisticsProviderTest extends TestCase {
 		);
 		$provider = PayuniLogisticsProvider::instance();
 
-		$this->try_call(
-			fn() => $provider->get_store_selection( $order, [ 'sub_type' => 'SEVEN' ] )
-		);
+		$result = $provider->get_store_selection( $order, [ 'sub_type' => 'SEVEN' ] );
 
-		$this->assert_operation_failed_with_message( '必須為公開可訪問的 URL' );
+		$this->assertArrayHasKey( 'redirect_target', $result );
 	}
 
 	/**
