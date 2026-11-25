@@ -123,8 +123,13 @@ final class StatusManager {
 			return;
 		}
 
+		$meta_keys = new PayuniMetaKeys( $this->order );
+
 		// 寫付款明細（整個內層通知，供後台顯示與退款分流）
-		( new PayuniMetaKeys( $this->order ) )->update_payment_detail( $this->inner_payload );
+		$meta_keys->update_payment_detail( $this->inner_payload );
+
+		// 實際付款成功的 MerTradeNo 設為目前編號（查詢補單 / 請退款要對到付款成功的那筆，而非最後一次導轉）
+		$meta_keys->settle_trade_no( (string) ( $this->inner_payload['MerTradeNo'] ?? '' ) );
 
 		$this->order->add_order_note(
 			WP::array_to_html( $this->inner_payload, [ 'title' => 'PAYUNi 付款成功通知' ] )

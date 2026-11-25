@@ -111,7 +111,18 @@ final class QueryTradeClient {
 			$outer[ (string) $key ] = $value;
 		}
 
-		// 外層 Status 非 SUCCESS → throw（含 Status 字串）
+		// 外層 Status 非 SUCCESS → throw（含 Status 字串；原因若只在已簽章的內層，先驗章再取 Message）
+		if ( self::STATUS_SUCCESS !== (string) ( $outer['Status'] ?? '' ) && '' === (string) ( $outer['Message'] ?? '' ) ) {
+			$enc = (string) ( $outer['EncryptInfo'] ?? '' );
+			if ( '' !== $enc && $crypto->verify_hash( $enc, (string) ( $outer['HashInfo'] ?? '' ) ) ) {
+				try {
+					$outer['Message'] = (string) ( $crypto->decrypt( $enc )['Message'] ?? '' );
+				} catch ( \Throwable $e ) {
+					// 解密失敗就維持只顯示 Status
+					$outer['Message'] = '';
+				}
+			}
+		}
 		$this->parse_outer_response( $outer );
 
 		$resp_encrypt_info = (string) ( $outer['EncryptInfo'] ?? '' );
@@ -120,7 +131,55 @@ final class QueryTradeClient {
 		// 驗章（不符 throw）→ 解密內層
 		$this->verify_hash_info( $resp_encrypt_info, $resp_hash_info );
 
-		return $crypto->decrypt( $resp_encrypt_info );
+		$result = self::flatten_result( $crypto->decrypt( $resp_encrypt_info ), $mer_trade_no );
+
+		// 查詢結果不帶 MerID（沙盒實測）；這是本站用自己的金鑰發出、且已驗章的回應，補上商店代號，
+		// 否則補單時 StatusManager 的 MerID 防線會誤判為跨商店資料
+		if ( '' === (string) ( $result['MerID'] ?? '' ) ) {
+			$result['MerID'] = $this->settings->merchant_id;
+		}
+
+		return $result;
+	}
+
+	/**
+	 * 把查詢結果的 Result 陣列攤平到最上層
+	 *
+	 * 沙盒實測：/api/trade/query 解密後只有 Status / Message / Result，交易明細（TradeStatus / DataSource /
+	 * CloseStatus…）都在 Result[n] 裡。呼叫端一律讀最上層欄位，沒攤平會永遠判定「未付款」。
+	 * 優先取 MerTradeNo 相符的那筆；外層 Status / Message 保留。
+	 *
+	 * @param array<string, mixed> $inner        解密後內層
+	 * @param string               $mer_trade_no 查詢的 MerTradeNo
+	 * @return array<string, mixed>
+	 */
+	public static function flatten_result( array $inner, string $mer_trade_no ): array {
+		$rows = $inner['Result'] ?? null;
+		if ( ! \is_array( $rows ) || ! $rows ) {
+			return $inner;
+		}
+
+		$picked = null;
+		foreach ( $rows as $row ) {
+			if ( \is_array( $row ) && $mer_trade_no === (string) ( $row['MerTradeNo'] ?? '' ) ) {
+				$picked = $row;
+				break;
+			}
+		}
+		$first  = \reset( $rows );
+		$picked = $picked ?? ( \is_array( $first ) ? $first : [] );
+
+		$flat = [];
+		foreach ( $picked as $key => $value ) {
+			$flat[ (string) $key ] = $value;
+		}
+		foreach ( [ 'Status', 'Message' ] as $outer_key ) {
+			if ( isset( $inner[ $outer_key ] ) ) {
+				$flat[ $outer_key ] = $inner[ $outer_key ];
+			}
+		}
+
+		return $flat;
 	}
 
 	/**

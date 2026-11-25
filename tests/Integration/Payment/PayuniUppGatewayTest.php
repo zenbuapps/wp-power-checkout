@@ -29,7 +29,6 @@ namespace Tests\Integration\Payment;
 use J7\PowerCheckout\Domains\Payment\Payuni\DTOs\PayuniSettingsDTO;
 use J7\PowerCheckout\Domains\Payment\Payuni\Services\PayuniUppGateway;
 use J7\PowerCheckout\Domains\Payment\Payuni\Shared\Helpers\PayuniMetaKeys;
-use J7\PowerCheckout\Domains\Payment\Payuni\Shared\Helpers\PayuniTradeNo;
 use J7\PowerCheckout\Domains\Payment\Shared\Abstracts\AbstractPaymentGateway;
 use J7\PowerCheckout\Domains\Payment\Shared\Interfaces\IPaymentProvider;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -239,70 +238,45 @@ final class PayuniUppGatewayTest extends TestCase {
 	// ========== 冪等鍵寫入（Happy / Edge） ==========
 
 	/**
-	 * process_payment() 或 before_order_received() 執行後，_pc_payuni_trade_no 寫入訂單 meta
-	 * 依 specs §後置（狀態）: 建單時寫入冪等鍵 MerTradeNo 至 order meta _pc_payuni_trade_no
-	 *
-	 * 注意：導轉式金流 process_payment 僅回傳 URL，冪等鍵在 before_order_received 時寫入；
-	 * 若設計改為在 process_payment 階段預先寫入（仿 AIO 的 MerchantTradeNo 寫入機制），
-	 * 則本測試在 process_payment 呼叫後即可驗證。
-	 *
-	 * 本測試驗證：呼叫 process_payment 後，冪等鍵應已存在於 meta（若 gateway 在 process_payment 預寫）
-	 * 或透過模擬 before_order_received 觸發後驗證。以下採用較寬鬆的方式：
-	 * 直接透過 PayuniMetaKeys 手動寫入並驗證冪等邏輯（行為測試，不測實作細節）。
+	 * process_payment() 只標記「待導轉」，不預寫 MerTradeNo（編號在 order-received 導轉時才產生，每次付款嘗試都換新）
 	 *
 	 * @test
 	 * @group happy
 	 * @group payuni
 	 * @group payment
 	 */
-	public function test_冪等鍵_build_order_received後_trade_no寫入meta(): void {
+	public function test_process_payment只標記待導轉不預寫trade_no(): void {
 		$gateway  = new PayuniUppGateway();
 		$order    = $this->create_payuni_order();
 		$order_id = $order->get_id();
 
-		// process_payment 導轉式不呼叫 API
 		$gateway->process_payment( $order_id );
 
-		// 若 Gateway 在 process_payment 階段預寫 MerTradeNo：
-		// 重新讀取訂單後 meta 應存在
-		$fresh_order = \wc_get_order( $order_id );
-		$meta_keys   = new PayuniMetaKeys( $fresh_order );
-		$trade_no    = $meta_keys->get_trade_no();
-
-		// 若 process_payment 預先寫入冪等鍵，應等於 PayuniTradeNo::generate(order_id)
-		// 若尚未寫入（在 before_order_received 寫入），則此測試為預期 Red：
-		// $this->assertNotEmpty 會失敗 → Red 狀態確認
-		$expected = PayuniTradeNo::generate( $order_id );
-		$this->assertSame(
-			$expected,
-			$trade_no,
-			"_pc_payuni_trade_no 應在 process_payment 後寫入 '{$expected}'，實際為 '{$trade_no}'"
-		);
+		$meta_keys = new PayuniMetaKeys( \wc_get_order( $order_id ) );
+		$this->assertTrue( $meta_keys->is_redirect_pending(), 'process_payment 後應標記待導轉' );
+		$this->assertSame( '', $meta_keys->get_trade_no(), 'process_payment 不應預寫 MerTradeNo' );
 	}
 
 	/**
-	 * 同一訂單重複呼叫 process_payment 時，_pc_payuni_trade_no 保持不變（冪等）
-	 * 防止重複付款時 MerTradeNo 被更新（PAYUNi 10 分鐘內重複單號會觸發 UPP01007）
+	 * 重複呼叫 process_payment（order-pay 重新付款）只會重新標記待導轉，不會動到既有編號
 	 *
 	 * @test
 	 * @group edge
 	 * @group payuni
 	 * @group payment
 	 */
-	public function test_冪等鍵_重複呼叫process_payment不更新已有trade_no(): void {
+	public function test_重複呼叫process_payment不更動既有trade_no(): void {
 		$gateway  = new PayuniUppGateway();
 		$order    = $this->create_payuni_order();
 		$order_id = $order->get_id();
+		( new PayuniMetaKeys( $order ) )->update_trade_no( 'PCU' . $order_id . '_1700000000' );
 
-		// 第一次
 		$gateway->process_payment( $order_id );
-		$first_trade_no = ( new PayuniMetaKeys( \wc_get_order( $order_id ) ) )->get_trade_no();
-
-		// 第二次（模擬 order-received 頁 reload）
 		$gateway->process_payment( $order_id );
-		$second_trade_no = ( new PayuniMetaKeys( \wc_get_order( $order_id ) ) )->get_trade_no();
 
-		$this->assertSame( $first_trade_no, $second_trade_no, 'MerTradeNo 應冪等（重複呼叫不應更新）' );
+		$meta_keys = new PayuniMetaKeys( \wc_get_order( $order_id ) );
+		$this->assertSame( 'PCU' . $order_id . '_1700000000', $meta_keys->get_trade_no() );
+		$this->assertTrue( $meta_keys->is_redirect_pending() );
 	}
 
 	// ========== Error Handling ==========

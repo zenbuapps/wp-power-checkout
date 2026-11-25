@@ -7,16 +7,12 @@
  *  - 字元集 [A-Za-z0-9_-]。
  *  - 同一 MerID 10 分鐘內不可重複（UPP01007）。
  *
- * 設計：採「冪等」單號 —— 同一 order_id 多次呼叫產生相同單號。
- *   意圖：訂單付款重試時用相同 MerTradeNo 觸發 PAYUNi 去重保護，避免重複建單；
- *   且單號內嵌 order_id，NotifyURL / ReturnURL 回呼可直接反查訂單。
- *
- * 格式：PCU{order_id}（純由 order_id 衍生，不含 timestamp → 冪等）。
- *   - PCU 前綴：辨識本外掛 PAYUNi 單號 + 與其他 provider 區隔。
- *   - order_id 十進位：order_id ≤ 22 位數時仍 ≤25 字元（實務 DB id 遠小於此）。
- *
- * ⚠️ 對齊 EcpayAIO / NewebpayMpg TradeNo 模式（含 order_id 可反查），但 PAYUNi 強調冪等，
- *    故刻意不含 timestamp（藍新 / 綠界範本含 timestamp 是為了 per-merchant 唯一，語意不同）。
+ * 兩種格式：
+ *  - 舊格式 PCU{order_id}（{@see self::generate()}；升級前的訂單仍可能用這個編號，解析時須相容）。
+ *  - 每次付款嘗試的新格式 PCU{order_id}_{timestamp}（{@see self::encode_unique()}）。
+ *    同一編號在 10 分鐘內重送會被 PAYUNi 拒絕（UPP01007），ATM / 超商取號後再送同一編號則會變成第二筆交易，
+ *    所以顧客每次重新付款都換新編號（比照綠界 AIO / 藍新 MPG），舊編號保留在歷史 meta 供通知反查。
+ *  - PCU 前綴：辨識本外掛 PAYUNi 單號 + 與其他 provider 區隔；order_id 內嵌，便於人工對帳。
  *
  * @see .claude/skills/payuni-upp-v2/SKILL.md §MerTradeNo
  */
@@ -34,6 +30,12 @@ final class PayuniTradeNo {
 	/** @var string 前綴（英數，便於辨識與反解） */
 	private const PREFIX = 'PCU';
 
+	/** @var string order_id 與 timestamp 的分隔字元 */
+	private const SEPARATOR = '_';
+
+	/** @var int encode_unique 最多嘗試次數（每次 timestamp +1 秒，實務上 1~2 次即可） */
+	private const MAX_UNIQUE_ATTEMPTS = 100;
+
 	/**
 	 * 由訂單 ID 生成冪等的 MerTradeNo（≤25 碼、僅 [A-Za-z0-9_-]）
 	 *
@@ -46,6 +48,26 @@ final class PayuniTradeNo {
 		$trade_no = self::PREFIX . $order_id;
 		// 防禦：理論上 order_id 不會讓單號超過 25 碼，仍截斷以符合 PAYUNi 硬限制
 		return \substr( $trade_no, 0, self::MAX_LENGTH );
+	}
+
+	/**
+	 * 為一次新的付款嘗試產生不在 $used 清單內的 MerTradeNo（PCU{order_id}_{timestamp}，≤25 碼）
+	 *
+	 * @param int                $order_id 訂單 ID
+	 * @param array<int, string> $used     本訂單已送出過的 MerTradeNo
+	 * @return string MerTradeNo
+	 * @throws \RuntimeException 嘗試上限內仍無法產生不重複編號（理論上不會發生）
+	 */
+	public static function encode_unique( int $order_id, array $used ): string {
+		$now = \time();
+		for ( $offset = 0; $offset < self::MAX_UNIQUE_ATTEMPTS; $offset++ ) {
+			$candidate = \substr( self::PREFIX . $order_id . self::SEPARATOR . ( $now + $offset ), 0, self::MAX_LENGTH );
+			if ( ! \in_array( $candidate, $used, true ) ) {
+				return $candidate;
+			}
+		}
+
+		throw new \RuntimeException( "無法為訂單 #{$order_id} 產生不重複的 PAYUNi MerTradeNo" );
 	}
 
 	/**
@@ -62,6 +84,16 @@ final class PayuniTradeNo {
 		}
 
 		$without_prefix = \substr( $trade_no, \strlen( self::PREFIX ) );
+
+		// 新格式 PCU{order_id}_{timestamp}：取分隔字元之前的數字段
+		$sep_pos = \strpos( $without_prefix, self::SEPARATOR );
+		if ( false !== $sep_pos ) {
+			$suffix         = \substr( $without_prefix, $sep_pos + 1 );
+			$without_prefix = \substr( $without_prefix, 0, $sep_pos );
+			if ( '' === $suffix || ! \ctype_digit( $suffix ) ) {
+				return null;
+			}
+		}
 
 		// 前綴後必須是純數字（order_id 十進位），否則視為不合法
 		if ( '' === $without_prefix || ! \ctype_digit( $without_prefix ) ) {

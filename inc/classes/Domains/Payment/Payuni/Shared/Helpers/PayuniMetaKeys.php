@@ -8,7 +8,9 @@
  * ⚠️ 全程 $order->get_meta() / update_meta_data()（HPOS 相容），禁用 get_post_meta()。
  *
  * Meta keys（對齊 CLAUDE.md §Order Meta Keys 規劃）：
- *  - _pc_payuni_trade_no       MerTradeNo（冪等鍵，建單時寫入，反查訂單主鍵）
+ *  - _pc_payuni_trade_no       目前（或已付款成功）的 MerTradeNo（查詢 / 請退款用）
+ *  - _pc_payuni_trade_no_history 送出過的全部 MerTradeNo（多筆 meta row；Notify / ReturnURL 反查訂單用）
+ *  - _pc_payuni_redirect_pending 顧客剛發起付款、待 order-received 頁導轉 PAYUNi 一次（'yes'）
  *  - _pc_payuni_payment_detail 付款結果明細（NotifyURL / ReturnURL 解密後的回傳）
  *  - _pc_payuni_payment_info   offline 取號繳費資訊（ATM 虛擬帳號 / CVS 繳費代碼 / ExpireDate）
  *  - _pc_payuni_capture_status 請退款 / 取消授權狀態機（''｜'captured'｜'voided'｜'refunded'）
@@ -25,6 +27,17 @@ final class PayuniMetaKeys {
 
 	/** @var string MerTradeNo（冪等鍵） */
 	private const TRADE_NO_KEY = '_pc_payuni_trade_no';
+
+	/**
+	 * @var string 送出過的全部 MerTradeNo
+	 *
+	 * 每次付款嘗試都換新編號（PAYUNi 10 分鐘內同編號重送回 UPP01007；取號後重送也會變成第二筆交易），
+	 * 舊編號的取號 / 繳費通知仍須能反查本訂單，故全部保留。
+	 */
+	private const TRADE_NO_HISTORY_KEY = '_pc_payuni_trade_no_history';
+
+	/** @var string 顧客已發起付款、待 order-received 頁導轉 PAYUNi（process_payment 寫入，導轉時清除） */
+	private const REDIRECT_PENDING_KEY = '_pc_payuni_redirect_pending';
 
 	/** @var string 付款結果明細 */
 	private const PAYMENT_DETAIL_KEY = '_pc_payuni_payment_detail';
@@ -54,6 +67,106 @@ final class PayuniMetaKeys {
 	public function update_trade_no( string $value ): void {
 		$this->_order->update_meta_data( self::TRADE_NO_KEY, $value );
 		$this->_order->save_meta_data();
+	}
+
+	/** @return array<int, string> 送出過的全部 MerTradeNo（依送出順序） */
+	public function get_trade_no_history(): array {
+		$rows = $this->_order->get_meta( self::TRADE_NO_HISTORY_KEY, false );
+		if ( ! \is_array( $rows ) ) {
+			return [];
+		}
+
+		$values = [];
+		foreach ( $rows as $row ) {
+			$value = $row instanceof \WC_Meta_Data ? ( $row->get_data()['value'] ?? null ) : null;
+			if ( \is_string( $value ) && '' !== $value && ! \in_array( $value, $values, true ) ) {
+				$values[] = $value;
+			}
+		}
+
+		return $values;
+	}
+
+	/** @return array<int, string> 本訂單用過的全部 MerTradeNo（目前編號 + 歷史），產生新編號時須避開 */
+	public function get_used_trade_nos(): array {
+		$used    = $this->get_trade_no_history();
+		$current = $this->get_trade_no();
+		if ( '' !== $current && ! \in_array( $current, $used, true ) ) {
+			$used[] = $current;
+		}
+
+		return $used;
+	}
+
+	/**
+	 * 開始一次新的付款嘗試：新編號設為目前編號、加入歷史、清除待導轉旗標（一次 save）
+	 *
+	 * 升級前寫入、尚未入歷史的目前編號（舊格式 PCU{order_id}）會先補進歷史，確保其通知仍能反查本訂單。
+	 *
+	 * @param string $trade_no 本次送往 PAYUNi 的 MerTradeNo
+	 * @return void
+	 */
+	public function start_payment_attempt( string $trade_no ): void {
+		$this->add_to_history( [ $this->get_trade_no(), $trade_no ] );
+		$this->_order->update_meta_data( self::TRADE_NO_KEY, $trade_no );
+		$this->_order->delete_meta_data( self::REDIRECT_PENDING_KEY );
+		$this->_order->save_meta_data();
+	}
+
+	/**
+	 * 把目前編號改寫為實際付款成功的 MerTradeNo（查詢 / 請退款要用付款成功的那筆）
+	 *
+	 * @param string $trade_no 付款成功的 MerTradeNo（空字串略過）
+	 * @return void
+	 */
+	public function settle_trade_no( string $trade_no ): void {
+		if ( '' === $trade_no || $trade_no === $this->get_trade_no() ) {
+			return;
+		}
+		$this->add_to_history( [ $this->get_trade_no(), $trade_no ] );
+		$this->_order->update_meta_data( self::TRADE_NO_KEY, $trade_no );
+		$this->_order->save_meta_data();
+	}
+
+	/**
+	 * MerTradeNo 是否為本訂單送出過的編號（目前編號或歷史）
+	 *
+	 * @param string $trade_no MerTradeNo
+	 * @return bool
+	 */
+	public function owns_trade_no( string $trade_no ): bool {
+		return '' !== $trade_no && \in_array( $trade_no, $this->get_used_trade_nos(), true );
+	}
+
+	/** @return bool 顧客是否已發起付款、待 order-received 頁導轉 PAYUNi */
+	public function is_redirect_pending(): bool {
+		return 'yes' === $this->_order->get_meta( self::REDIRECT_PENDING_KEY );
+	}
+
+	/**
+	 * 標記「顧客已發起付款，待 order-received 頁導轉 PAYUNi」（process_payment 時寫入）
+	 *
+	 * @return void
+	 */
+	public function mark_redirect_pending(): void {
+		$this->_order->update_meta_data( self::REDIRECT_PENDING_KEY, 'yes' );
+		$this->_order->save_meta_data();
+	}
+
+	/**
+	 * 將尚未入歷史的編號加入歷史（每個編號一筆 meta row；不 save，由呼叫端統一 save）
+	 *
+	 * @param array<int, string> $trade_nos MerTradeNo 清單（空字串略過）
+	 * @return void
+	 */
+	private function add_to_history( array $trade_nos ): void {
+		$history = $this->get_trade_no_history();
+		foreach ( $trade_nos as $value ) {
+			if ( '' !== $value && ! \in_array( $value, $history, true ) ) {
+				$this->_order->add_meta_data( self::TRADE_NO_HISTORY_KEY, $value, false );
+				$history[] = $value;
+			}
+		}
 	}
 
 	/** @return array<string, mixed> 取得付款結果明細（未設定回空陣列） */
@@ -119,14 +232,21 @@ final class PayuniMetaKeys {
 			return null;
 		}
 
-		$args = [
-			'limit'      => 1,
-			'meta_key'   => self::TRADE_NO_KEY, // phpcs:ignore
-			'meta_value' => $trade_no,          // phpcs:ignore
-		];
+		// 先找目前編號，再找歷史（舊付款嘗試的取號 / 繳費通知）
+		foreach ( [ self::TRADE_NO_KEY, self::TRADE_NO_HISTORY_KEY ] as $meta_key ) {
+			$orders = \wc_get_orders(
+				[
+					'limit'      => 1,
+					'meta_key'   => $meta_key, // phpcs:ignore
+					'meta_value' => $trade_no, // phpcs:ignore
+				]
+			);
+			$order  = \is_array( $orders ) ? \reset( $orders ) : false;
+			if ( $order instanceof \WC_Order ) {
+				return $order;
+			}
+		}
 
-		$orders = \wc_get_orders( $args );
-		$order  = \reset( $orders );
-		return ( $order instanceof \WC_Order ) ? $order : null;
+		return null;
 	}
 }

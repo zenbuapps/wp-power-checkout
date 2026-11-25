@@ -16,7 +16,7 @@
  *
  * ⚠️ 安全鐵律：
  *  - TradeAmt 一律 (int) ceil($order->get_total())，禁前端輸入（防金額竄改）。
- *  - MerTradeNo 為冪等鍵 PayuniTradeNo::generate(order_id)（同一訂單恆定）。
+ *  - MerTradeNo 為本次付款嘗試的編號（每次導轉換新，見 PayuniTradeNo::encode_unique）。
  *  - 外層 MerID 與 EncryptInfo 內層 MerID 必須一致（否則 PAYUNi 拒絕）。
  *
  * ⚠️ hash_key / hash_iv 為 private（不進 to_array），僅供內部加密 / 簽章。
@@ -107,13 +107,14 @@ final class PayuniRequestParams extends DTO {
 	/**
 	 * 由訂單組裝建單參數（自行讀取 PayuniSettingsDTO）
 	 *
-	 * 冪等：MerTradeNo 純由 order_id 衍生（PayuniTradeNo::generate），同一訂單恆定，
-	 * 不沿用 meta（即使尚未寫入 meta 也能算出相同值）。
+	 * MerTradeNo：導轉時由 gateway 以 PayuniTradeNo::encode_unique 產生本次付款嘗試的新編號傳入；
+	 * 未傳入時退回舊格式 PayuniTradeNo::generate（PCU{order_id}，僅供相容與測試）。
 	 *
-	 * @param \WC_Order $order 訂單
+	 * @param \WC_Order   $order    訂單
+	 * @param string|null $trade_no 本次付款嘗試的 MerTradeNo
 	 * @return self
 	 */
-	public static function instance( \WC_Order $order ): self {
+	public static function instance( \WC_Order $order, ?string $trade_no = null ): self {
 		$settings = PayuniSettingsDTO::instance();
 
 		// 金額一律來自訂單物件並無條件進位（禁前端輸入；避免少收）
@@ -122,7 +123,7 @@ final class PayuniRequestParams extends DTO {
 		$data = [
 			'MerID'      => $settings->merchant_id,
 			'Version'    => '2.0',
-			'MerTradeNo' => PayuniTradeNo::generate( $order->get_id() ),
+			'MerTradeNo' => $trade_no ?? PayuniTradeNo::generate( $order->get_id() ),
 			'TradeAmt'   => $total_amount,
 			'Timestamp'  => (string) \time(),
 			'ProdDesc'   => ItemName::get( $order ),
