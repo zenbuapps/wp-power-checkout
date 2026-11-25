@@ -247,7 +247,14 @@ const rules = reactive<FormRules<TFormData>>({
 		style="max-width: 40rem"
 	>
 		<el-alert
-			title="嘉里大榮 EDI 直串：目前只支援宅配（常溫 / 冷藏 / 冷凍），不支援貨到付款。嘉里大榮沒有取消託運單 API（未交寄的單不交貨即可，或洽營業所），也沒有貨態推送，貨況需於後台查詢。物流操作目前透過 REST API 進行。"
+			title="注意：目前 WordPress 後台的訂單頁還沒有「建立物流單／列印標籤／查詢貨況」按鈕。啟用後顧客可以在結帳時選這個運送方式，但出貨要由工程師用程式串接處理。如果你沒有工程師協助，請先不要啟用。"
+			type="warning"
+			class="mb-4"
+			:closable="false"
+			show-icon
+		/>
+		<el-alert
+			title="嘉里大榮宅配（直接連到嘉里大榮系統）：目前只支援宅配到府（常溫／冷藏／冷凍），不支援貨到付款。物流單建立後無法從這裡取消；還沒交寄的包裹不要交給司機即可，或打電話給營業所。嘉里大榮不會主動通知貨況。"
 			type="info"
 			class="mb-4"
 			:closable="false"

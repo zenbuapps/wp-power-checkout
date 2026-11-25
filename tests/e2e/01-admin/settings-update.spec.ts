@@ -18,7 +18,7 @@ import { BASE_URL, EP, PROVIDERS, EDGE } from '../fixtures/test-data.js'
 
 test.describe('POST /settings/{provider_id} — 更新服務設定', () => {
   let opts: ApiOptions
-  let originalSlpTitle = 'Shopline Payment (跳轉支付)'
+  let originalSlpTitle = 'SHOPLINE Payments（跳轉支付）'
 
   test.beforeAll(async ({ request }) => {
     const nonce = getNonce()

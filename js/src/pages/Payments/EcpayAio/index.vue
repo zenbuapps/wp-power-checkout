@@ -292,18 +292,44 @@ const rules = reactive<FormRules<TFormData>>({
 
 		<el-alert
 			v-if="!isTestMode"
-			title="正式模式請填入綠界商家後台的特店編號、HashKey、HashIV，否則無法付款"
 			type="info"
 			class="mb-4"
 			:closable="false"
 			show-icon
-		/>
+		>
+			<template #title>去哪裡找這三個值？</template>
+			<ol class="pl-4 my-1 list-decimal">
+				<li>
+					用電腦打開
+					<a
+						href="https://vendor.ecpay.com.tw"
+						target="_blank"
+						rel="noopener noreferrer"
+						>https://vendor.ecpay.com.tw</a
+					>
+					，登入綠界廠商管理後台。
+				</li>
+				<li>點左邊選單「系統開發管理」&gt;「系統介接設定」。</li>
+				<li>
+					找到「金流」用的特店編號（MerchantID）、HashKey、HashIV，分別貼到下方「特店編號」「HashKey」「HashIV」欄位。
+				</li>
+				<li>按最下方「儲存」。</li>
+			</ol>
+			<p class="my-1">
+				注意：金流、電子發票、電子收據、物流的 HashKey / HashIV
+				各不相同，這裡請貼「金流」那一組。沒填或填錯會無法付款。
+			</p>
+			<p class="my-1">如果在這一頁找不到金流用的金鑰，請聯絡綠界客服確認。</p>
+		</el-alert>
 
 		<el-form-item :required="!isTestMode" prop="merchantId">
 			<template #label>
 				<span class="flex gap-x-2 items-center">
-					<span>特店編號 MerchantID</span>
-					<el-tooltip content="綠界商家後台分配的特店編號" placement="top">
+					<span>特店編號（MerchantID）</span>
+					<el-tooltip
+						content="綠界廠商管理後台 &gt; 系統開發管理 &gt; 系統介接設定 裡的特店編號"
+						placement="top"
+					>
 						<el-icon><InfoFilled /></el-icon>
 					</el-tooltip>
 				</span>
@@ -315,11 +341,33 @@ const rules = reactive<FormRules<TFormData>>({
 			/>
 		</el-form-item>
 
-		<el-form-item :required="!isTestMode" prop="hashKey" label="HashKey">
+		<el-form-item :required="!isTestMode" prop="hashKey">
+			<template #label>
+				<span class="flex gap-x-2 items-center">
+					<span>HashKey</span>
+					<el-tooltip
+						content="同一頁的 HashKey，像密碼一樣，請勿外流"
+						placement="top"
+					>
+						<el-icon><InfoFilled /></el-icon>
+					</el-tooltip>
+				</span>
+			</template>
 			<TrimmedInput v-model="form.hashKey" :disabled="isTestMode" clearable />
 		</el-form-item>
 
-		<el-form-item :required="!isTestMode" prop="hashIv" label="HashIV">
+		<el-form-item :required="!isTestMode" prop="hashIv">
+			<template #label>
+				<span class="flex gap-x-2 items-center">
+					<span>HashIV</span>
+					<el-tooltip
+						content="同一頁的 HashIV，像密碼一樣，請勿外流"
+						placement="top"
+					>
+						<el-icon><InfoFilled /></el-icon>
+					</el-tooltip>
+				</span>
+			</template>
 			<TrimmedInput v-model="form.hashIv" :disabled="isTestMode" clearable />
 		</el-form-item>
 
@@ -340,7 +388,7 @@ const rules = reactive<FormRules<TFormData>>({
 				<span class="flex gap-x-2 items-center">
 					<span>在結帳頁提供信用卡分期</span>
 					<el-tooltip
-						content="需先於綠界廠商後台開通信用卡分期。開啟後顧客可在結帳頁選擇「不分期」或指定期數；選擇分期時，綠界付款頁只會提供信用卡分期（不含一次付清與其他付款方式），因此分期須由顧客在結帳頁主動選擇"
+						content="需先於綠界廠商管理後台開通信用卡分期。開啟後顧客可在結帳頁選擇「不分期」或指定期數；選擇分期時，綠界付款頁只會提供信用卡分期（不含一次付清與其他付款方式），因此分期須由顧客在結帳頁主動選擇"
 						placement="top"
 					>
 						<el-icon><InfoFilled /></el-icon>
@@ -355,7 +403,7 @@ const rules = reactive<FormRules<TFormData>>({
 				<span class="flex gap-x-2 items-center">
 					<span>信用卡分期期數</span>
 					<el-tooltip
-						content="一般分期為 3 / 6 / 12 / 18 / 24 期，請只勾選已於綠界開通的期數。30 期為永豐圓夢彈性分期（送出 30N），需另向綠界申請、僅限永豐信用卡，且訂單金額須達最低交易金額（可於綠界廠商後台查詢），未達時交易失敗"
+						content="一般分期為 3 / 6 / 12 / 18 / 24 期，請只勾選已於綠界開通的期數。30 期為永豐圓夢彈性分期（送出 30N），需另向綠界申請、僅限永豐信用卡，且訂單金額須達最低交易金額（可於綠界廠商管理後台查詢），未達時交易失敗"
 						placement="top"
 					>
 						<el-icon><InfoFilled /></el-icon>

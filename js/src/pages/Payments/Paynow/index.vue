@@ -137,7 +137,7 @@ const rules = reactive<FormRules<TFormData>>({
 		style="max-width: 40rem"
 	>
 		<el-alert
-			title="PayNow（立吉富）體系 1 Component SDK v2（站內付不跳轉）。顧客於本站內完成付款，支援信用卡 / ATM / 超商代碼 / LINE Pay / Apple Pay；付款結果以 PayNow Webhook 為準。"
+			title="PayNow 立吉富站內付：顧客不用離開你的網站，就能用信用卡、ATM、超商代碼、LINE Pay、Apple Pay 付款。訂單是否付款成功，以 PayNow 通知你網站的結果為準。"
 			type="info"
 			class="mb-4"
 			:closable="false"
@@ -284,21 +284,30 @@ const rules = reactive<FormRules<TFormData>>({
 
 		<el-alert
 			v-if="!isTestMode"
-			title="正式模式請填入 PayNow 商家後台的 PublicKey、PrivateKey，否則無法付款（PrivateKey 為後端機密，絕不外洩前端）"
 			type="info"
 			class="mb-4"
 			:closable="false"
 			show-icon
-		/>
+		>
+			<template #title>去哪裡拿這兩組金鑰？</template>
+			<ol class="pl-4 my-1 list-decimal">
+				<li>
+					寫信給 PayNow 立吉富客服（service@paynow.com.tw，電話
+					02-2521-5088），信件主旨填「申請 PayNow 串接私鑰
+					(PrivateKey)」，信中附上你的商家帳號。PayNow
+					會有專人跟你聯繫並提供「公鑰（PublicKey）」與「私鑰（PrivateKey）」。
+				</li>
+				<li>把「公鑰」貼到下方「公鑰」欄位、「私鑰」貼到「私鑰」欄位。</li>
+				<li>按最下方「儲存」。</li>
+			</ol>
+			<p class="my-1">私鑰等同密碼，請不要給別人看。沒填或填錯會無法付款。</p>
+		</el-alert>
 
 		<el-form-item :required="!isTestMode" prop="public_key">
 			<template #label>
 				<span class="flex gap-x-2 items-center">
-					<span>PublicKey 公鑰</span>
-					<el-tooltip
-						content="PayNow 公鑰，供前端 Component SDK 初始化用（非機密）"
-						placement="top"
-					>
+					<span>公鑰（PublicKey）</span>
+					<el-tooltip content="PayNow 給你的公鑰" placement="top">
 						<el-icon><InfoFilled /></el-icon>
 					</el-tooltip>
 				</span>
@@ -313,9 +322,9 @@ const rules = reactive<FormRules<TFormData>>({
 		<el-form-item :required="!isTestMode" prop="private_key">
 			<template #label>
 				<span class="flex gap-x-2 items-center">
-					<span>PrivateKey 私鑰</span>
+					<span>私鑰（PrivateKey）</span>
 					<el-tooltip
-						content="PayNow 私鑰，後端 Bearer Token 與 Webhook HMAC-SHA256 驗簽金鑰（機密，絕不公開）"
+						content="PayNow 給你的私鑰，等同密碼，請勿外流"
 						placement="top"
 					>
 						<el-icon><InfoFilled /></el-icon>

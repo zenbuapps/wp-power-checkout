@@ -198,31 +198,35 @@ const rules = reactive<FormRules<TFormData>>({
 
 		<el-alert
 			v-if="!isTestMode"
-			title="正式模式請填入藍新 ezPay 商家後台的商店代號、HashKey、HashIV，否則無法開立發票"
 			type="info"
 			class="mb-4"
 			:closable="false"
 			show-icon
-		/>
-
-		<el-alert
-			:title="
-				isTestMode
-					? '測試環境發票 API：https://cinv.ezpay.com.tw'
-					: '正式環境發票 API：https://inv.ezpay.com.tw'
-			"
-			type="warning"
-			class="mb-4"
-			:closable="false"
-			show-icon
-		/>
+		>
+			<template #title>去哪裡找這三個值？</template>
+			<ol class="pl-4 my-1 list-decimal">
+				<li>登入 ezPay 電子發票加值服務平台。</li>
+				<li>
+					到商店資料（API
+					串接）相關頁面，找到電子發票用的「商店代號」「HashKey」「HashIV」。
+				</li>
+				<li>分別貼到下方同名欄位，按最下方「儲存」。</li>
+			</ol>
+			<p class="my-1">
+				注意：這組跟藍新金流的金鑰不同，請不要貼錯。沒填或填錯會無法開立發票。
+			</p>
+			<p class="my-1">
+				如果在後台找不到這三個值，請聯絡 ezPay 客服，說明要「電子發票 API
+				串接」，請對方提供商店代號、HashKey、HashIV。
+			</p>
+		</el-alert>
 
 		<el-form-item :required="!isTestMode" prop="merchant_id">
 			<template #label>
 				<span class="flex gap-x-2 items-center">
-					<span>商店代號 MerchantID</span>
+					<span>商店代號（MerchantID）</span>
 					<el-tooltip
-						content="藍新 ezPay 電子發票商店代號（與金流可能不同）"
+						content="ezPay 電子發票給你的商店代號，跟藍新金流的商店代號可能不同"
 						placement="top"
 					>
 						<el-icon><InfoFilled /></el-icon>
@@ -240,7 +244,10 @@ const rules = reactive<FormRules<TFormData>>({
 			<template #label>
 				<span class="flex gap-x-2 items-center">
 					<span>HashKey</span>
-					<el-tooltip content="藍新 ezPay HashKey（32 bytes）" placement="top">
+					<el-tooltip
+						content="ezPay 電子發票給你的 HashKey，跟藍新金流的那組不同，請不要貼錯；等同密碼，請勿外流"
+						placement="top"
+					>
 						<el-icon><InfoFilled /></el-icon>
 					</el-tooltip>
 				</span>
@@ -252,7 +259,10 @@ const rules = reactive<FormRules<TFormData>>({
 			<template #label>
 				<span class="flex gap-x-2 items-center">
 					<span>HashIV</span>
-					<el-tooltip content="藍新 ezPay HashIV（16 bytes）" placement="top">
+					<el-tooltip
+						content="ezPay 電子發票給你的 HashIV，跟藍新金流的那組不同，請不要貼錯；等同密碼，請勿外流"
+						placement="top"
+					>
 						<el-icon><InfoFilled /></el-icon>
 					</el-tooltip>
 				</span>

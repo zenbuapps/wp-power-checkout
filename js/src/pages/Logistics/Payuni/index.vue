@@ -133,6 +133,14 @@ const rules = computed<FormRules<TFormData>>(() => {
 		:rules="rules"
 		style="max-width: 40rem"
 	>
+		<el-alert
+			title="注意：目前 WordPress 後台的訂單頁還沒有「建立物流單／列印標籤／查詢貨況」按鈕。啟用後顧客可以在結帳時選這個運送方式，但出貨要由工程師用程式串接處理。如果你沒有工程師協助，請先不要啟用。"
+			type="warning"
+			class="mb-4"
+			:closable="false"
+			show-icon
+		/>
+
 		<el-divider>基本設定</el-divider>
 
 		<el-form-item prop="title" label="顯示名稱">
@@ -251,27 +259,15 @@ const rules = computed<FormRules<TFormData>>(() => {
 					</el-tooltip>
 				</span>
 			</template>
-			<TrimmedInput
-				v-model="form.mer_id"
-				:disabled="isTestMode"
-				clearable
-			/>
+			<TrimmedInput v-model="form.mer_id" :disabled="isTestMode" clearable />
 		</el-form-item>
 
 		<el-form-item :required="!isTestMode" prop="hash_key" label="HashKey">
-			<TrimmedInput
-				v-model="form.hash_key"
-				:disabled="isTestMode"
-				clearable
-			/>
+			<TrimmedInput v-model="form.hash_key" :disabled="isTestMode" clearable />
 		</el-form-item>
 
 		<el-form-item :required="!isTestMode" prop="hash_iv" label="HashIV">
-			<TrimmedInput
-				v-model="form.hash_iv"
-				:disabled="isTestMode"
-				clearable
-			/>
+			<TrimmedInput v-model="form.hash_iv" :disabled="isTestMode" clearable />
 		</el-form-item>
 
 		<el-form-item class="[&_.el-form-item\_\_content]:justify-center">

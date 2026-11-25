@@ -147,6 +147,14 @@ const rules = computed<FormRules<TFormData>>(() => {
 		:rules="rules"
 		style="max-width: 40rem"
 	>
+		<el-alert
+			title="注意：目前 WordPress 後台的訂單頁還沒有「建立物流單／列印標籤／查詢貨況」按鈕。啟用後顧客可以在結帳時選這個運送方式，但出貨要由工程師用程式串接處理。如果你沒有工程師協助，請先不要啟用。"
+			type="warning"
+			class="mb-4"
+			:closable="false"
+			show-icon
+		/>
+
 		<el-divider>基本設定</el-divider>
 
 		<el-form-item prop="title" label="顯示名稱">
@@ -232,7 +240,7 @@ const rules = computed<FormRules<TFormData>>(() => {
 				<span class="flex gap-x-2 items-center">
 					<span>帳號類型</span>
 					<el-tooltip
-						content="B2C 大宗寄倉與 C2C 店到店為兩組獨立憑證，請選擇與綠界後台一致的帳號類型"
+						content="你跟綠界簽的是哪一種物流合約？B2C 大宗寄倉：商品先送到超商物流中心（通常是公司行號）；C2C 店到店：你自己拿包裹到超商寄（個人賣家常見）。不確定的話，請到綠界廠商管理後台查看物流相關的合約或設定，或直接問綠界客服。兩種的特店編號、HashKey、HashIV 不同"
 						placement="top"
 					>
 						<el-icon><InfoFilled /></el-icon>
@@ -252,21 +260,45 @@ const rules = computed<FormRules<TFormData>>(() => {
 
 		<el-alert
 			v-if="!isTestMode"
-			title="正式模式請填入綠界全方位物流後台的特店編號、HashKey、HashIV，否則無法建立物流單"
 			type="info"
 			class="mb-4"
 			:closable="false"
 			show-icon
-		/>
+		>
+			<template #title>去哪裡找這三個值？</template>
+			<ol class="pl-4 my-1 list-decimal">
+				<li>
+					用電腦打開
+					<a
+						href="https://vendor.ecpay.com.tw"
+						target="_blank"
+						rel="noopener noreferrer"
+						>https://vendor.ecpay.com.tw</a
+					>
+					，登入綠界廠商管理後台。
+				</li>
+				<li>點左邊選單「系統開發管理」&gt;「系統介接設定」。</li>
+				<li>
+					找到「物流」用的特店編號（MerchantID）、HashKey、HashIV，分別貼到下方「特店編號」「HashKey」「HashIV」欄位。
+				</li>
+				<li>按最下方「儲存」。</li>
+			</ol>
+			<p class="my-1">
+				注意：金流、電子發票、電子收據、物流的 HashKey / HashIV
+				各不相同，這裡請貼「物流」那一組；B2C 與 C2C 的特店編號、HashKey、HashIV
+				也不同，請貼到上方所選帳號類型對應的欄位。沒填或填錯會無法建立物流單。
+			</p>
+			<p class="my-1">如果在這一頁找不到物流用的金鑰，請聯絡綠界客服確認。</p>
+		</el-alert>
 
 		<!-- B2C 憑證組 -->
 		<template v-if="isB2c">
 			<el-form-item :required="!isTestMode" prop="b2c_merchant_id">
 				<template #label>
 					<span class="flex gap-x-2 items-center">
-						<span>B2C 特店編號 MerchantID</span>
+						<span>B2C 特店編號（MerchantID）</span>
 						<el-tooltip
-							content="綠界全方位物流 B2C 大宗寄倉特店編號"
+							content="綠界廠商管理後台 &gt; 系統開發管理 &gt; 系統介接設定 裡「物流」用的 B2C 大宗寄倉特店編號"
 							placement="top"
 						>
 							<el-icon><InfoFilled /></el-icon>
@@ -280,11 +312,18 @@ const rules = computed<FormRules<TFormData>>(() => {
 				/>
 			</el-form-item>
 
-			<el-form-item
-				:required="!isTestMode"
-				prop="b2c_hash_key"
-				label="B2C HashKey"
-			>
+			<el-form-item :required="!isTestMode" prop="b2c_hash_key">
+				<template #label>
+					<span class="flex gap-x-2 items-center">
+						<span>B2C HashKey</span>
+						<el-tooltip
+							content="同一頁的 HashKey，像密碼一樣，請勿外流"
+							placement="top"
+						>
+							<el-icon><InfoFilled /></el-icon>
+						</el-tooltip>
+					</span>
+				</template>
 				<TrimmedInput
 					v-model="form.b2c_hash_key"
 					:disabled="isTestMode"
@@ -292,11 +331,18 @@ const rules = computed<FormRules<TFormData>>(() => {
 				/>
 			</el-form-item>
 
-			<el-form-item
-				:required="!isTestMode"
-				prop="b2c_hash_iv"
-				label="B2C HashIV"
-			>
+			<el-form-item :required="!isTestMode" prop="b2c_hash_iv">
+				<template #label>
+					<span class="flex gap-x-2 items-center">
+						<span>B2C HashIV</span>
+						<el-tooltip
+							content="同一頁的 HashIV，像密碼一樣，請勿外流"
+							placement="top"
+						>
+							<el-icon><InfoFilled /></el-icon>
+						</el-tooltip>
+					</span>
+				</template>
 				<TrimmedInput
 					v-model="form.b2c_hash_iv"
 					:disabled="isTestMode"
@@ -310,9 +356,9 @@ const rules = computed<FormRules<TFormData>>(() => {
 			<el-form-item :required="!isTestMode" prop="c2c_merchant_id">
 				<template #label>
 					<span class="flex gap-x-2 items-center">
-						<span>C2C 特店編號 MerchantID</span>
+						<span>C2C 特店編號（MerchantID）</span>
 						<el-tooltip
-							content="綠界全方位物流 C2C 店到店特店編號"
+							content="綠界廠商管理後台 &gt; 系統開發管理 &gt; 系統介接設定 裡「物流」用的 C2C 店到店特店編號"
 							placement="top"
 						>
 							<el-icon><InfoFilled /></el-icon>
@@ -326,11 +372,18 @@ const rules = computed<FormRules<TFormData>>(() => {
 				/>
 			</el-form-item>
 
-			<el-form-item
-				:required="!isTestMode"
-				prop="c2c_hash_key"
-				label="C2C HashKey"
-			>
+			<el-form-item :required="!isTestMode" prop="c2c_hash_key">
+				<template #label>
+					<span class="flex gap-x-2 items-center">
+						<span>C2C HashKey</span>
+						<el-tooltip
+							content="同一頁的 HashKey，像密碼一樣，請勿外流"
+							placement="top"
+						>
+							<el-icon><InfoFilled /></el-icon>
+						</el-tooltip>
+					</span>
+				</template>
 				<TrimmedInput
 					v-model="form.c2c_hash_key"
 					:disabled="isTestMode"
@@ -338,11 +391,18 @@ const rules = computed<FormRules<TFormData>>(() => {
 				/>
 			</el-form-item>
 
-			<el-form-item
-				:required="!isTestMode"
-				prop="c2c_hash_iv"
-				label="C2C HashIV"
-			>
+			<el-form-item :required="!isTestMode" prop="c2c_hash_iv">
+				<template #label>
+					<span class="flex gap-x-2 items-center">
+						<span>C2C HashIV</span>
+						<el-tooltip
+							content="同一頁的 HashIV，像密碼一樣，請勿外流"
+							placement="top"
+						>
+							<el-icon><InfoFilled /></el-icon>
+						</el-tooltip>
+					</span>
+				</template>
 				<TrimmedInput
 					v-model="form.c2c_hash_iv"
 					:disabled="isTestMode"

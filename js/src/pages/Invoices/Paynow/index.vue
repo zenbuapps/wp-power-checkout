@@ -214,31 +214,26 @@ const rules = reactive<FormRules<TFormData>>({
 
 		<el-alert
 			v-if="!isTestMode"
-			title="正式模式請填入 PayNow 立吉富發票商家後台的 JWT-Token，否則無法開立發票"
 			type="info"
 			class="mb-4"
 			:closable="false"
 			show-icon
-		/>
-
-		<el-alert
-			:title="
-				isTestMode
-					? '測試環境發票 API：https://invoiceapi-dev.paynow.com.tw'
-					: '正式環境發票 API：https://invoiceapi-prod.paynow.com.tw'
-			"
-			type="warning"
-			class="mb-4"
-			:closable="false"
-			show-icon
-		/>
+		>
+			<template #title>去哪裡拿？</template>
+			<p class="my-1">
+				請向 PayNow 立吉富電子發票申請「商家
+				JWT-Token」（發票串接金鑰），拿到後貼到下方欄位並按最下方「儲存」。不知道怎麼申請的話，請聯絡
+				PayNow 立吉富客服（service@paynow.com.tw，電話 02-2521-5088）。
+			</p>
+			<p class="my-1">沒填或填錯會無法開立發票。</p>
+		</el-alert>
 
 		<el-form-item :required="!isTestMode" prop="jwt_token">
 			<template #label>
 				<span class="flex gap-x-2 items-center">
-					<span>商家 JWT-Token</span>
+					<span>發票串接金鑰（JWT-Token）</span>
 					<el-tooltip
-						content="PayNow 立吉富電子發票商家 JWT-Token（Bearer 認證；與金流憑證不同）"
+						content="PayNow 立吉富電子發票給你的串接金鑰，跟金流的公鑰、私鑰是不同的東西；等同密碼，請勿外流"
 						placement="top"
 					>
 						<el-icon><InfoFilled /></el-icon>

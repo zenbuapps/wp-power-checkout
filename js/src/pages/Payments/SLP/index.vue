@@ -347,12 +347,29 @@ const webhookEvents = [
         <!--			<TrimmedInput v-model="form.platformId" :disabled="isTestMode" clearable />-->
         <!--		</el-form-item>-->
 
+        <el-alert
+                type="info"
+                class="mb-4"
+                :closable="false"
+                show-icon
+        >
+            <template #title>去哪裡找這四個值？</template>
+            <ol class="pl-4 my-1 list-decimal">
+                <li>打開 <a href="https://login.shoplinepayments.com/zh-Hant/signin/" target="_blank" rel="noopener noreferrer">https://login.shoplinepayments.com/zh-Hant/signin/</a> ，登入 SHOPLINE Payments 商家後台。</li>
+                <li>點「設定」&gt;「開發者管理」。</li>
+                <li>依序複製頁面上的特店 ID（Merchant ID）、API Key、Client Key，貼到下方同名欄位。</li>
+                <li>把下方「Sign Key」欄位底下的通知網址（Webhook 網址）設定到 SHOPLINE Payments，設定後會得到一把 Sign Key，貼到「Sign Key」欄位。</li>
+                <li>按最下方「儲存」。</li>
+            </ol>
+            <p class="my-1">如果後台看不到「開發者管理」，或找不到設定通知網址的地方，請聯絡 SHOPLINE Payments 窗口協助開通。</p>
+        </el-alert>
+
         <el-form-item :required="!isTestMode" prop="merchantId">
             <template #label>
 				<span class="flex gap-x-2 items-center">
-					<span>Merchant Id</span>
+					<span>特店 ID（Merchant ID）</span>
 					<el-tooltip
-                            content="直連特店串接：SLP 分配的特店 ID；平台特店串接：SLP 分配的子特店 ID"
+                            content="SHOPLINE Payments 後台 > 設定 > 開發者管理 裡的特店 ID。如果你是透過平台開店，請填平台給你的子特店 ID"
                             placement="top"
                     >
 						<el-icon><InfoFilled /></el-icon>
@@ -362,7 +379,7 @@ const webhookEvents = [
             <TrimmedInput v-model="form.merchantId" :disabled="isTestMode" clearable />
         </el-form-item>
 
-        <el-form-item :required="!isTestMode" prop="apiKey" label="Api Key">
+        <el-form-item :required="!isTestMode" prop="apiKey" label="API Key">
             <TrimmedInput v-model="form.apiKey" :disabled="isTestMode" clearable />
         </el-form-item>
 
@@ -377,18 +394,24 @@ const webhookEvents = [
                 class="[&_p]:text-sm [&_p]:text-gray-500 [&_p]:mb-2 [&_p]:mt-0"
         >
             <TrimmedInput class="mb-4" v-model="form.signKey" clearable />
-            <p>提供以下資訊給 Shopline 窗口後取得 Sign Key</p>
+            <p>在 SHOPLINE Payments 後台設定下面這個通知網址（Webhook 網址）後，會得到一把 Sign Key，貼到這裡。</p>
             <p>
-                Webhook URL: <code>{{ apiUrl }}/power-checkout/slp/webhook</code>
+                通知網址（Webhook URL）：<code>{{ apiUrl }}/power-checkout/slp/webhook</code>
             </p>
-            <p class="flex flex-wrap gap-1">
-                Webhook Event: <code v-for="event in webhookEvents">{{ event }}</code>
+            <p>
+                通知事件：SHOPLINE Payments 預設會通知全部的交易與退款事件，通常不用另外設定；如果你的帳號曾經調整過通知項目，請聯絡 SHOPLINE Payments 窗口確認交易與退款事件都有開啟。
             </p>
+            <details class="text-sm text-gray-500">
+                <summary class="cursor-pointer">展開給工程師看：需要的事件代碼</summary>
+                <p class="flex flex-wrap gap-1 mt-2">
+                    <code v-for="event in webhookEvents" :key="event">{{ event }}</code>
+                </p>
+            </details>
         </el-form-item>
 
         <el-alert
                 v-if="form.allowPaymentMethodList.includes(EPaymentMethods.LINE_PAY)"
-                title="請先確認已在 SLP 後台啟用 LINE Pay，否則可能導致用戶無法結帳"
+                title="請先到 SHOPLINE Payments 後台確認已開通 LINE Pay，否則顧客選了會無法結帳"
                 type="warning"
                 class="mb-4"
                 :closable="false"
@@ -400,7 +423,7 @@ const webhookEvents = [
         </el-alert>
         <el-alert
                 v-if="form.allowPaymentMethodList.includes(EPaymentMethods.JKO_PAY)"
-                title="請先確認您已經在 Shopline Payment 後台申請並啟用街口支付，否則可能導致用戶無法結帳"
+                title="請先到 SHOPLINE Payments 後台申請並開通街口支付，否則顧客選了會無法結帳"
                 type="error"
                 class="mb-4"
                 :closable="false"
