@@ -214,7 +214,7 @@ const rules = reactive<FormRules<TFormData>>({
 
 		<el-alert
 			v-if="!isTestMode"
-			title="取得方式：向 PayNow 立吉富申請電子發票的「商家 JWT-Token」，貼到下方。不知道怎麼申請請問 PayNow 客服（service@paynow.com.tw）。"
+			title="取得方式：到 PayNow 申請頁（gateway.paynow.com.tw/connection）申請「商家 JWT-Token」，貼到下方。"
 			type="info"
 			class="mb-4"
 			:closable="false"
