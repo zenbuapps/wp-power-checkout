@@ -147,6 +147,14 @@ const rules = computed<FormRules<TFormData>>(() => {
 		:rules="rules"
 		style="max-width: 40rem"
 	>
+		<el-alert
+			title="目前後台訂單頁沒有建單、列印、查貨況按鈕，出貨需工程師用程式串接；沒有工程師請先別啟用。"
+			type="warning"
+			class="mb-4"
+			:closable="false"
+			show-icon
+		/>
+
 		<el-divider>基本設定</el-divider>
 
 		<el-form-item prop="title" label="顯示名稱">
@@ -232,7 +240,7 @@ const rules = computed<FormRules<TFormData>>(() => {
 				<span class="flex gap-x-2 items-center">
 					<span>帳號類型</span>
 					<el-tooltip
-						content="B2C 大宗寄倉與 C2C 店到店為兩組獨立憑證，請選擇與綠界後台一致的帳號類型"
+						content="B2C 大宗寄倉：商品先送物流中心（多為公司）；C2C 店到店：自己拿到超商寄（多為個人）。不確定請問綠界客服"
 						placement="top"
 					>
 						<el-icon><InfoFilled /></el-icon>
@@ -252,23 +260,39 @@ const rules = computed<FormRules<TFormData>>(() => {
 
 		<el-alert
 			v-if="!isTestMode"
-			title="正式模式請填入綠界全方位物流後台的特店編號、HashKey、HashIV，否則無法建立物流單"
 			type="info"
 			class="mb-4"
 			:closable="false"
 			show-icon
-		/>
+		>
+			<template #title>取得方式：</template>
+			<ol class="pl-4 my-1 list-decimal">
+				<li>
+					登入
+					<a
+						href="https://vendor.ecpay.com.tw"
+						target="_blank"
+						rel="noopener noreferrer"
+						>vendor.ecpay.com.tw</a
+					>
+				</li>
+				<li>點「系統開發管理 &gt; 系統介接設定」</li>
+				<li>
+					複製「物流」的特店編號、HashKey、HashIV，貼到上方所選帳號類型的欄位
+				</li>
+			</ol>
+			<p class="my-1">
+				※ B2C、C2C、金流各是不同組金鑰，別貼錯。找不到請問綠界客服。
+			</p>
+		</el-alert>
 
 		<!-- B2C 憑證組 -->
 		<template v-if="isB2c">
 			<el-form-item :required="!isTestMode" prop="b2c_merchant_id">
 				<template #label>
 					<span class="flex gap-x-2 items-center">
-						<span>B2C 特店編號 MerchantID</span>
-						<el-tooltip
-							content="綠界全方位物流 B2C 大宗寄倉特店編號"
-							placement="top"
-						>
+						<span>B2C 特店編號（MerchantID）</span>
+						<el-tooltip content="B2C 大宗寄倉的特店編號" placement="top">
 							<el-icon><InfoFilled /></el-icon>
 						</el-tooltip>
 					</span>
@@ -310,11 +334,8 @@ const rules = computed<FormRules<TFormData>>(() => {
 			<el-form-item :required="!isTestMode" prop="c2c_merchant_id">
 				<template #label>
 					<span class="flex gap-x-2 items-center">
-						<span>C2C 特店編號 MerchantID</span>
-						<el-tooltip
-							content="綠界全方位物流 C2C 店到店特店編號"
-							placement="top"
-						>
+						<span>C2C 特店編號（MerchantID）</span>
+						<el-tooltip content="C2C 店到店的特店編號" placement="top">
 							<el-icon><InfoFilled /></el-icon>
 						</el-tooltip>
 					</span>

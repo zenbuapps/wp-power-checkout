@@ -247,7 +247,14 @@ const rules = reactive<FormRules<TFormData>>({
 		style="max-width: 40rem"
 	>
 		<el-alert
-			title="嘉里大榮 EDI 直串：目前只支援宅配（常溫 / 冷藏 / 冷凍），不支援貨到付款。嘉里大榮沒有取消託運單 API（未交寄的單不交貨即可，或洽營業所），也沒有貨態推送，貨況需於後台查詢。物流操作目前透過 REST API 進行。"
+			title="目前後台訂單頁沒有建單、列印、查貨況按鈕，出貨需工程師用程式串接；沒有工程師請先別啟用。"
+			type="warning"
+			class="mb-4"
+			:closable="false"
+			show-icon
+		/>
+		<el-alert
+			title="嘉里大榮宅配：只支援宅配到府（常溫／冷藏／冷凍），不支援貨到付款；建單後無法在這裡取消。"
 			type="info"
 			class="mb-4"
 			:closable="false"

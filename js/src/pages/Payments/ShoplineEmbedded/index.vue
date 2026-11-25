@@ -93,7 +93,7 @@ const rules = reactive<FormRules<TFormData>>({
 		style="max-width: 40rem"
 	>
 		<el-alert
-			title="Shopline Payment (嵌入支付)：顧客於本站 order-received 頁的 SHOPLINE Payments 收銀台輸入信用卡完成付款（支援分期），付款結果以 SHOPLINE Payments Webhook 為準。"
+			title="SHOPLINE Payments（嵌入支付）：顧客在你網站的訂單完成頁直接刷卡（可分期）。"
 			type="info"
 			class="mb-4"
 			:closable="false"
@@ -102,16 +102,14 @@ const rules = reactive<FormRules<TFormData>>({
 
 		<el-alert type="warning" class="mb-4" :closable="false" show-icon>
 			<template #title>
-				商店憑證（特店 ID / API Key / Client Key / Sign Key）、測試 /
-				正式模式與分期期數共用 SHOPLINE Payments 導轉式設定，請至
+				金鑰、模式與分期共用
 				<el-link
 					type="primary"
 					@click="$router.push(ROUTER_MAPPER.shopline_payment_redirect)"
 				>
-					SHOPLINE Payments 導轉式設定
+					SHOPLINE Payments（跳轉支付）設定
 				</el-link>
-				填寫；嵌入式需要 Client Key，並請在 SHOPLINE Payments 後台訂閱 trade.*
-				Webhook 事件。
+				，Client Key 必填。
 			</template>
 		</el-alert>
 

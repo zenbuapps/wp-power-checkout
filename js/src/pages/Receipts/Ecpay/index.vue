@@ -274,17 +274,32 @@ const rules = reactive<FormRules<TFormData>>({
 
 		<el-alert
 			v-if="!isTestMode"
-			title="正式模式請填入綠界商家後台的特店編號、HashKey、HashIV，否則無法開立收據"
 			type="info"
 			class="mb-4"
 			:closable="false"
 			show-icon
-		/>
+		>
+			<template #title>取得方式：</template>
+			<ol class="pl-4 my-1 list-decimal">
+				<li>
+					登入
+					<a
+						href="https://vendor.ecpay.com.tw"
+						target="_blank"
+						rel="noopener noreferrer"
+						>vendor.ecpay.com.tw</a
+					>
+				</li>
+				<li>點「系統開發管理 &gt; 系統介接設定」</li>
+				<li>複製「電子收據」的特店編號、HashKey、HashIV，貼到下方</li>
+			</ol>
+			<p class="my-1">※ 跟金流不是同一組金鑰，別貼錯。找不到請問綠界客服。</p>
+		</el-alert>
 
 		<el-form-item :required="!isTestMode" prop="merchant_id">
 			<template #label>
 				<span class="flex gap-x-2 items-center">
-					<span>特店編號 MerchantID</span>
+					<span>特店編號（MerchantID）</span>
 					<el-tooltip
 						content="綠界電子收據特店編號（一般/公益與政治獻金可能不同）"
 						placement="top"

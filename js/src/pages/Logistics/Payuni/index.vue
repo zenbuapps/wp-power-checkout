@@ -133,6 +133,14 @@ const rules = computed<FormRules<TFormData>>(() => {
 		:rules="rules"
 		style="max-width: 40rem"
 	>
+		<el-alert
+			title="目前後台訂單頁沒有建單、列印、查貨況按鈕，出貨需工程師用程式串接；沒有工程師請先別啟用。"
+			type="warning"
+			class="mb-4"
+			:closable="false"
+			show-icon
+		/>
+
 		<el-divider>基本設定</el-divider>
 
 		<el-form-item prop="title" label="顯示名稱">
@@ -251,27 +259,15 @@ const rules = computed<FormRules<TFormData>>(() => {
 					</el-tooltip>
 				</span>
 			</template>
-			<TrimmedInput
-				v-model="form.mer_id"
-				:disabled="isTestMode"
-				clearable
-			/>
+			<TrimmedInput v-model="form.mer_id" :disabled="isTestMode" clearable />
 		</el-form-item>
 
 		<el-form-item :required="!isTestMode" prop="hash_key" label="HashKey">
-			<TrimmedInput
-				v-model="form.hash_key"
-				:disabled="isTestMode"
-				clearable
-			/>
+			<TrimmedInput v-model="form.hash_key" :disabled="isTestMode" clearable />
 		</el-form-item>
 
 		<el-form-item :required="!isTestMode" prop="hash_iv" label="HashIV">
-			<TrimmedInput
-				v-model="form.hash_iv"
-				:disabled="isTestMode"
-				clearable
-			/>
+			<TrimmedInput v-model="form.hash_iv" :disabled="isTestMode" clearable />
 		</el-form-item>
 
 		<el-form-item class="[&_.el-form-item\_\_content]:justify-center">

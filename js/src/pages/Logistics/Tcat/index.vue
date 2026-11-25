@@ -220,7 +220,14 @@ const rules = reactive<FormRules<TFormData>>({
 		style="max-width: 40rem"
 	>
 		<el-alert
-			title="黑貓宅急便直串（統一速達標準印單 API）：目前只支援宅配。建單後請於 24 小時內下載託運單 PDF；同一託運單號 2 小時內只能向黑貓查詢一次貨態（期間顯示上次結果）。物流操作目前透過 REST API 進行。"
+			title="目前後台訂單頁沒有建單、列印、查貨況按鈕，出貨需工程師用程式串接；沒有工程師請先別啟用。"
+			type="warning"
+			class="mb-4"
+			:closable="false"
+			show-icon
+		/>
+		<el-alert
+			title="黑貓宅急便宅配：只支援宅配到府。建單後 24 小時內要下載託運單 PDF；同一張單 2 小時內只能查一次貨況。"
 			type="info"
 			class="mb-4"
 			:closable="false"
@@ -308,7 +315,7 @@ const rules = reactive<FormRules<TFormData>>({
 					type="info"
 					:closable="false"
 					show-icon
-					title="地址查詢（ParsingAddress）不驗證契客代號與授權碼，以上結果只代表已連上黑貓；授權碼是否正確請以實際建單確認。"
+					title="此測試只確認連得上黑貓；契客代號、授權碼要第一次建單才知道對不對。"
 				/>
 			</div>
 		</el-form-item>

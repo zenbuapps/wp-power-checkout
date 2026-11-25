@@ -235,7 +235,14 @@ const rules = reactive<FormRules<TFormData>>({
 		style="max-width: 40rem"
 	>
 		<el-alert
-			title="新竹物流 EDI 直串：目前只支援宅配。建單時會一併取得標籤圖（列印不再呼叫新竹）；新竹沒有貨態推送，貨況需申請查貨服務後於後台查詢。物流操作目前透過 REST API 進行。"
+			title="目前後台訂單頁沒有建單、列印、查貨況按鈕，出貨需工程師用程式串接；沒有工程師請先別啟用。"
+			type="warning"
+			class="mb-4"
+			:closable="false"
+			show-icon
+		/>
+		<el-alert
+			title="新竹物流宅配：只支援宅配到府，建單時一併取得標籤。查貨況要先向新竹物流申請「查貨服務」。"
 			type="info"
 			class="mb-4"
 			:closable="false"
@@ -266,7 +273,7 @@ const rules = reactive<FormRules<TFormData>>({
 		</el-form-item>
 
 		<el-alert
-			title="測試站與正式站帳號不同：官方文件列的測試帳號（test / test1）實測屬正式環境，在測試站會回「「測試環境」請勿使用正式公司名稱或密碼」，測試站帳號請向新竹物流配合站所申請。"
+			title="測試帳號與正式帳號不同，測試帳號請向配合的新竹物流營業所申請。"
 			type="warning"
 			class="mb-4"
 			:closable="false"
