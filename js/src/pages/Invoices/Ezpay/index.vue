@@ -203,21 +203,15 @@ const rules = reactive<FormRules<TFormData>>({
 			:closable="false"
 			show-icon
 		>
-			<template #title>去哪裡找這三個值？</template>
+			<template #title>取得方式：</template>
 			<ol class="pl-4 my-1 list-decimal">
-				<li>登入 ezPay 電子發票加值服務平台。</li>
+				<li>登入 ezPay 電子發票平台</li>
 				<li>
-					到商店資料（API
-					串接）相關頁面，找到電子發票用的「商店代號」「HashKey」「HashIV」。
+					在商店的 API 串接資料中，複製商店代號、HashKey、HashIV，貼到下方
 				</li>
-				<li>分別貼到下方同名欄位，按最下方「儲存」。</li>
 			</ol>
 			<p class="my-1">
-				注意：這組跟藍新金流的金鑰不同，請不要貼錯。沒填或填錯會無法開立發票。
-			</p>
-			<p class="my-1">
-				如果在後台找不到這三個值，請聯絡 ezPay 客服，說明要「電子發票 API
-				串接」，請對方提供商店代號、HashKey、HashIV。
+				※ 跟藍新金流不是同一組金鑰，別貼錯。找不到請問 ezPay 客服。
 			</p>
 		</el-alert>
 
@@ -226,7 +220,7 @@ const rules = reactive<FormRules<TFormData>>({
 				<span class="flex gap-x-2 items-center">
 					<span>商店代號（MerchantID）</span>
 					<el-tooltip
-						content="ezPay 電子發票給你的商店代號，跟藍新金流的商店代號可能不同"
+						content="藍新 ezPay 電子發票商店代號（與金流可能不同）"
 						placement="top"
 					>
 						<el-icon><InfoFilled /></el-icon>
@@ -240,33 +234,11 @@ const rules = reactive<FormRules<TFormData>>({
 			/>
 		</el-form-item>
 
-		<el-form-item :required="!isTestMode" prop="hash_key">
-			<template #label>
-				<span class="flex gap-x-2 items-center">
-					<span>HashKey</span>
-					<el-tooltip
-						content="ezPay 電子發票給你的 HashKey，跟藍新金流的那組不同，請不要貼錯；等同密碼，請勿外流"
-						placement="top"
-					>
-						<el-icon><InfoFilled /></el-icon>
-					</el-tooltip>
-				</span>
-			</template>
+		<el-form-item :required="!isTestMode" prop="hash_key" label="HashKey">
 			<TrimmedInput v-model="form.hash_key" :disabled="isTestMode" clearable />
 		</el-form-item>
 
-		<el-form-item :required="!isTestMode" prop="hash_iv">
-			<template #label>
-				<span class="flex gap-x-2 items-center">
-					<span>HashIV</span>
-					<el-tooltip
-						content="ezPay 電子發票給你的 HashIV，跟藍新金流的那組不同，請不要貼錯；等同密碼，請勿外流"
-						placement="top"
-					>
-						<el-icon><InfoFilled /></el-icon>
-					</el-tooltip>
-				</span>
-			</template>
+		<el-form-item :required="!isTestMode" prop="hash_iv" label="HashIV">
 			<TrimmedInput v-model="form.hash_iv" :disabled="isTestMode" clearable />
 		</el-form-item>
 

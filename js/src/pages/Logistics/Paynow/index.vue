@@ -126,7 +126,7 @@ const rules = computed<FormRules<TFormData>>(() => {
 		style="max-width: 40rem"
 	>
 		<el-alert
-			title="注意：目前 WordPress 後台的訂單頁還沒有「建立物流單／列印標籤／查詢貨況」按鈕。啟用後顧客可以在結帳時選這個運送方式，但出貨要由工程師用程式串接處理。如果你沒有工程師協助，請先不要啟用。"
+			title="目前後台訂單頁沒有建單、列印、查貨況按鈕，出貨需工程師用程式串接；沒有工程師請先別啟用。"
 			type="warning"
 			class="mb-4"
 			:closable="false"
@@ -215,29 +215,18 @@ const rules = computed<FormRules<TFormData>>(() => {
 
 		<el-alert
 			v-if="!isTestMode"
+			title="請填入 PayNow 物流的商家帳號與 API 密碼，否則無法建立物流單；不知道密碼請問 PayNow 客服。"
 			type="info"
 			class="mb-4"
 			:closable="false"
 			show-icon
-		>
-			<template #title
-				>正式使用前，請填入 PayNow 立吉富物流的商家帳號與 API
-				密碼，否則無法建立物流單。</template
-			>
-			<p class="my-1">
-				不知道 API 密碼的話，請聯絡 PayNow
-				立吉富客服（service@paynow.com.tw，電話 02-2521-5088）。
-			</p>
-		</el-alert>
+		/>
 
 		<el-form-item :required="!isTestMode" prop="user_account">
 			<template #label>
 				<span class="flex gap-x-2 items-center">
 					<span>物流商家帳號</span>
-					<el-tooltip
-						content="登入 PayNow 立吉富物流後台時使用的商家帳號"
-						placement="top"
-					>
+					<el-tooltip content="登入 PayNow 物流後台用的帳號" placement="top">
 						<el-icon><InfoFilled /></el-icon>
 					</el-tooltip>
 				</span>
@@ -253,10 +242,7 @@ const rules = computed<FormRules<TFormData>>(() => {
 			<template #label>
 				<span class="flex gap-x-2 items-center">
 					<span>物流 API 密碼</span>
-					<el-tooltip
-						content="PayNow 立吉富物流給你的 API 密碼，等同密碼，請勿外流"
-						placement="top"
-					>
+					<el-tooltip content="等同密碼，勿外流" placement="top">
 						<el-icon><InfoFilled /></el-icon>
 					</el-tooltip>
 				</span>

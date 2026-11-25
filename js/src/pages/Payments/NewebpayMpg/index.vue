@@ -314,37 +314,26 @@ const rules = reactive<FormRules<TFormData>>({
 			:closable="false"
 			show-icon
 		>
-			<template #title>去哪裡找這三個值？</template>
+			<template #title>取得方式：</template>
 			<ol class="pl-4 my-1 list-decimal">
 				<li>
-					打開
-					<a
+					登入<a
 						href="https://www.newebpay.com"
 						target="_blank"
 						rel="noopener noreferrer"
-						>https://www.newebpay.com</a
+						>藍新金流</a
 					>
-					，登入藍新金流。
 				</li>
-				<li>點右上角「會員中心」&gt;「商店管理」。</li>
-				<li>在要使用的商店那一列，點「詳細資料」。</li>
-				<li>
-					複製「商店代號」貼到下方「商店代號」欄位；在「API
-					串接金鑰」區塊複製「HashKey」「HashIV」，貼到下方同名欄位。
-				</li>
-				<li>按最下方「儲存」。</li>
+				<li>點「會員中心 &gt; 商店管理」，在商店那一列點「詳細資料」</li>
+				<li>複製商店代號，及「API 串接金鑰」的 HashKey、HashIV，貼到下方</li>
 			</ol>
-			<p class="my-1">沒填或填錯會無法付款。</p>
 		</el-alert>
 
 		<el-form-item prop="version">
 			<template #label>
 				<span class="flex gap-x-2 items-center">
 					<span>藍新付款頁版本</span>
-					<el-tooltip
-						content="選 2.3 就好；除非藍新客服要你改，否則不用動"
-						placement="top"
-					>
+					<el-tooltip content="選 2.3 就好，除非藍新客服要你改" placement="top">
 						<el-icon><InfoFilled /></el-icon>
 					</el-tooltip>
 				</span>
@@ -363,10 +352,7 @@ const rules = reactive<FormRules<TFormData>>({
 			<template #label>
 				<span class="flex gap-x-2 items-center">
 					<span>商店代號（MerchantID）</span>
-					<el-tooltip
-						content="藍新金流 &gt; 會員中心 &gt; 商店管理 &gt; 詳細資料 裡的商店代號"
-						placement="top"
-					>
+					<el-tooltip content="藍新金流分配的商店代號" placement="top">
 						<el-icon><InfoFilled /></el-icon>
 					</el-tooltip>
 				</span>
@@ -378,33 +364,11 @@ const rules = reactive<FormRules<TFormData>>({
 			/>
 		</el-form-item>
 
-		<el-form-item :required="!isTestMode" prop="hashKey">
-			<template #label>
-				<span class="flex gap-x-2 items-center">
-					<span>HashKey</span>
-					<el-tooltip
-						content="同一頁「API 串接金鑰」區塊裡的 HashKey，等同密碼，請勿外流"
-						placement="top"
-					>
-						<el-icon><InfoFilled /></el-icon>
-					</el-tooltip>
-				</span>
-			</template>
+		<el-form-item :required="!isTestMode" prop="hashKey" label="HashKey">
 			<TrimmedInput v-model="form.hashKey" :disabled="isTestMode" clearable />
 		</el-form-item>
 
-		<el-form-item :required="!isTestMode" prop="hashIv">
-			<template #label>
-				<span class="flex gap-x-2 items-center">
-					<span>HashIV</span>
-					<el-tooltip
-						content="同一頁「API 串接金鑰」區塊裡的 HashIV，等同密碼，請勿外流"
-						placement="top"
-					>
-						<el-icon><InfoFilled /></el-icon>
-					</el-tooltip>
-				</span>
-			</template>
+		<el-form-item :required="!isTestMode" prop="hashIv" label="HashIV">
 			<TrimmedInput v-model="form.hashIv" :disabled="isTestMode" clearable />
 		</el-form-item>
 
@@ -425,7 +389,7 @@ const rules = reactive<FormRules<TFormData>>({
 				<span class="flex gap-x-2 items-center">
 					<span>在藍新付款頁顯示信用卡分期</span>
 					<el-tooltip
-						content="需先於藍新金流（會員中心 &gt; 商店管理）開通信用卡分期；開啟後顧客可在藍新付款頁自行選擇一次付清或分期"
+						content="需先於藍新金流開通信用卡分期；開啟後顧客可在藍新付款頁自行選擇一次付清或分期"
 						placement="top"
 					>
 						<el-icon><InfoFilled /></el-icon>

@@ -247,14 +247,14 @@ const rules = reactive<FormRules<TFormData>>({
 		style="max-width: 40rem"
 	>
 		<el-alert
-			title="注意：目前 WordPress 後台的訂單頁還沒有「建立物流單／列印標籤／查詢貨況」按鈕。啟用後顧客可以在結帳時選這個運送方式，但出貨要由工程師用程式串接處理。如果你沒有工程師協助，請先不要啟用。"
+			title="目前後台訂單頁沒有建單、列印、查貨況按鈕，出貨需工程師用程式串接；沒有工程師請先別啟用。"
 			type="warning"
 			class="mb-4"
 			:closable="false"
 			show-icon
 		/>
 		<el-alert
-			title="嘉里大榮宅配（直接連到嘉里大榮系統）：目前只支援宅配到府（常溫／冷藏／冷凍），不支援貨到付款。物流單建立後無法從這裡取消；還沒交寄的包裹不要交給司機即可，或打電話給營業所。嘉里大榮不會主動通知貨況。"
+			title="嘉里大榮宅配：只支援宅配到府（常溫／冷藏／冷凍），不支援貨到付款；建單後無法在這裡取消。"
 			type="info"
 			class="mb-4"
 			:closable="false"

@@ -189,14 +189,14 @@ const rules = reactive<FormRules<TFormData>>({
 			show-icon
 		/>
 		<el-alert
-			title="注意：目前 WordPress 後台的訂單頁還沒有「建立物流單／列印標籤／查詢貨況」按鈕。啟用後顧客可以在結帳時選這個運送方式，但出貨要由工程師用程式串接處理。如果你沒有工程師協助，請先不要啟用。"
+			title="目前後台訂單頁沒有建單、列印、查貨況按鈕，出貨需工程師用程式串接；沒有工程師請先別啟用。"
 			type="warning"
 			class="mb-4"
 			:closable="false"
 			show-icon
 		/>
 		<el-alert
-			title="順豐速運宅配（直接連到順豐系統）：目前只支援宅配到府，不支援貨到付款和退貨單。順豐收件前可以取消。"
+			title="順豐速運宅配：只支援宅配到府，不支援貨到付款和退貨單；順豐收件前可取消。"
 			type="info"
 			class="mb-4"
 			:closable="false"
@@ -227,33 +227,28 @@ const rules = reactive<FormRules<TFormData>>({
 		</el-form-item>
 
 		<el-alert type="info" class="mb-4" :closable="false" show-icon>
-			<template #title>去哪裡找這些值？</template>
+			<template #title>取得方式：</template>
 			<ol class="pl-4 my-1 list-decimal">
 				<li>
-					登入「順豐國際開放平台」控制台（<a
+					登入<a
 						href="https://openapi.sf.global/"
 						target="_blank"
 						rel="noopener noreferrer"
-						>https://openapi.sf.global/</a
-					>），點「應用列表」&gt; 你的應用 &gt;「詳情」，複製
-					appKey、appSecret、AES 金鑰，貼到下方同名欄位。
+						>順豐開放平台</a
+					>，點「應用列表 &gt; 詳情」
 				</li>
+				<li>複製 appKey、appSecret、AES 金鑰，貼到下方</li>
 				<li>
-					「客戶編碼」與「月結卡號」在順豐的 IUOP 客戶後台（<a
+					登入
+					<a
 						href="https://iuop.sf-express.com"
 						target="_blank"
 						rel="noopener noreferrer"
-						>https://iuop.sf-express.com</a
-					>，港澳台 / 海外客戶也可用
-					<a
-						href="https://iuop.sf.global/"
-						target="_blank"
-						rel="noopener noreferrer"
-						>https://iuop.sf.global/</a
-					>）查看；月結卡號要請順豐業務幫你綁定。
+						>IUOP 後台</a
+					>，複製客戶編碼、月結卡號（月結卡號需請順豐業務綁定）
 				</li>
-				<li>測試（沙箱）與正式的值不同，請不要混用。</li>
 			</ol>
+			<p class="my-1">※ 沙箱與正式的值不同，別混用。</p>
 		</el-alert>
 
 		<el-form-item prop="app_key" label="appKey">

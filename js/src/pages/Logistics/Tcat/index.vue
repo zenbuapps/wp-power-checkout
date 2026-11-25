@@ -220,14 +220,14 @@ const rules = reactive<FormRules<TFormData>>({
 		style="max-width: 40rem"
 	>
 		<el-alert
-			title="注意：目前 WordPress 後台的訂單頁還沒有「建立物流單／列印標籤／查詢貨況」按鈕。啟用後顧客可以在結帳時選這個運送方式，但出貨要由工程師用程式串接處理。如果你沒有工程師協助，請先不要啟用。"
+			title="目前後台訂單頁沒有建單、列印、查貨況按鈕，出貨需工程師用程式串接；沒有工程師請先別啟用。"
 			type="warning"
 			class="mb-4"
 			:closable="false"
 			show-icon
 		/>
 		<el-alert
-			title="黑貓宅急便宅配（直接連到統一速達系統）：目前只支援宅配到府。物流單建立後請在 24 小時內下載託運單 PDF。同一張託運單 2 小時內只能查一次貨況，期間會顯示上一次的結果。"
+			title="黑貓宅急便宅配：只支援宅配到府。建單後 24 小時內要下載託運單 PDF；同一張單 2 小時內只能查一次貨況。"
 			type="info"
 			class="mb-4"
 			:closable="false"
@@ -315,7 +315,7 @@ const rules = reactive<FormRules<TFormData>>({
 					type="info"
 					:closable="false"
 					show-icon
-					title="這個測試只確認「網站連得上黑貓」，還不能確認你的「契客代號」與「授權碼」是否正確；要等第一次實際建立物流單才知道。"
+					title="此測試只確認連得上黑貓；契客代號、授權碼要第一次建單才知道對不對。"
 				/>
 			</div>
 		</el-form-item>

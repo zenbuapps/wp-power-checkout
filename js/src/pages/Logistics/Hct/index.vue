@@ -235,14 +235,14 @@ const rules = reactive<FormRules<TFormData>>({
 		style="max-width: 40rem"
 	>
 		<el-alert
-			title="注意：目前 WordPress 後台的訂單頁還沒有「建立物流單／列印標籤／查詢貨況」按鈕。啟用後顧客可以在結帳時選這個運送方式，但出貨要由工程師用程式串接處理。如果你沒有工程師協助，請先不要啟用。"
+			title="目前後台訂單頁沒有建單、列印、查貨況按鈕，出貨需工程師用程式串接；沒有工程師請先別啟用。"
 			type="warning"
 			class="mb-4"
 			:closable="false"
 			show-icon
 		/>
 		<el-alert
-			title="新竹物流宅配（直接連到新竹物流系統）：目前只支援宅配到府。建立物流單時會一併拿到標籤圖片，可以直接列印。新竹物流不會主動通知貨況，想查詢貨況，要先向新竹物流申請「查貨服務」。"
+			title="新竹物流宅配：只支援宅配到府，建單時一併取得標籤。查貨況要先向新竹物流申請「查貨服務」。"
 			type="info"
 			class="mb-4"
 			:closable="false"
@@ -273,7 +273,7 @@ const rules = reactive<FormRules<TFormData>>({
 		</el-form-item>
 
 		<el-alert
-			title="測試帳號與正式帳號是分開的兩組，測試帳號請向你配合的新竹物流營業所申請。"
+			title="測試帳號與正式帳號不同，測試帳號請向配合的新竹物流營業所申請。"
 			type="warning"
 			class="mb-4"
 			:closable="false"

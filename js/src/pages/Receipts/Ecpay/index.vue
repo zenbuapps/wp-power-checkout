@@ -279,31 +279,21 @@ const rules = reactive<FormRules<TFormData>>({
 			:closable="false"
 			show-icon
 		>
-			<template #title>去哪裡找這三個值？</template>
+			<template #title>取得方式：</template>
 			<ol class="pl-4 my-1 list-decimal">
 				<li>
-					用電腦打開
+					登入
 					<a
 						href="https://vendor.ecpay.com.tw"
 						target="_blank"
 						rel="noopener noreferrer"
-						>https://vendor.ecpay.com.tw</a
+						>vendor.ecpay.com.tw</a
 					>
-					，登入綠界廠商管理後台。
 				</li>
-				<li>點左邊選單「系統開發管理」&gt;「系統介接設定」。</li>
-				<li>
-					找到「電子收據」用的特店編號（MerchantID）、HashKey、HashIV，分別貼到下方「特店編號」「HashKey」「HashIV」欄位。
-				</li>
-				<li>按最下方「儲存」。</li>
+				<li>點「系統開發管理 &gt; 系統介接設定」</li>
+				<li>複製「電子收據」的特店編號、HashKey、HashIV，貼到下方</li>
 			</ol>
-			<p class="my-1">
-				注意：請貼「電子收據」那一組，不要貼成金流的。公益 /
-				政治獻金收據需另向綠界申請，特店編號也不同。沒填或填錯會無法開立收據。
-			</p>
-			<p class="my-1">
-				如果在這一頁找不到電子收據用的金鑰，請聯絡綠界客服確認。
-			</p>
+			<p class="my-1">※ 跟金流不是同一組金鑰，別貼錯。找不到請問綠界客服。</p>
 		</el-alert>
 
 		<el-form-item :required="!isTestMode" prop="merchant_id">
@@ -311,7 +301,7 @@ const rules = reactive<FormRules<TFormData>>({
 				<span class="flex gap-x-2 items-center">
 					<span>特店編號（MerchantID）</span>
 					<el-tooltip
-						content="綠界廠商管理後台 &gt; 系統開發管理 &gt; 系統介接設定 裡「電子收據」用的特店編號（一般 / 公益與政治獻金可能不同）"
+						content="綠界電子收據特店編號（一般/公益與政治獻金可能不同）"
 						placement="top"
 					>
 						<el-icon><InfoFilled /></el-icon>
@@ -325,33 +315,11 @@ const rules = reactive<FormRules<TFormData>>({
 			/>
 		</el-form-item>
 
-		<el-form-item :required="!isTestMode" prop="hash_key">
-			<template #label>
-				<span class="flex gap-x-2 items-center">
-					<span>HashKey</span>
-					<el-tooltip
-						content="同一頁的 HashKey，像密碼一樣，請勿外流"
-						placement="top"
-					>
-						<el-icon><InfoFilled /></el-icon>
-					</el-tooltip>
-				</span>
-			</template>
+		<el-form-item :required="!isTestMode" prop="hash_key" label="HashKey">
 			<TrimmedInput v-model="form.hash_key" :disabled="isTestMode" clearable />
 		</el-form-item>
 
-		<el-form-item :required="!isTestMode" prop="hash_iv">
-			<template #label>
-				<span class="flex gap-x-2 items-center">
-					<span>HashIV</span>
-					<el-tooltip
-						content="同一頁的 HashIV，像密碼一樣，請勿外流"
-						placement="top"
-					>
-						<el-icon><InfoFilled /></el-icon>
-					</el-tooltip>
-				</span>
-			</template>
+		<el-form-item :required="!isTestMode" prop="hash_iv" label="HashIV">
 			<TrimmedInput v-model="form.hash_iv" :disabled="isTestMode" clearable />
 		</el-form-item>
 

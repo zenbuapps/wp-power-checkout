@@ -59,16 +59,14 @@
 
 ### SHOPLINE Payments 設定
 
-前往 **WooCommerce → 設定 → Power Checkout 設定 → 金流 → SHOPLINE Payments（跳轉支付）**（嵌入支付共用同一份商店憑證）
-
-特店 ID、API Key、Client Key 請登入 [SHOPLINE Payments 商家後台](https://login.shoplinepayments.com/zh-Hant/signin/)，於「設定 → 開發者管理」取得。
+前往 **WooCommerce → 設定 → Power Checkout 設定 → 金流 → SHOPLINE Payments（跳轉支付）**（嵌入支付共用這份設定）
 
 | 設定 | 說明 |
 |---|---|
-| 特店 ID（Merchant ID） | SHOPLINE Payments 後台「設定 → 開發者管理」裡的特店 ID；透過平台開店者填平台給的子特店 ID |
-| API Key | 同一頁的 API Key |
-| Client Key | 同一頁的 Client Key（嵌入支付必填） |
-| Sign Key | 設定下方 Webhook 網址後取得，每一個 Webhook 網址對應一把 Sign Key；找不到設定處請聯絡 SHOPLINE Payments 窗口 |
+| 特店 ID（Merchant ID） | [SHOPLINE Payments 商家後台](https://login.shoplinepayments.com/zh-Hant/signin/)「設定 → 開發者管理」 |
+| API Key | 同上 |
+| Client Key | 同上（嵌入支付必填） |
+| Sign Key | 設定下方 Webhook URL 後取得 |
 | 模式 | `test`（沙箱）或 `prod`（正式） |
 | 付款方式 | 勾選允許的付款方式 |
 | 最小/最大金額 | 限制訂單金額範圍 |
@@ -85,8 +83,8 @@ https://your-site.com/wp-json/power-checkout/slp/webhook
 
 | 設定 | 說明 |
 |---|---|
-| 統一編號 | 你公司（開發票的一方）的 8 位數統一編號，須與在光貿開通的帳號相同 |
-| App Key | 光貿客服提供的 API 串接金鑰（向光貿客服說明要「API 串接」申請），等同密碼請勿外流 |
+| 統一編號 | 你公司（開發票方）的統編 |
+| App Key | 向光貿客服申請「API 串接」取得 |
 | 稅率 | 預設 5%（0.05） |
 | 模式 | `test` 或 `prod` |
 | 自動開立狀態 | 訂單進入哪些狀態時自動開立發票 |

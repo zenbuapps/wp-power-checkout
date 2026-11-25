@@ -201,21 +201,12 @@ const rules = reactive<FormRules<TFormData>>({
 		</el-form-item>
 
 		<el-alert type="info" class="mb-4" :closable="false" show-icon>
-			<template #title>開始前你需要：</template>
+			<template #title>取得方式：</template>
 			<ol class="pl-4 my-1 list-decimal">
-				<li>
-					先跟光貿（Amego）申請電子發票服務，並用你公司的統一編號開通帳號。
-				</li>
-				<li>
-					聯絡光貿客服，說明要「API 串接」，請對方提供這個統編的「App Key」。
-				</li>
-				<li>
-					把你公司的統一編號貼到「統一編號」欄位、光貿給你的 App Key 貼到「App
-					Key」欄位。
-				</li>
-				<li>按最下方「儲存」。</li>
+				<li>向光貿申請電子發票服務，用公司統編開通帳號</li>
+				<li>聯絡光貿客服，申請「API 串接」的 App Key</li>
+				<li>把公司統編與 App Key 貼到下方</li>
 			</ol>
-			<p class="my-1">沒填或填錯會無法開立發票。</p>
 		</el-alert>
 
 		<el-form-item :required="!isTestMode" prop="invoice">
@@ -223,7 +214,7 @@ const rules = reactive<FormRules<TFormData>>({
 				<span class="flex gap-x-2 items-center">
 					<span>統一編號</span>
 					<el-tooltip
-						content="你公司（開發票的一方）的 8 位數統一編號，要跟在光貿開通的帳號相同"
+						content="你公司（開發票方）的統編，需與光貿帳號相同"
 						placement="top"
 					>
 						<el-icon><InfoFilled /></el-icon>
@@ -233,18 +224,7 @@ const rules = reactive<FormRules<TFormData>>({
 			<TrimmedInput v-model="form.invoice" :disabled="isTestMode" clearable />
 		</el-form-item>
 
-		<el-form-item :required="!isTestMode" prop="app_key">
-			<template #label>
-				<span class="flex gap-x-2 items-center">
-					<span>App Key</span>
-					<el-tooltip
-						content="光貿客服提供的 API 串接金鑰，等同密碼，請勿外流"
-						placement="top"
-					>
-						<el-icon><InfoFilled /></el-icon>
-					</el-tooltip>
-				</span>
-			</template>
+		<el-form-item :required="!isTestMode" prop="app_key" label="App Key">
 			<TrimmedInput v-model="form.app_key" :disabled="isTestMode" clearable />
 		</el-form-item>
 

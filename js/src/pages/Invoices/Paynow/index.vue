@@ -214,28 +214,18 @@ const rules = reactive<FormRules<TFormData>>({
 
 		<el-alert
 			v-if="!isTestMode"
+			title="取得方式：向 PayNow 立吉富申請電子發票的「商家 JWT-Token」，貼到下方。不知道怎麼申請請問 PayNow 客服（service@paynow.com.tw）。"
 			type="info"
 			class="mb-4"
 			:closable="false"
 			show-icon
-		>
-			<template #title>去哪裡拿？</template>
-			<p class="my-1">
-				請向 PayNow 立吉富電子發票申請「商家
-				JWT-Token」（發票串接金鑰），拿到後貼到下方欄位並按最下方「儲存」。不知道怎麼申請的話，請聯絡
-				PayNow 立吉富客服（service@paynow.com.tw，電話 02-2521-5088）。
-			</p>
-			<p class="my-1">沒填或填錯會無法開立發票。</p>
-		</el-alert>
+		/>
 
 		<el-form-item :required="!isTestMode" prop="jwt_token">
 			<template #label>
 				<span class="flex gap-x-2 items-center">
 					<span>發票串接金鑰（JWT-Token）</span>
-					<el-tooltip
-						content="PayNow 立吉富電子發票給你的串接金鑰，跟金流的公鑰、私鑰是不同的東西；等同密碼，請勿外流"
-						placement="top"
-					>
+					<el-tooltip content="跟金流的公鑰、私鑰不同" placement="top">
 						<el-icon><InfoFilled /></el-icon>
 					</el-tooltip>
 				</span>

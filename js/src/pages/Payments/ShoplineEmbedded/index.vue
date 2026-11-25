@@ -93,7 +93,7 @@ const rules = reactive<FormRules<TFormData>>({
 		style="max-width: 40rem"
 	>
 		<el-alert
-			title="SHOPLINE Payments（嵌入支付）：顧客下單後，在你網站的「訂單完成」頁直接輸入信用卡付款（支援分期），不用跳到別的網站。訂單是否付款成功，以 SHOPLINE Payments 通知你網站的結果為準。"
+			title="SHOPLINE Payments（嵌入支付）：顧客在你網站的訂單完成頁直接刷卡（可分期）。"
 			type="info"
 			class="mb-4"
 			:closable="false"
@@ -102,15 +102,14 @@ const rules = reactive<FormRules<TFormData>>({
 
 		<el-alert type="warning" class="mb-4" :closable="false" show-icon>
 			<template #title>
-				特店 ID（Merchant ID）、API Key、Client Key、Sign Key，以及測試 /
-				正式模式與分期期數，都和跳轉支付共用同一份設定，請到
+				金鑰、模式與分期共用
 				<el-link
 					type="primary"
 					@click="$router.push(ROUTER_MAPPER.shopline_payment_redirect)"
 				>
 					SHOPLINE Payments（跳轉支付）設定
 				</el-link>
-				填寫。嵌入支付一定要填 Client Key，否則結帳頁不會出現這個付款方式。
+				，Client Key 必填。
 			</template>
 		</el-alert>
 
