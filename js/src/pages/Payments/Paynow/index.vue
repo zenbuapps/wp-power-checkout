@@ -292,8 +292,14 @@ const rules = reactive<FormRules<TFormData>>({
 			<template #title>取得方式：</template>
 			<ol class="pl-4 my-1 list-decimal">
 				<li>
-					寫信給 PayNow 客服（service@paynow.com.tw），主旨「申請 PayNow
-					串接私鑰 (PrivateKey)」，附上商家帳號
+					到
+					<a
+						href="https://gateway.paynow.com.tw/connection"
+						target="_blank"
+						rel="noopener noreferrer"
+						>PayNow 申請頁</a
+					>
+					填表，主旨寫「申請 PayNow 串接私鑰 (PrivateKey)」
 				</li>
 				<li>把 PayNow 提供的公鑰、私鑰貼到下方</li>
 			</ol>

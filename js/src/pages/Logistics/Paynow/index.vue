@@ -215,7 +215,7 @@ const rules = computed<FormRules<TFormData>>(() => {
 
 		<el-alert
 			v-if="!isTestMode"
-			title="請填入 PayNow 物流的商家帳號與 API 密碼，否則無法建立物流單；不知道密碼請問 PayNow 客服。"
+			title="請填入 PayNow 物流的商家帳號與 API 密碼，否則無法建立物流單；API 密碼到 PayNow 申請頁（gateway.paynow.com.tw/connection）申請。"
 			type="info"
 			class="mb-4"
 			:closable="false"

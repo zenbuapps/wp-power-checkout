@@ -205,10 +205,17 @@ const rules = reactive<FormRules<TFormData>>({
 		>
 			<template #title>取得方式：</template>
 			<ol class="pl-4 my-1 list-decimal">
-				<li>登入 ezPay 電子發票平台</li>
 				<li>
-					在商店的 API 串接資料中，複製商店代號、HashKey、HashIV，貼到下方
+					登入
+					<a
+						href="https://inv.ezpay.com.tw"
+						target="_blank"
+						rel="noopener noreferrer"
+						>ezPay 電子發票平台</a
+					>
 				</li>
+				<li>點「商店管理」，在商店那一列點「詳細資料」</li>
+				<li>複製商店代號，及「API 串接金鑰」的 HashKey、HashIV，貼到下方</li>
 			</ol>
 			<p class="my-1">
 				※ 跟藍新金流不是同一組金鑰，別貼錯。找不到請問 ezPay 客服。
