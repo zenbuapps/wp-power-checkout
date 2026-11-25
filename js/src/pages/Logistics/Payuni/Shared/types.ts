@@ -33,6 +33,11 @@ export type TFormData = {
 	// --- 黑貓宅配 --- //
 	home_delivery_time_tag: '01' | '02' | '04'
 	home_spec: '1' | '2' | '3' | '4'
+
+	// --- 物流狀態自動查詢 --- //
+	status_polling: 'yes' | 'no'
+	status_polling_intervals: string
+	status_polling_max_days: string
 }
 
 /** 設定 API 回傳（含後端算好的唯讀網址，不回存） */

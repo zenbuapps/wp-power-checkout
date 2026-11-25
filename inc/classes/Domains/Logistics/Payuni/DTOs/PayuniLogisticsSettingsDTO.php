@@ -90,6 +90,19 @@ final class PayuniLogisticsSettingsDTO extends BaseSettingsDTO {
 
 	// endregion
 
+	// region 貨態自動查詢（沒設通知網址時的保底；ShipmentStatusPoller 讀這三個 option）
+
+	/** @var string 是否自動定期查詢物流狀態（yes / no；收到推播會自動停止該單的查詢） */
+	public string $status_polling = 'yes';
+
+	/** @var string 查詢間隔（分鐘，逗號分隔；最後一個間隔重複使用） */
+	public string $status_polling_intervals = '5,30,120,360';
+
+	/** @var string 最多自動查詢幾天 */
+	public string $status_polling_max_days = '30';
+
+	// endregion
+
 	// region Notify URL（公開可訪問，僅 80/443 port；留空 = 本站 REST 端點）
 
 	/** @var string 貨態 Notify URL（填到 PAYUNi 後台；留空時用本站 power-checkout/payuni/logistics/status-notify） */

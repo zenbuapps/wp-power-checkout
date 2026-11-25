@@ -67,10 +67,10 @@ enum PayuniShipStatus: string {
 		return match ( \trim( $status_code ) ) {
 			'91', '92', '98', '21' => ShippingState::PENDING,
 			'22'                   => ShippingState::ACCEPTED,
-			'31'                   => ShippingState::IN_TRANSIT,
+			'31', '81'             => ShippingState::IN_TRANSIT, // 81 門市關轉：重選門市後繼續配送，不是終點
 			'32'                   => $is_cvs ? ShippingState::READY_FOR_PICKUP : ShippingState::ARRIVED,
 			'11'                   => $is_cvs ? ShippingState::PICKED_UP : ShippingState::DELIVERED,
-			'33', '43', '44', '46', '81' => ShippingState::FAILED,
+			'33', '43', '44', '46' => ShippingState::FAILED,
 			'41'                   => ShippingState::CANCELLED,
 			'52'                   => ShippingState::EXPIRED_UNCLAIMED,
 			'51', '53', '55', '56', '82' => ShippingState::RETURNED,

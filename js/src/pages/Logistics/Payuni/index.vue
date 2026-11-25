@@ -59,6 +59,11 @@ const form = reactive<TFormData>({
 	// --- 黑貓宅配 --- //
 	home_delivery_time_tag: '04',
 	home_spec: '1',
+
+	// --- 物流狀態自動查詢 --- //
+	status_polling: 'yes',
+	status_polling_intervals: '5,30,120,360',
+	status_polling_max_days: '30',
 })
 
 // 後端算好的通知網址（唯讀，給商家貼到 PAYUNi 後台）
@@ -251,6 +256,57 @@ const rules = computed<FormRules<TFormData>>(() => {
 		<el-form-item prop="sender_mobile" label="寄件人手機">
 			<el-input v-model="form.sender_mobile" clearable />
 		</el-form-item>
+
+		<el-divider>物流狀態自動更新</el-divider>
+
+		<el-alert
+			type="info"
+			class="mb-4"
+			:closable="false"
+			show-icon
+			title="沒在 PAYUNi 後台設定貨態通知網址時，系統收不到物流狀態變化。開啟後，建立物流單後會自動定期向 PAYUNi 查詢；包裹送達、被取走、退回或取消就停止。收到 PAYUNi 的通知後，那張單也會自動停止查詢。"
+		/>
+
+		<el-form-item label="自動查詢物流狀態">
+			<el-switch
+				v-model="form.status_polling"
+				active-value="yes"
+				inactive-value="no"
+			/>
+		</el-form-item>
+
+		<template v-if="form.status_polling === 'yes'">
+			<el-form-item prop="status_polling_intervals">
+				<template #label>
+					<span class="flex gap-x-2 items-center">
+						<span>查詢間隔（分鐘）</span>
+						<el-tooltip
+							content="用逗號隔開，依序使用；最後一個數字會一直重複。預設 5,30,120,360 = 建單後 5 分鐘查第一次，再隔 30 分鐘、2 小時，之後每 6 小時查一次"
+							placement="top"
+						>
+							<el-icon><InfoFilled /></el-icon>
+						</el-tooltip>
+					</span>
+				</template>
+				<el-input
+					v-model="form.status_polling_intervals"
+					placeholder="5,30,120,360"
+					style="width: 16rem"
+				/>
+			</el-form-item>
+
+			<el-form-item prop="status_polling_max_days" label="最多查幾天">
+				<el-input-number
+					:model-value="Number(form.status_polling_max_days) || 30"
+					:min="1"
+					:max="180"
+					@update:model-value="
+						(value: number | undefined) =>
+							(form.status_polling_max_days = String(value ?? 30))
+					"
+				/>
+			</el-form-item>
+		</template>
 
 		<el-divider>API 設定</el-divider>
 

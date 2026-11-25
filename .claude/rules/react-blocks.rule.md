@@ -27,6 +27,7 @@ inc/assets/blocks/
   shopline_payment_embedded.tsx    # Active -- SLP embedded gateway (description only; the SDK mounts later on order-received via the Vue bundle `MountShoplineEmbedded()`, not in the block)
   tcat_pay.tsx                     # Active -- 黑貓PAY; sub-method select (credit / cvs_ibon / atm) via hooks from `@wordpress/element`; disables methods above the per-method limit (UX only, backend re-validates); value returned in onPaymentSetup paymentMethodData `pc_tcat_pay_method` (data from `tcat_pay_data.methods`)
   linepay.tsx                      # Active -- LINE Pay direct (api-redirect; description only, plain registerPaymentMethod pattern)
+  pc_logistics.tsx                 # Active -- NOT a payment method: shared logistics store picker for providers implementing ISupportsCheckoutStoreSelection (payuni_logistics); ExperimentalOrderShippingPackages slot fill; settings from window.pcLogistics (wp_localize_script), selected store from cart.extensions['pc_logistics']
   pc_free_shipping_hint.tsx        # Active -- NOT a payment method: free-shipping hint (registerPlugin + ExperimentalOrderMeta slot fill; data from Store API extension power-checkout.free_shipping_hint)
   types/types.d.ts                 # Shared type declarations
 ```
@@ -52,7 +53,7 @@ Components that use hooks must create elements with `createElement` / `useState`
 
 ## Enqueuing Block Scripts (ES Module)
 
-Vite emits ESM output (contains `import`). When PHP enqueues a block script with `wp_enqueue_script()`, it **must** also call `Plugin::instance()->add_module_handle($handle)` so it loads as `type="module"`; otherwise the browser reports `Cannot use import statement outside a module`. (Payment methods get this via `BlocksIntegration`; standalone scripts call it in their own `enqueue_block_assets()`: `pc_free_shipping_hint` (`FreeShippingHintService`), `pc_invoice` (`BlocksInvoiceIntegration`), `ecpay_logistics` (`BlocksLogisticsIntegration`).)
+Vite emits ESM output (contains `import`). When PHP enqueues a block script with `wp_enqueue_script()`, it **must** also call `Plugin::instance()->add_module_handle($handle)` so it loads as `type="module"`; otherwise the browser reports `Cannot use import statement outside a module`. (Payment methods get this via `BlocksIntegration`; standalone scripts call it in their own `enqueue_block_assets()`: `pc_free_shipping_hint` (`FreeShippingHintService`), `pc_invoice` (`BlocksInvoiceIntegration`), `ecpay_logistics` (`BlocksLogisticsIntegration`), `pc_logistics` (`CheckoutLogisticsIntegration`).)
 
 ## Payment Method Registration Pattern
 
