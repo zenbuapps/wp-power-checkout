@@ -67,7 +67,7 @@ test.describe('Edge Cases — 狀態邊界與特殊情境', () => {
 
       // 還原
       await wpPost(opts, EP.SETTINGS_UPDATE(PROVIDERS.SLP), {
-        title: 'Shopline Payment (跳轉支付)',
+        title: 'SHOPLINE Payments（跳轉支付）',
       })
     })
 

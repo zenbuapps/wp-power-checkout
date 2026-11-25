@@ -9,7 +9,7 @@
 
 ## 功能特色
 
-### 💳 Shopline Payment (SLP) 金流整合
+### 💳 SHOPLINE Payments 金流整合
 - 跳轉式付款（Redirect Gateway）
 - 支援付款方式：信用卡一次/分期、ATM 虛擬帳號、Apple Pay、LINE Pay、街口支付、中租零卡分期
 - HMAC-SHA256 Webhook 驗簽
@@ -57,22 +57,22 @@
 
 ## 設定說明
 
-### Shopline Payment 設定
+### SHOPLINE Payments 設定
 
-前往 **WooCommerce → 設定 → Power Checkout 設定 → 金流 → Shopline Payment**
+前往 **WooCommerce → 設定 → Power Checkout 設定 → 金流 → SHOPLINE Payments（跳轉支付）**（嵌入支付共用這份設定）
 
 | 設定 | 說明 |
 |---|---|
-| Merchant ID | SLP 分配的特店 ID |
-| API Key | API 介面金鑰 |
-| Client Key | 客戶端金鑰 |
-| Sign Key | Webhook 簽名密鑰（由 SLP 窗口提供） |
+| 特店 ID（Merchant ID） | [SHOPLINE Payments 商家後台](https://login.shoplinepayments.com/zh-Hant/signin/)「設定 → 開發者管理」 |
+| API Key | 同上 |
+| Client Key | 同上（嵌入支付必填） |
+| Sign Key | 設定下方 Webhook URL 後取得 |
 | 模式 | `test`（沙箱）或 `prod`（正式） |
 | 付款方式 | 勾選允許的付款方式 |
 | 最小/最大金額 | 限制訂單金額範圍 |
 | 付款期限 | ATM/CVS 付款截止時間（分鐘） |
 
-**Webhook URL（需設定至 SLP 後台）：**
+**Webhook URL（需設定至 SHOPLINE Payments 後台）：**
 ```
 https://your-site.com/wp-json/power-checkout/slp/webhook
 ```
@@ -83,8 +83,8 @@ https://your-site.com/wp-json/power-checkout/slp/webhook
 
 | 設定 | 說明 |
 |---|---|
-| 統編 | 商家統一編號 |
-| APP Key | 光貿 API 金鑰 |
+| 統一編號 | 你公司（開發票方）的統編 |
+| App Key | 向光貿客服申請「API 串接」取得 |
 | 稅率 | 預設 5%（0.05） |
 | 模式 | `test` 或 `prod` |
 | 自動開立狀態 | 訂單進入哪些狀態時自動開立發票 |
@@ -262,7 +262,7 @@ POST   /wp-json/power-checkout/v1/invoices/issue/{order_id}
 POST   /wp-json/power-checkout/v1/invoices/cancel/{order_id}
 ```
 
-### Webhook (Shopline Payment)
+### Webhook (SHOPLINE Payments)
 
 ```
 POST   /wp-json/power-checkout/slp/webhook

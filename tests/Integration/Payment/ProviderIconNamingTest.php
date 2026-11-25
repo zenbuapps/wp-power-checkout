@@ -4,7 +4,7 @@
  *
  * - v1.4.0 新增的 7 個 provider（linepay / tcat_pay / shopline_payment_embedded、
  *   tcat_logistics / hct_logistics / sf_express / kerrytj_logistics）都要有 icon
- * - LINE Pay 名稱不帶「(直連)」；SLP 兩個 gateway 為「Shopline Payment (跳轉支付 / 嵌入支付)」
+ * - LINE Pay 名稱不帶「(直連)」；SLP 兩個 gateway 為「SHOPLINE Payments（跳轉支付 / 嵌入支付）」（#28 統一官方名稱）
  * - option woocommerce_gateway_order 讀取時嵌入支付緊接在跳轉支付後面
  *
  * 執行：
@@ -86,8 +86,8 @@ final class ProviderIconNamingTest extends TestCase {
 	 */
 	public function test_顯示名稱(): void {
 		$this->assertSame( 'LINE Pay', ( new \ReflectionClass( LinepayGateway::class ) )->getDefaultProperties()['method_title'] );
-		$this->assertSame( 'Shopline Payment (跳轉支付)', ( new \ReflectionClass( RedirectGateway::class ) )->getDefaultProperties()['method_title'] );
-		$this->assertSame( 'Shopline Payment (嵌入支付)', ( new \ReflectionClass( EmbeddedGateway::class ) )->getDefaultProperties()['method_title'] );
+		$this->assertSame( 'SHOPLINE Payments（跳轉支付）', ( new \ReflectionClass( RedirectGateway::class ) )->getDefaultProperties()['method_title'] );
+		$this->assertSame( 'SHOPLINE Payments（嵌入支付）', ( new \ReflectionClass( EmbeddedGateway::class ) )->getDefaultProperties()['method_title'] );
 	}
 
 	/**

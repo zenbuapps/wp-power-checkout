@@ -147,6 +147,14 @@ const rules = computed<FormRules<TFormData>>(() => {
 		:rules="rules"
 		style="max-width: 40rem"
 	>
+		<el-alert
+			title="目前後台訂單頁沒有建單、列印、查貨況按鈕，出貨需工程師用程式串接；沒有工程師請先別啟用。"
+			type="warning"
+			class="mb-4"
+			:closable="false"
+			show-icon
+		/>
+
 		<el-divider>基本設定</el-divider>
 
 		<el-form-item prop="title" label="顯示名稱">

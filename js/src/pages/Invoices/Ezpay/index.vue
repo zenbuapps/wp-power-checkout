@@ -198,29 +198,27 @@ const rules = reactive<FormRules<TFormData>>({
 
 		<el-alert
 			v-if="!isTestMode"
-			title="正式模式請填入藍新 ezPay 商家後台的商店代號、HashKey、HashIV，否則無法開立發票"
 			type="info"
 			class="mb-4"
 			:closable="false"
 			show-icon
-		/>
-
-		<el-alert
-			:title="
-				isTestMode
-					? '測試環境發票 API：https://cinv.ezpay.com.tw'
-					: '正式環境發票 API：https://inv.ezpay.com.tw'
-			"
-			type="warning"
-			class="mb-4"
-			:closable="false"
-			show-icon
-		/>
+		>
+			<template #title>取得方式：</template>
+			<ol class="pl-4 my-1 list-decimal">
+				<li>登入 ezPay 電子發票平台</li>
+				<li>
+					在商店的 API 串接資料中，複製商店代號、HashKey、HashIV，貼到下方
+				</li>
+			</ol>
+			<p class="my-1">
+				※ 跟藍新金流不是同一組金鑰，別貼錯。找不到請問 ezPay 客服。
+			</p>
+		</el-alert>
 
 		<el-form-item :required="!isTestMode" prop="merchant_id">
 			<template #label>
 				<span class="flex gap-x-2 items-center">
-					<span>商店代號 MerchantID</span>
+					<span>商店代號（MerchantID）</span>
 					<el-tooltip
 						content="藍新 ezPay 電子發票商店代號（與金流可能不同）"
 						placement="top"
@@ -236,27 +234,11 @@ const rules = reactive<FormRules<TFormData>>({
 			/>
 		</el-form-item>
 
-		<el-form-item :required="!isTestMode" prop="hash_key">
-			<template #label>
-				<span class="flex gap-x-2 items-center">
-					<span>HashKey</span>
-					<el-tooltip content="藍新 ezPay HashKey（32 bytes）" placement="top">
-						<el-icon><InfoFilled /></el-icon>
-					</el-tooltip>
-				</span>
-			</template>
+		<el-form-item :required="!isTestMode" prop="hash_key" label="HashKey">
 			<TrimmedInput v-model="form.hash_key" :disabled="isTestMode" clearable />
 		</el-form-item>
 
-		<el-form-item :required="!isTestMode" prop="hash_iv">
-			<template #label>
-				<span class="flex gap-x-2 items-center">
-					<span>HashIV</span>
-					<el-tooltip content="藍新 ezPay HashIV（16 bytes）" placement="top">
-						<el-icon><InfoFilled /></el-icon>
-					</el-tooltip>
-				</span>
-			</template>
+		<el-form-item :required="!isTestMode" prop="hash_iv" label="HashIV">
 			<TrimmedInput v-model="form.hash_iv" :disabled="isTestMode" clearable />
 		</el-form-item>
 

@@ -125,6 +125,14 @@ const rules = computed<FormRules<TFormData>>(() => {
 		:rules="rules"
 		style="max-width: 40rem"
 	>
+		<el-alert
+			title="目前後台訂單頁沒有建單、列印、查貨況按鈕，出貨需工程師用程式串接；沒有工程師請先別啟用。"
+			type="warning"
+			class="mb-4"
+			:closable="false"
+			show-icon
+		/>
+
 		<el-divider>基本設定</el-divider>
 
 		<el-form-item prop="title" label="顯示名稱">
@@ -207,7 +215,7 @@ const rules = computed<FormRules<TFormData>>(() => {
 
 		<el-alert
 			v-if="!isTestMode"
-			title="正式模式請填入 PayNow 立吉富後台的商家帳號 user_account 與 API 密碼 apicode，否則無法建立物流單"
+			title="請填入 PayNow 物流的商家帳號與 API 密碼，否則無法建立物流單；不知道密碼請問 PayNow 客服。"
 			type="info"
 			class="mb-4"
 			:closable="false"
@@ -217,8 +225,8 @@ const rules = computed<FormRules<TFormData>>(() => {
 		<el-form-item :required="!isTestMode" prop="user_account">
 			<template #label>
 				<span class="flex gap-x-2 items-center">
-					<span>商家帳號 user_account</span>
-					<el-tooltip content="PayNow 立吉富物流後台的商家帳號" placement="top">
+					<span>物流商家帳號</span>
+					<el-tooltip content="登入 PayNow 物流後台用的帳號" placement="top">
 						<el-icon><InfoFilled /></el-icon>
 					</el-tooltip>
 				</span>
@@ -233,11 +241,8 @@ const rules = computed<FormRules<TFormData>>(() => {
 		<el-form-item :required="!isTestMode" prop="apicode">
 			<template #label>
 				<span class="flex gap-x-2 items-center">
-					<span>API 密碼 apicode</span>
-					<el-tooltip
-						content="PayNow 立吉富物流後台的商家 API 密碼（TripleDES 加密傳輸）"
-						placement="top"
-					>
+					<span>物流 API 密碼</span>
+					<el-tooltip content="等同密碼，勿外流" placement="top">
 						<el-icon><InfoFilled /></el-icon>
 					</el-tooltip>
 				</span>
