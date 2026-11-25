@@ -27,6 +27,7 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Logistics\Payuni\Http;
 
+use J7\PowerCheckout\Domains\Logistics\Payuni\DTOs\HomeTradeParams;
 use J7\PowerCheckout\Domains\Logistics\Payuni\DTOs\PayuniLogisticsSettingsDTO;
 use J7\PowerCheckout\Domains\Logistics\Payuni\DTOs\ShipMapParams;
 use J7\PowerCheckout\Domains\Logistics\Payuni\DTOs\TradeParams;
@@ -53,6 +54,21 @@ final class PayuniLogisticsApiClient {
 
 	/** @var string C2B 退貨便要號端點路徑 */
 	private const PATH_REFUND = '/api/logistics/refund';
+
+	/** @var string 黑貓宅配建單端點路徑 */
+	private const PATH_HOME_TRADE = '/api/home_delivery/trade';
+
+	/** @var string 黑貓宅配產編號並下載託運單 PDF 端點路徑（前景 Form POST → PDF） */
+	private const PATH_HOME_PDF = '/api/home_delivery/get_obt_number_pdf';
+
+	/** @var string 黑貓宅配退貨單端點路徑 */
+	private const PATH_HOME_REFUND = '/api/home_delivery/refund';
+
+	/** @var string 黑貓宅配建單 API 版本 */
+	private const VER_HOME_TRADE = '1.2';
+
+	/** @var string 黑貓宅配託運單 PDF / 退貨單 API 版本 */
+	private const VER_HOME_V1 = '1.0';
 
 	/** @var string ship_map API 版本 */
 	private const VER_SHIP_MAP = '1.1';
@@ -213,6 +229,95 @@ final class PayuniLogisticsApiClient {
 	}
 
 	/**
+	 * 建立黑貓宅配單（home_delivery/trade Ver 1.2）— 驗簽 + 解密
+	 *
+	 * @param HomeTradeParams $params 宅配建單參數
+	 *
+	 * @return array<string, mixed> 解密後內層（含 ShipTradeNo）
+	 * @throws \Exception 傳輸層 / 業務層失敗
+	 */
+	public function home_trade( HomeTradeParams $params ): array {
+		if (self::is_mock()) {
+			$response             = $this->mock_trade_response( $params->MerTradeNo );
+			$response['LgsType']  = 'HOME';
+			$response['ShipType'] = 2;
+			unset( $response['StoreID'], $response['StoreName'], $response['StoreAddr'] );
+			return $response;
+		}
+
+		$url = $this->settings->api_url . self::PATH_HOME_TRADE;
+		return $this->request_json( $url, $params->to_payuni_data(), self::VER_HOME_TRADE );
+	}
+
+	/**
+	 * 黑貓宅配：產宅配編號並下載託運單 PDF（get_obt_number_pdf；前景 Form POST）— 回 auto-submit form HTML
+	 *
+	 * @param array<int, string> $ship_trade_nos UNi 物流序號陣列
+	 * @param int                $goods_type     寄件型態（1=常溫 / 2=冷凍 / 3=冷藏）
+	 * @param string             $ship_date      出貨日期 YYYYMMDD（須大於今日）
+	 * @param string             $delivery_date  希望配達日期 YYYYMMDD（須大於出貨日）
+	 * @param int                $spec           規格（1=60cm / 2=90cm / 3=120cm / 4=150cm，冷凍冷藏不支援 4）
+	 *
+	 * @return string HTML body（auto-submit form）
+	 */
+	public function home_print( array $ship_trade_nos, int $goods_type, string $ship_date, string $delivery_date, int $spec ): string {
+		if (self::is_mock()) {
+			return $this->mock_print_html( $ship_trade_nos );
+		}
+
+		$data = [
+			'PostType'     => 1,
+			'PrintType'    => 1,
+			'ShipTradeNo'  => \implode( ',', \array_values( $ship_trade_nos ) ),
+			'GoodsType'    => $goods_type,
+			'LgsType'      => 'HOME',
+			'ShipType'     => 2,
+			'ShipDate'     => $ship_date,
+			'DeliveryDate' => $delivery_date,
+			'Spec'         => $spec,
+		];
+
+		$url      = $this->settings->api_url . self::PATH_HOME_PDF;
+		$envelope = $this->build_envelope( $data, self::VER_HOME_V1 );
+		return $this->build_auto_submit_form( $url, $envelope );
+	}
+
+	/**
+	 * 建立黑貓宅配退貨單（home_delivery/refund Ver 1.0）— 驗簽 + 解密
+	 *
+	 * 收件人（商店）欄位不傳時，PAYUNi 自動代入商店開通黑貓時設定的寄件人資料。
+	 *
+	 * @param array<string, mixed> $data 退貨單參數（ShipTradeNo / GoodsType / Consignor* / ProdDesc / Spec / ShipDate / DeliveryTimeTag）
+	 *
+	 * @return array<string, mixed> 解密後內層（含 OBTNumber）
+	 * @throws \Exception 傳輸層 / 業務層失敗
+	 */
+	public function home_refund( array $data ): array {
+		$data = \array_merge(
+			$data,
+			[
+				'LgsType'     => 'HOME',
+				'ShipType'    => 2,
+				'ServiceType' => 3, // 退貨固定取貨不付款
+			]
+		);
+
+		if (self::is_mock()) {
+			return [
+				'Status'      => 'SUCCESS',
+				'Message'     => '宅配退貨單建立成功',
+				'TradeType'   => 2,
+				'ShipTradeNo' => (string) ( $data['ShipTradeNo'] ?? '' ),
+				'OBTNumber'   => '900000000001',
+				'LgsType'     => 'HOME',
+			];
+		}
+
+		$url = $this->settings->api_url . self::PATH_HOME_REFUND;
+		return $this->request_json( $url, $data, self::VER_HOME_V1 );
+	}
+
+	/**
 	 * 組裝 4 欄位 envelope（MerID / Version / EncryptInfo / HashInfo）
 	 *
 	 * 內層業務參數一律注入 MerID + 即時 Timestamp（禁快取）。公開以利測試。
@@ -257,6 +362,15 @@ final class PayuniLogisticsApiClient {
 		$encrypt_info  = (string) ( $body['EncryptInfo'] ?? '' );
 		$received_hash = (string) ( $body['HashInfo'] ?? '' );
 
+		// 外層直接報錯、未附 EncryptInfo（例：憑證錯誤）→ 以外層 Status / Message 回報
+		if ('' === $encrypt_info && 'SUCCESS' !== (string) ( $body['Status'] ?? '' )) {
+			$code    = (string) ( $body['Status'] ?? 'UNKNOWN' );
+			$message = (string) ( $body['Message'] ?? '' );
+			$msg     = "PAYUNi 物流建立 / 查詢失敗（{$code}）" . ( '' !== $message ? "：{$message}" : '' );
+			$this->order->add_order_note( "❌ {$msg}" );
+			throw new \Exception( $msg );
+		}
+
 		// 第一道：HashInfo 驗簽（timing-safe；防竄改）
 		if (!$this->crypto->verify_hash( $encrypt_info, $received_hash )) {
 			$msg = 'PAYUNi 物流回應 HashInfo 驗簽失敗';
@@ -264,17 +378,22 @@ final class PayuniLogisticsApiClient {
 			throw new \Exception( $msg );
 		}
 
-		// 第二道：外層 Status（SUCCESS 才繼續；UNKNOWN / 錯誤碼皆視為失敗）
-		$status = (string) ( $body['Status'] ?? '' );
-		if ('SUCCESS' !== $status) {
-			$message = (string) ( $body['Message'] ?? 'unknown' );
-			$msg     = "PAYUNi 物流業務層失敗 Status={$status}：{$message}";
+		// 解密內層（業務錯誤時 PAYUNi 仍會回已簽章的 EncryptInfo，錯誤原因只在內層 Message）
+		$inner = $this->crypto->decrypt( $encrypt_info );
+
+		// 第二道：外層 / 內層 Status（SUCCESS 才繼續；UNKNOWN / 錯誤碼皆視為失敗）
+		$status       = (string) ( $body['Status'] ?? '' );
+		$inner_status = (string) ( $inner['Status'] ?? $status );
+		if ('SUCCESS' !== $status || 'SUCCESS' !== $inner_status) {
+			$code    = 'SUCCESS' !== $inner_status ? $inner_status : $status;
+			$message = (string) ( $inner['Message'] ?? $body['Message'] ?? '' );
+			$message = '' !== $message ? $message : '未提供原因';
+			$msg     = "PAYUNi 物流建立 / 查詢失敗（{$code}）：{$message}";
 			$this->order->add_order_note( "❌ {$msg}" );
 			throw new \Exception( $msg );
 		}
 
-		// 解密內層
-		return $this->crypto->decrypt( $encrypt_info );
+		return $inner;
 	}
 
 	/**

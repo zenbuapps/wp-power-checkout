@@ -21,12 +21,14 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Logistics\Payuni\Services;
 
+use J7\PowerCheckout\Domains\Logistics\Payuni\DTOs\HomeTradeParams;
 use J7\PowerCheckout\Domains\Logistics\Payuni\DTOs\PayuniLogisticsSettingsDTO;
 use J7\PowerCheckout\Domains\Logistics\Payuni\DTOs\ShipMapParams;
 use J7\PowerCheckout\Domains\Logistics\Payuni\DTOs\TradeParams;
 use J7\PowerCheckout\Domains\Logistics\Payuni\Http\PayuniLogisticsApiClient;
 use J7\PowerCheckout\Domains\Logistics\Payuni\Http\PayuniLogisticsCallback;
 use J7\PowerCheckout\Domains\Logistics\Payuni\Shared\Enums\PayuniLgsType;
+use J7\PowerCheckout\Domains\Logistics\Payuni\Shared\Enums\PayuniShipStatus;
 use J7\PowerCheckout\Domains\Logistics\Payuni\Shared\Enums\PayuniSubType;
 use J7\PowerCheckout\Domains\Logistics\Payuni\Shared\Helpers\PayuniCrypto;
 use J7\PowerCheckout\Domains\Logistics\Shared\Enums\LogisticsPaymentScenario;
@@ -43,6 +45,9 @@ final class PayuniLogisticsProvider extends BaseService implements ILogisticsPro
 	use \J7\WpUtils\Traits\SingletonTrait;
 
 	public const ID = 'payuni_logistics';
+
+	/** @var int 一天秒數（黑貓出貨 / 配達 / 取件日期計算） */
+	private const ONE_DAY = 86400;
 
 	/**
 	 * 記錄 log（info / error / warning 同步記錄到 order note）
@@ -202,6 +207,17 @@ final class PayuniLogisticsProvider extends BaseService implements ILogisticsPro
 	public function create_shipment( \WC_Order $order ): array {
 		$settings = PayuniLogisticsSettingsDTO::instance();
 		$meta     = new LogisticsMetaKeys( $order );
+
+		// 冪等：已成立物流單 → 直接回傳既有單號，不重複建單
+		$existing_ref = $meta->get_ref();
+		if ('' !== \trim( $existing_ref )) {
+			return [ 'logistics_id' => $existing_ref ];
+		}
+
+		if (PayuniSubType::HOME->value === $meta->get_sub_type()) {
+			return $this->create_home_shipment( $order, $meta, $settings );
+		}
+
 		$store_id = $meta->get_store_id();
 
 		// 前置驗證：超商取貨須先完成選店（有 StoreID）
@@ -261,6 +277,82 @@ final class PayuniLogisticsProvider extends BaseService implements ILogisticsPro
 	}
 
 	/**
+	 * 成立黑貓宅配單（home_delivery/trade Ver 1.2；不需選店，收件地址取訂單）
+	 *
+	 * @param \WC_Order                  $order    訂單
+	 * @param LogisticsMetaKeys          $meta     meta 存取器
+	 * @param PayuniLogisticsSettingsDTO $settings 設定
+	 *
+	 * @return array<string, mixed> 含 logistics_id（= ShipTradeNo）
+	 *
+	 * @throws \Exception 前置驗證 / 傳輸層 / 業務層失敗
+	 */
+	private function create_home_shipment( \WC_Order $order, LogisticsMetaKeys $meta, PayuniLogisticsSettingsDTO $settings ): array {
+		$address = $this->get_home_address( $order );
+		if ('' === $address) {
+			throw new \Exception( \__( '訂單沒有收件地址，無法建立黑貓宅配單', 'power_checkout' ) );
+		}
+
+		$total = (int) \round( (float) $order->get_total() );
+		if ($total < HomeTradeParams::MIN_AMOUNT || $total > HomeTradeParams::MAX_AMOUNT) {
+			throw new \Exception(
+				\sprintf(
+					/* translators: 1: 下限, 2: 上限, 3: 訂單金額 */
+					\__( 'PAYUNi 黑貓宅配的訂單金額須介於 %1$d ~ %2$d 元，這筆訂單是 %3$d 元', 'power_checkout' ),
+					HomeTradeParams::MIN_AMOUNT,
+					HomeTradeParams::MAX_AMOUNT,
+					$total
+				)
+			);
+		}
+
+		$scenario      = $meta->get_payment_scenario() ?: LogisticsPaymentScenario::ONLINE->value;
+		$is_collection = LogisticsPaymentScenario::COD->value === $scenario;
+
+		$time_tag = \in_array( $settings->home_delivery_time_tag, HomeTradeParams::DELIVERY_TIME_TAGS, true )
+		? $settings->home_delivery_time_tag
+		: '04';
+
+		$data = [
+			'MerTradeNo'       => $this->build_mer_trade_no( $order ),
+			'GoodsType'        => $this->get_goods_type( $order ),
+			'TradeAmt'         => $total,
+			// ServiceType：COD 取貨付款 → 1；線上付款 → 取貨不付款 3
+			'ServiceType'      => $is_collection ? 1 : 3,
+			'DeliveryTimeTag'  => $time_tag,
+			'Consignee'        => HomeTradeParams::truncate_width( $this->get_consignee_full( $order ), 30 ),
+			'ConsigneeMobile'  => $this->get_consignee_mobile( $order ),
+			'ConsigneeAddress' => HomeTradeParams::truncate_width( $address, 120 ),
+			'ProdDesc'         => HomeTradeParams::truncate_width( $this->get_prod_desc( $order ), 20 ),
+		];
+
+		// 取貨付款才帶 NotifyURL（ServiceType=1 才觸發取件付款完成 Notify）
+		if ($is_collection && '' !== $settings->notify_url) {
+			$data['NotifyURL'] = $settings->notify_url;
+		}
+
+		$decrypted = ( new PayuniLogisticsApiClient( $order ) )->home_trade( HomeTradeParams::parse( $data ) );
+
+		$ship_trade_no = (string) ( $decrypted['ShipTradeNo'] ?? '' );
+		if ('' === $ship_trade_no) {
+			throw new \Exception( \__( 'PAYUNi 未回傳 ShipTradeNo，黑貓宅配建單失敗', 'power_checkout' ) );
+		}
+
+		$meta->update_ref( $ship_trade_no );
+		$meta->update_provider_id( self::ID );
+
+		self::logger(
+			\sprintf( '✅ PAYUNi 黑貓宅配建單成功，ShipTradeNo：%s', $ship_trade_no ),
+			'info',
+			[ 'ship_trade_no' => $ship_trade_no ],
+			0,
+			$order
+		);
+
+		return [ 'logistics_id' => $ship_trade_no ];
+	}
+
+	/**
 	 * 查詢物流單（query）
 	 *
 	 * @param \WC_Order $order 訂單
@@ -280,10 +372,16 @@ final class PayuniLogisticsProvider extends BaseService implements ILogisticsPro
 		$lgs_type  = $this->resolve_lgs_type( $meta );
 		$decrypted = ( new PayuniLogisticsApiClient( $order ) )->query( $ref, $lgs_type );
 
+		// 剛建單尚無貨態時 PAYUNi 回 "-"
+		$status = (string) ( $decrypted['ShipStatus'] ?? '' );
+		$status = '-' === $status ? '' : $status;
+
 		return [
-			'logistics_id' => (string) ( $decrypted['ShipTradeNo'] ?? $ref ),
-			'status'       => (string) ( $decrypted['ShipStatus'] ?? '' ),
-			'store_info'   => [
+			'logistics_id'  => (string) ( $decrypted['ShipTradeNo'] ?? $ref ),
+			'status'        => $status,
+			'status_desc'   => '-' === (string) ( $decrypted['ShipStatusDesc'] ?? '-' ) ? '' : (string) $decrypted['ShipStatusDesc'],
+			'unified_state' => PayuniShipStatus::to_unified_state( $status, PayuniLgsType::HOME->value !== $lgs_type )->value,
+			'store_info'    => [
 				'store_id'   => (string) ( $decrypted['StoreID'] ?? '' ),
 				'store_name' => (string) ( $decrypted['StoreName'] ?? '' ),
 			],
@@ -309,8 +407,28 @@ final class PayuniLogisticsProvider extends BaseService implements ILogisticsPro
 
 		$settings = PayuniLogisticsSettingsDTO::instance();
 
-		// B2C 出貨日期不得為當日，取明天（YYYYMMDD；+86400 秒）
-		$ship_date = \gmdate( 'Ymd', \time() + 86400 );
+		// 黑貓宅配：產宅配編號並下載託運單 PDF（出貨日須大於今日、配達日須大於出貨日，皆不可為週日）
+		if (PayuniSubType::HOME->value === $meta->get_sub_type()) {
+			$ship_ts     = self::next_working_day( self::taipei_now() );
+			$delivery_ts = self::next_working_day( $ship_ts );
+			$goods_type  = $this->get_goods_type( $order );
+			$spec        = \max( 1, \min( 4, (int) $settings->home_spec ) );
+			// 冷凍 / 冷藏不支援 150cm
+			if (1 !== $goods_type && 4 === $spec) {
+				$spec = 3;
+			}
+
+			return ( new PayuniLogisticsApiClient( $order ) )->home_print(
+				[ $ref ],
+				$goods_type,
+				\gmdate( 'Ymd', $ship_ts ),
+				\gmdate( 'Ymd', $delivery_ts ),
+				$spec
+			);
+		}
+
+		// B2C 出貨日期不得為當日，取台灣時間的明天（台灣 00:00~08:00 時 UTC 還是前一天，不能直接用 time()）
+		$ship_date = \gmdate( 'Ymd', self::taipei_now() + self::ONE_DAY );
 
 		return ( new PayuniLogisticsApiClient( $order ) )->print_label(
 			[ $ref ],
@@ -342,7 +460,7 @@ final class PayuniLogisticsProvider extends BaseService implements ILogisticsPro
 	 * 建立退貨單（C2B 退貨便要號）
 	 *
 	 * 前置驗證：provider 啟用 → 訂單存在 → 已成立正向物流單（有 _pc_logistics_ref）→
-	 * NotifyURL 公開可訪問。呼叫 /api/logistics/refund 取得 12 碼退貨便編號
+	 * 呼叫 /api/logistics/refund 取得 12 碼退貨便編號（黑貓宅配改走 /api/home_delivery/refund）
 	 * （RefundODNO 8 + ValidationNo 4），寫入 _pc_logistics_return_ref。
 	 *
 	 * ⚠️ C2B 退貨便僅 B2C 大宗寄倉常溫商店可用（GoodsType 固定 1）。
@@ -355,8 +473,6 @@ final class PayuniLogisticsProvider extends BaseService implements ILogisticsPro
 	 * @throws \Exception 前置驗證 / 傳輸層 / 業務層失敗
 	 */
 	public function create_return( \WC_Order $order, array $ctx = [] ): array {
-		$settings = PayuniLogisticsSettingsDTO::instance();
-
 		// 前置驗證 1：provider 必須啟用
 		if (!ProviderUtils::is_enabled( self::ID )) {
 			throw new \Exception( \__( 'PAYUNi 統一金流物流未啟用', 'power_checkout' ) );
@@ -372,9 +488,8 @@ final class PayuniLogisticsProvider extends BaseService implements ILogisticsPro
 			throw new \Exception( \__( '尚未成立物流單，無法退貨', 'power_checkout' ) );
 		}
 
-		// 前置驗證 4：NotifyURL（逆物流貨態通知）須公開可訪問
-		if ('' !== $settings->notify_url) {
-			$this->assert_public_reply_url( $settings->notify_url );
+		if (PayuniSubType::HOME->value === $meta->get_sub_type()) {
+			return $this->create_home_return( $order, $meta, $ref );
 		}
 
 		$total = (int) \round( (float) $order->get_total() );
@@ -534,6 +649,161 @@ final class PayuniLogisticsProvider extends BaseService implements ILogisticsPro
 		}
 		// 超商取貨依商店設定的 B2C / C2C
 		return PayuniLogisticsSettingsDTO::instance()->cvs_lgs_type;
+	}
+
+	/**
+	 * 建立黑貓宅配退貨單（home_delivery/refund Ver 1.0）
+	 *
+	 * 退貨人 = 顧客（訂單收件人 / 地址），收件人 = 商店（不傳時 PAYUNi 自動帶入開通黑貓時設定的寄件人）。
+	 * 取件日期 D+1 起（避開週日），寫入 _pc_logistics_return_ref（OBTNumber）。
+	 *
+	 * @param \WC_Order         $order 訂單
+	 * @param LogisticsMetaKeys $meta  meta 存取器
+	 * @param string            $ref   原宅配單 ShipTradeNo
+	 *
+	 * @return array<string, mixed> 含 return_logistics_id（OBTNumber）
+	 *
+	 * @throws \Exception 傳輸層 / 業務層失敗
+	 */
+	private function create_home_return( \WC_Order $order, LogisticsMetaKeys $meta, string $ref ): array {
+		$settings = PayuniLogisticsSettingsDTO::instance();
+		$address  = $this->get_home_address( $order );
+		if ('' === $address) {
+			throw new \Exception( \__( '訂單沒有收件地址，無法建立黑貓退貨單', 'power_checkout' ) );
+		}
+
+		$goods_type = $this->get_goods_type( $order );
+		$spec       = \max( 1, \min( 4, (int) $settings->home_spec ) );
+		if (1 !== $goods_type && 4 === $spec) {
+			$spec = 3;
+		}
+
+		$decrypted = ( new PayuniLogisticsApiClient( $order ) )->home_refund(
+			[
+				'ShipTradeNo'      => $ref,
+				'GoodsType'        => $goods_type,
+				'DeliveryTimeTag'  => \in_array( $settings->home_delivery_time_tag, HomeTradeParams::DELIVERY_TIME_TAGS, true ) ? $settings->home_delivery_time_tag : '04',
+				'Consignor'        => HomeTradeParams::truncate_width( $this->get_consignee_full( $order ), 30 ),
+				'ConsignorMobile'  => $this->get_consignee_mobile( $order ),
+				'ConsignorAddress' => HomeTradeParams::truncate_width( $address, 120 ),
+				'ProdDesc'         => HomeTradeParams::truncate_width( $this->get_prod_desc( $order ), 20 ),
+				'Spec'             => $spec,
+				'ShipDate'         => \gmdate( 'Ymd', self::home_return_pickup_day( self::taipei_now() ) ),
+			]
+		);
+
+		$return_logistics_id = (string) ( $decrypted['OBTNumber'] ?? '' );
+		if ('' === $return_logistics_id) {
+			throw new \Exception( \__( 'PAYUNi 未回傳黑貓退貨編號，建立退貨單失敗', 'power_checkout' ) );
+		}
+
+		$meta->update_return_ref( $return_logistics_id );
+
+		self::logger(
+			\sprintf( '↩️ PAYUNi 黑貓宅配退貨單建立成功，退貨編號：%s', $return_logistics_id ),
+			'info',
+			[
+				'logistics_id'        => $ref,
+				'return_logistics_id' => $return_logistics_id,
+			],
+			0,
+			$order
+		);
+
+		return [ 'return_logistics_id' => $return_logistics_id ];
+	}
+
+	/**
+	 * 宅配收件地址（優先 shipping，沒有則用 billing；格式：縣市 + 鄉鎮市區 + 地址）
+	 *
+	 * @param \WC_Order $order 訂單
+	 * @return string
+	 */
+	private function get_home_address( \WC_Order $order ): string {
+		$has_shipping = '' !== \trim( $order->get_shipping_address_1() );
+		$parts        = $has_shipping
+		? [ $order->get_shipping_state(), $order->get_shipping_city(), $order->get_shipping_address_1(), $order->get_shipping_address_2() ]
+		: [ $order->get_billing_state(), $order->get_billing_city(), $order->get_billing_address_1(), $order->get_billing_address_2() ];
+
+		$country = $has_shipping ? $order->get_shipping_country() : $order->get_billing_country();
+		$states  = \WC()->countries->get_states( $country ?: 'TW' );
+		// 州代碼（如 TPE）轉成縣市名稱
+		if (\is_array( $states ) && isset( $states[ $parts[0] ] )) {
+			$parts[0] = (string) $states[ $parts[0] ];
+		}
+
+		return \trim( \implode( '', \array_map( 'trim', $parts ) ) );
+	}
+
+	/**
+	 * 宅配收件人全名（優先 shipping，沒有則用 billing；台灣習慣姓在前）
+	 *
+	 * @param \WC_Order $order 訂單
+	 * @return string
+	 */
+	private function get_consignee_full( \WC_Order $order ): string {
+		$name = \trim( $order->get_shipping_last_name() . $order->get_shipping_first_name() );
+		if ('' === $name) {
+			$name = \trim( $order->get_billing_last_name() . $order->get_billing_first_name() );
+		}
+		return '' !== $name ? $name : (string) \__( '收件人', 'power_checkout' );
+	}
+
+	/**
+	 * 黑貓託運單商品名稱（第一個商品名，多件加「等」）
+	 *
+	 * @param \WC_Order $order 訂單
+	 * @return string
+	 */
+	private function get_prod_desc( \WC_Order $order ): string {
+		$names = [];
+		foreach ( $order->get_items() as $item ) {
+			$names[] = \trim( \wp_strip_all_tags( $item->get_name() ) );
+		}
+		$names = \array_values( \array_filter( $names ) );
+		if (!$names) {
+			return (string) \__( '商品', 'power_checkout' );
+		}
+		return \count( $names ) > 1 ? $names[0] . '等' : $names[0];
+	}
+
+	/**
+	 * 台灣時間的「現在」（以 gmdate 讀取即為台灣當地日期 / 時分）
+	 *
+	 * PAYUNi / 黑貓的日期與 16:25 截止時間都以台灣時間計算，不能用站台時區（很多站台設定為 UTC）。
+	 *
+	 * @return int 位移後的 timestamp（只拿來給 gmdate 格式化）
+	 */
+	private static function taipei_now(): int {
+		return \time() + 8 * 3600;
+	}
+
+	/**
+	 * 下一個非週日的日期（黑貓出貨日 / 配達日 / 取件日不可為週日）
+	 *
+	 * @param int $timestamp 基準時間（台灣時間位移後的 timestamp）
+	 * @return int 至少 +1 天且非週日的 timestamp
+	 */
+	private static function next_working_day( int $timestamp ): int {
+		$next = $timestamp + self::ONE_DAY;
+		if ('0' === \gmdate( 'w', $next )) {
+			$next += self::ONE_DAY;
+		}
+		return $next;
+	}
+
+	/**
+	 * 黑貓退貨取件日：D+1 起；16:25 後申請最少 D+2（沙盒實測 HOME01141），且不可為週日
+	 *
+	 * @param int $now 現在時間（台灣時間位移後的 timestamp，見 taipei_now）
+	 * @return int 取件日 timestamp
+	 */
+	public static function home_return_pickup_day( int $now ): int {
+		$pickup = self::next_working_day( $now );
+		if ( (int) \gmdate( 'Hi', $now ) >= 1625) {
+			$pickup = self::next_working_day( $pickup );
+		}
+		return $pickup;
 	}
 
 	// endregion

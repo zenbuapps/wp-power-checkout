@@ -216,8 +216,13 @@ final class PayuniLogisticsCallback extends ApiBase {
 	 */
 	public function post_logistics_map_callback_callback( \WP_REST_Request $request ): \WP_REST_Response {
 		try {
+			// 訂單綁定 pc_oid / pc_key 編在 MapReturnURL 的 query string，加密門市資料在 POST body，兩者合併
+			// （只讀 body 時永遠拿不到 pc_oid，選好的門市不會寫進訂單）
 			/** @var array<string, mixed> $params */
-			$params = $request->get_body_params();
+			$params = \array_merge(
+				(array) $request->get_query_params(),
+				(array) $request->get_body_params()
+			);
 
 			$parsed = PayuniLogisticsProvider::instance()->parse_store_selection( $params );
 
