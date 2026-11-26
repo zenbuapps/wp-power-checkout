@@ -268,7 +268,7 @@ components:
       type: object
       description: |
         woocommerce_checkout_enhancement_settings（provider_id=checkout_enhancement）。
-        GET 時未儲存過的鍵以預設值補齊；所有開關預設 no。
+        GET 時未儲存過的鍵以預設值補齊；除 checkout_two_column（預設 yes）外，所有開關預設 no。
       required:
         - last_name_first
         - tw_address
@@ -280,6 +280,7 @@ components:
         - free_shipping_text_achieved
         - free_shipping_bg_color
         - free_shipping_text_color
+        - checkout_two_column
       properties:
         last_name_first:
           type: string
@@ -327,6 +328,11 @@ components:
           type: string
           pattern: "^#[0-9a-fA-F]{6}$"
           default: "#ffffff"
+        checkout_two_column:
+          type: string
+          enum: ["yes", "no"]
+          default: "yes"
+          description: 新版兩欄式結帳頁（左欄欄位 + 付款方式、右欄訂單摘要 + 下單按鈕；僅傳統結帳，區塊結帳不變；no = 舊版）
 
     CheckoutEnhancementSettingsUpdate:
       type: object
@@ -355,6 +361,8 @@ components:
           $ref: "#/components/schemas/CheckoutEnhancementSettings/properties/free_shipping_bg_color"
         free_shipping_text_color:
           $ref: "#/components/schemas/CheckoutEnhancementSettings/properties/free_shipping_text_color"
+        checkout_two_column:
+          $ref: "#/components/schemas/CheckoutEnhancementSettings/properties/checkout_two_column"
 
     FreeShippingHint:
       type: object

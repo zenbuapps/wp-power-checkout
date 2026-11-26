@@ -30,7 +30,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Kerry TJ 嘉里大榮** (`kerrytj_logistics`) — Home delivery only (EDIEntrance, Basic Auth); ambient/cold waybill ranges via `WaybillNumberAllocator` (pending-BLN reuse); create/print label/query/pickup-return + Kerry-specific admin REST (update shipment, detail PDF); no cancel API, no COD; [GAP: no test account/ranges — create/print/pickup live-unverified; only settings validation + AUTH-failure ping verified]
 - **PayNow Invoice** (`paynow_invoice`) — Taiwan e-invoice B2C/B2B via PayNow (立吉富體系 3); Bearer JWT-Token auth (no symmetric encryption); issue/cancel/allowance (open+void)/query; IInvoiceService + ISupportsAllowance + ISupportsQuery; B2C tax_amount=0 / B2B actual tax; carrier/donation mutual exclusion; zero-tax requires reason; allowance_data uses `allowance_number` key (not ezPay's `allowance_no`); parallel with Amego/ECPay/ezPay, switchable from admin; [GAP: sandbox jwt_token pending application; dev env invoiceapi-dev.paynow.com.tw / prod invoiceapi-prod.paynow.com.tw]
 - **Checkout Fields** — Classic checkout custom fields (including invoice info fields)
-- **Checkout Enhancement** (`checkout_enhancement`) — Virtual provider (no gateway/provider class); 6 independent toggles, all default `no`: TW county/district dropdown (`tw_address`), TW mobile format check (`tw_phone_validation`), last-name-first (`last_name_first`), hide address fields for all-virtual cart (`virtual_hide_address`), auto-complete all-virtual orders (`virtual_auto_complete`), free-shipping hint (`free_shipping_hint`; + text/color settings). Option `woocommerce_checkout_enhancement_settings`; classic + Blocks checkout (support differs per feature, see Checkout Enhancement Flow); coexists with woomp (admin UI warns to enable only one side)
+- **Checkout Enhancement** (`checkout_enhancement`) — Virtual provider (no gateway/provider class); 7 independent toggles; `checkout_two_column` (new two-column classic checkout) defaults `yes`, the other 6 default `no`: TW county/district dropdown (`tw_address`), TW mobile format check (`tw_phone_validation`), last-name-first (`last_name_first`), hide address fields for all-virtual cart (`virtual_hide_address`), auto-complete all-virtual orders (`virtual_auto_complete`), free-shipping hint (`free_shipping_hint`; + text/color settings), two-column classic checkout (`checkout_two_column`). Option `woocommerce_checkout_enhancement_settings`; classic + Blocks checkout (support differs per feature, see Checkout Enhancement Flow); coexists with woomp (admin UI warns to enable only one side)
 
 **Unified provider interface (branch `feat/unified-gateway-providers`)** — every payment gateway and logistics provider declares a capability meta (`get_provider_meta()`); see Unified Provider Interface section. Existing gateways/providers were only added to, never migrated (webhooks of the original gateways do not use `WebhookPipeline`).
 
@@ -259,7 +259,8 @@ inc/classes/
 │       │   ├── VirtualCartAddressService.php       # virtual_hide_address: classic unsets billing address fields; Blocks writes TW locale hidden + CSS-hides country (D15); locale cache reset
 │       │   ├── PhoneValidationService.php          # tw_phone_validation: `^09\d{8}$` after stripping spaces/hyphens; classic `$errors`, Blocks `RouteException` 400
 │       │   ├── VirtualOrderAutoCompleteService.php # virtual_auto_complete: queue on →processing, re-check + complete at `shutdown`; filter `power_checkout_virtual_auto_complete_should_complete`
-│       │   └── FreeShippingHintService.php         # free_shipping_hint: classic table row + Store API extension `power-checkout.free_shipping_hint` + Blocks script enqueue
+│       │   ├── FreeShippingHintService.php         # free_shipping_hint: classic table row + Store API extension `power-checkout.free_shipping_hint` + Blocks script enqueue
+│       │   └── TwoColumnLayoutService.php          # checkout_two_column (default yes): classic only; enqueues inc/assets/{css,js}/classic-two-column.*, body class `pc-tc-pending`, review-order thumbnails
 │       └── Shared/Helpers/
 │           ├── CartInspector.php                   # is_all_virtual_cart/order (all items is_virtual; mixed = physical), is_classic_checkout / is_block_checkout
 │           ├── FreeShippingCalculator.php          # Same algorithm as WC free_shipping method; returns FreeShippingStatusDTO|null
@@ -832,6 +833,7 @@ Domain `Domains/Checkout/`; virtual provider id `checkout_enhancement` (no gatew
 | Hide address for all-virtual cart (`virtual_hide_address`) | Yes | Yes (evaluated at page load; removing physical items mid-page does not re-hide) |
 | Auto-complete virtual orders (`virtual_auto_complete`) | Order status hook, checkout-agnostic | Same |
 | Free-shipping hint (`free_shipping_hint`) | Yes (cart totals + review-order table row) | Yes (Store API extension + slot fill) |
+| Two-column checkout (`checkout_two_column`, default **yes**) | Yes | **No** — Blocks checkout is already two-column natively; untouched |
 
 Existing TW display format (`DefaultSetting::modify_tw_address_formats`) stays always-on; there is no toggle for it. Name order / hidden fields apply only when country = TW (D3); "virtual" = **all** items `is_virtual()` (mixed cart = physical).
 
@@ -860,6 +862,16 @@ Existing TW display format (`DefaultSetting::modify_tw_address_formats`) stays a
 - Classic: `woocommerce_cart_totals_before_shipping` + `woocommerce_review_order_before_shipping` print a `<tr class="pc-free-shipping-hint">` (colors from settings, `{price}` replaced)
 - Blocks: Store API cart extension, namespace `power-checkout`, key `free_shipping_hint` (`null` or `{achieved, diff, text, bg_color, text_color}`), registered on `woocommerce_blocks_loaded`; frontend `inc/assets/blocks/pc_free_shipping_hint.tsx` renders via `registerPlugin` + `ExperimentalOrderMeta` slot fill (covers both Cart and Checkout blocks; text is `decodeEntities`-ed, no `dangerouslySetInnerHTML`)
 - Block script enqueued on `wp_enqueue_scripts` p20 only when toggle on + page has cart/checkout block + build file exists; must be registered as an ES module via `Plugin::instance()->add_module_handle($handle)`
+
+### Two-column classic checkout (`checkout_two_column`, default yes)
+
+- Look follows zenbu-site-2.0 checkout (left white fields / right `#f5f5f5` summary, black CTA, 8px cards, 6px inputs, two columns ≥ 960px). Applies only when toggle on + classic checkout + not an order-pay / order-received endpoint (`TwoColumnLayoutService::should_apply()`); toggle off = nothing enqueued, no body class, no thumbnails (old layout byte-for-byte)
+- **No WC template override, no field rename, no hook removal**: `classic-two-column.js` moves existing nodes at DOM ready. Split point = lowest common ancestor of `#customer_details` and `#order_review` inside `form.checkout` (form itself in the stock template; theme wrappers such as Blocksy `.ct-customer-details` / `.ct-order-review` are handled). Left `.pc-tc-main` = everything before the review branch + `#payment` (in `.pc-tc-payment-section`); right `.pc-tc-aside` = heading + `#order_review` + `.pc-tc-place-order-slot`
+- `update_order_review` replaces fragments in place by selector, so `#payment` / review table keep their new positions; the fresh `.place-order` inside the replaced `#payment` is moved to the slot on `updated_checkout` (same synchronous callback → exactly one `#place_order` in the DOM)
+- Structure not found → JS bails, all CSS is scoped under `.pc-tc-layout` so nothing applies; `body.pc-tc-pending` hides the form only until JS runs (CSS animation reveals it after 0.8s even if JS fails)
+- Mobile (< 960px): single column via `display: contents`; order = fields → summary → payment methods → place-order (slot moved to the end of the layout by JS)
+- Desktop sticky summary only when it fits the viewport (`pc-tc-sticky`), otherwise it scrolls
+- Review-order thumbnails: `woocommerce_cart_item_name` filter added only between `woocommerce_review_order_before/after_cart_contents` (cart page / mini cart unaffected); hidden by CSS outside `.pc-tc-layout`
 
 ---
 

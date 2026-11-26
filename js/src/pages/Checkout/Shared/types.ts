@@ -6,6 +6,9 @@
 export type TToggleValue = 'yes' | 'no'
 
 export type TCheckoutEnhancementSettings = {
+	// --- 版面 --- //
+	checkout_two_column: TToggleValue
+
 	// --- 地址與姓名 --- //
 	last_name_first: TToggleValue
 	tw_address: TToggleValue

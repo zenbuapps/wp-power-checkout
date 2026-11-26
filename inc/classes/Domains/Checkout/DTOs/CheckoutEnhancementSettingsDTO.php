@@ -28,6 +28,7 @@ final class CheckoutEnhancementSettingsDTO {
 		'virtual_hide_address',
 		'virtual_auto_complete',
 		'free_shipping_hint',
+		'checkout_two_column',
 	];
 
 	/** @var array<int, string> 色碼鍵（值僅接受 #RRGGBB） */
@@ -45,7 +46,7 @@ final class CheckoutEnhancementSettingsDTO {
 	/** @var string 未達門檻文案必須包含的金額佔位符 */
 	public const PRICE_PLACEHOLDER = '{price}';
 
-	/** @var array<string, string> 預設值（對齊 specs/erm.dbml 1.5.0） */
+	/** @var array<string, string> 預設值（對齊 specs/erm.dbml 1.5.0；checkout_two_column 為 1.6.0 新增，預設 yes） */
 	public const DEFAULTS = [
 		'last_name_first'             => 'no',
 		'tw_address'                  => 'no',
@@ -57,6 +58,7 @@ final class CheckoutEnhancementSettingsDTO {
 		'free_shipping_text_achieved' => '已享免運',
 		'free_shipping_bg_color'      => '#d36f6f',
 		'free_shipping_text_color'    => '#ffffff',
+		'checkout_two_column'         => 'yes',
 	];
 
 	/**
@@ -79,7 +81,7 @@ final class CheckoutEnhancementSettingsDTO {
 	}
 
 	/**
-	 * 取得完整 10 鍵設定（未儲存的鍵以預設值補齊）
+	 * 取得完整 11 鍵設定（未儲存的鍵以預設值補齊）
 	 *
 	 * @return array<string, string> 完整設定
 	 */
