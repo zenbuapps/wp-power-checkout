@@ -1,0 +1,1147 @@
+/**
+ * Power Checkout — 新版兩欄式結帳頁（傳統結帳）
+ *
+ * 視覺比照 zenbu-site-2.0 結帳頁（apps/web/.../checkout/[token]/CheckoutClient.tsx 的 token）：
+ * - 左欄白底、區塊卡片（1px #e5e7eb / 8px / 24px）、區塊標題 18px/600
+ * - 輸入框 10px 12px / 14px / 1px #d1d5db / 6px；focus：邊框 #1a1a1a + 0 0 0 3px rgba(26,26,26,.12)
+ * - 選項卡片（付款 / 運送）：每個選項獨立卡片 14px 16px / 6px，選中 1px #1a1a1a + #f9fafb 底；18px 自訂 radio
+ * - 右欄 #f5f5f5、標題 13px/600 大寫字距 .08em、56px 縮圖 + #52525b 數量徽章、總計 24px/700
+ * - 主按鈕 #1a1a1a（hover #2d2d2d）16px 24px / 6px / 15px/600
+ *
+ * 範圍：
+ * - 版面 / 元件樣式全部掛在 JS 建立的 .pc-tc-layout（或 .pc-tc-form）之下；JS 放棄時不會套用任何樣式
+ * - 例外 1：body.pc-tc-pending —— 版面套用前先淡出表單避免閃動，CSS 動畫 0.8s 後必定顯示（JS 失敗也不會卡住）
+ * - 例外 2：.pc-tc-thumb —— 縮圖預設隱藏，只在 .pc-tc-layout 內顯示
+ * - 例外 3：body.pc-tc-active（JS 成功套用版面後才加）下的優惠券區塊與錯誤訊息 ——
+ *   WC 的優惠券表單是 form.checkout 外的獨立 <form>，不能搬進版面（會變成巢狀 form）
+ *
+ * 權重：以 class 為主；只有要蓋過 WooCommerce / 佈景以 ID 撰寫的版面規則時才帶 ID
+ * （#customer_details 的 col-1/col-2 浮動寬度、#payment 的底色與清單、#place_order）。不使用 !important。
+ * 兩處需要更高權重，改用「:not(#pc-tc-scope)」（任何元素都符合，但權重等同一個 ID）而非 !important：
+ * - 版面重設：佈景以 `.woocommerce.woocommerce-checkout form #customer_details.col2-set`（Astra，1-4-1）、
+ *   `.woocommerce-checkout form #order_review`（Twenty Twenty-One，1-1-1）設浮動寬度 → 用兩個 :not() = 3-x-x
+ * - 表單控制項：佈景以 `.woocommerce-js form .form-row input.input-text`（Astra，0-4-2）、
+ *   `.woocommerce form .form-row select`（TT1，0-3-2）設欄位外觀 → 用一個 :not() = 1-x-x
+ *   站長若要覆寫這兩類，選擇器需帶一個以上的 ID（或同樣使用 :not(#…)）
+ *
+ * 兩欄門檻依「結帳區塊本身寬度」（container query，.pc-tc-shell ≥ 860px）而非視窗寬度：
+ * 佈景有側邊欄時（例：Storefront）內容區可能只有 600px，以視窗判斷會把兩欄擠壞。
+ */
+
+body.pc-tc-pending form.checkout.woocommerce-checkout {
+	opacity: 0;
+	animation: pc-tc-reveal 0s linear 0.8s forwards;
+}
+
+@keyframes pc-tc-reveal {
+	to {
+		opacity: 1;
+	}
+}
+
+.pc-tc-thumb {
+	display: none;
+}
+
+/* JS 偵測到 form.checkout 是收縮包覆的 display（例：TT1 的 table）時加上，避免版面寬度歸零 */
+form.checkout.pc-tc-form.pc-tc-form--block {
+	display: block;
+	width: auto;
+}
+
+/* 外層容器：讓版面依自身寬度切換單 / 雙欄；佈景可能把 form.checkout 設成 grid / flex（例：Blocksy），佔滿整列 */
+.pc-tc-shell {
+	container: pc-tc / inline-size;
+	grid-column: 1 / -1;
+	flex: 1 1 100%;
+	width: 100%;
+	max-width: 100%;
+	margin: 0;
+	padding: 0;
+}
+
+/* ───────── tokens（比照 zenbu-site-2.0 CheckoutClient 的 C 色票） ───────── */
+.pc-tc-layout,
+.pc-tc-active {
+	--pc-tc-fg: #1a1a1a;
+	--pc-tc-muted: #6b7280;
+	--pc-tc-subtle: #9ca3af;
+	--pc-tc-line: #e5e7eb;
+	--pc-tc-line-soft: #ececec;
+	--pc-tc-card-bg: #ffffff;
+	--pc-tc-selected-bg: #f9fafb;
+	--pc-tc-aside-bg: #f5f5f5;
+	--pc-tc-input-border: #d1d5db;
+	--pc-tc-focus-ring: 0 0 0 3px rgba(26, 26, 26, 0.12);
+	--pc-tc-cta-bg: #1a1a1a;
+	--pc-tc-cta-bg-hover: #2d2d2d;
+	--pc-tc-cta-fg: #ffffff;
+	--pc-tc-disabled-bg: #6b7280;
+	--pc-tc-danger: #dc2626;
+	--pc-tc-danger-bg: #fef2f2;
+	--pc-tc-danger-line: #fecaca;
+	--pc-tc-success: #047857;
+	--pc-tc-badge-bg: #52525b;
+	--pc-tc-radius-card: 8px;
+	--pc-tc-radius-input: 6px;
+	--pc-tc-gap-section: 16px;
+	--pc-tc-sticky-top: calc(var(--wp-admin--admin-bar--height, 0px) + 24px);
+}
+
+.pc-tc-layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 24px;
+	align-items: start;
+	width: 100%;
+	max-width: 100%;
+	margin: 0;
+	box-sizing: border-box;
+	color: var(--pc-tc-fg);
+	font-size: 14px;
+	line-height: 1.5;
+}
+
+.pc-tc-layout *,
+.pc-tc-layout *::before,
+.pc-tc-layout *::after {
+	box-sizing: border-box;
+}
+
+/* WC 預設 form.checkout 為 float 版面（col2-set / #order_review 50%），在新版面內一律清掉 */
+.pc-tc-form::after {
+	content: "";
+	display: table;
+	clear: both;
+}
+
+/* 版面重設：WC / 佈景以 `.woocommerce .col2-set .col-1`、`#customer_details .col-1`、`#order_review` 設定浮動與寬度，
+   這裡需要帶 ID 才蓋得過（只重設浮動 / 寬度 / 左右邊距） */
+.pc-tc-layout:not(#pc-tc-scope):not(#pc-tc-scope-2) #customer_details,
+.pc-tc-layout:not(#pc-tc-scope):not(#pc-tc-scope-2) #customer_details > .col-1,
+.pc-tc-layout:not(#pc-tc-scope):not(#pc-tc-scope-2) #customer_details > .col-2,
+.pc-tc-layout:not(#pc-tc-scope):not(#pc-tc-scope-2) #order_review,
+.pc-tc-layout:not(#pc-tc-scope):not(#pc-tc-scope-2) #order_review_heading,
+.pc-tc-layout:not(#pc-tc-scope):not(#pc-tc-scope-2) #payment {
+	float: none;
+	width: 100%;
+	max-width: none;
+	margin: 0;
+	clear: none;
+}
+
+.pc-tc-layout #customer_details {
+	display: flex;
+	flex-direction: column;
+	gap: var(--pc-tc-gap-section);
+}
+
+.pc-tc-layout #customer_details::before,
+.pc-tc-layout #customer_details::after {
+	display: none;
+}
+
+.pc-tc-layout #customer_details > .col-2 {
+	display: flex;
+	flex-direction: column;
+	gap: var(--pc-tc-gap-section);
+}
+
+/* 佈景主題在 #customer_details / #order_review 外再包的一層（例：Blocksy .ct-customer-details / .ct-order-review）：
+   移入新版面後不再需要它自己的欄寬 / 底色 / 邊框 / sticky */
+.pc-tc-layout:not(#pc-tc-scope) .pc-tc-main > *,
+.pc-tc-layout:not(#pc-tc-scope) .pc-tc-aside-inner > * {
+	float: none;
+	width: auto;
+	max-width: none;
+	margin-left: 0;
+	margin-right: 0;
+	grid-column: auto;
+}
+
+.pc-tc-layout .ct-customer-details,
+.pc-tc-layout .ct-order-review {
+	position: static;
+	top: auto;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	background: none;
+	box-shadow: none;
+}
+
+/* ───────── 左欄：區塊卡片 ───────── */
+.pc-tc-main {
+	display: flex;
+	flex-direction: column;
+	gap: var(--pc-tc-gap-section);
+	min-width: 0;
+}
+
+.pc-tc-layout .pc-tc-billing-card,
+.pc-tc-layout .woocommerce-billing-fields,
+.pc-tc-layout .woocommerce-shipping-fields,
+.pc-tc-layout .woocommerce-additional-fields,
+.pc-tc-layout .pc-tc-payment-section {
+	margin: 0;
+	padding: 24px;
+	background: var(--pc-tc-card-bg);
+	border: 1px solid var(--pc-tc-line);
+	border-radius: var(--pc-tc-radius-card);
+	box-shadow: none;
+}
+
+/* 帳單卡片 = 整個 .col-1（含「建立帳號？」）；裡面的帳單欄位不再自成卡片 */
+.pc-tc-layout .pc-tc-billing-card > .woocommerce-billing-fields {
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	background: none;
+}
+
+.pc-tc-layout .pc-tc-billing-card > .woocommerce-account-fields {
+	margin-top: 4px;
+	padding-top: 16px;
+	border-top: 1px solid var(--pc-tc-line);
+}
+
+.pc-tc-layout .woocommerce-shipping-fields:not(:has(*)),
+.pc-tc-layout .woocommerce-additional-fields:not(:has(*)) {
+	display: none;
+}
+
+/* 區塊標題（只取各卡片第一層的 h3，不影響其他外掛塞在欄位裡的標題） */
+.pc-tc-layout .woocommerce-billing-fields > h3,
+.pc-tc-layout .woocommerce-shipping-fields > h3,
+.pc-tc-layout .woocommerce-additional-fields > h3,
+.pc-tc-layout .pc-tc-section-title {
+	margin: 0 0 16px;
+	padding: 0;
+	font-size: 18px;
+	font-weight: 600;
+	line-height: 1.4;
+	letter-spacing: normal;
+	text-transform: none;
+	color: var(--pc-tc-fg);
+	border: 0;
+	background: none;
+}
+
+/* 「運送到不同的地址？」：標題內的勾選列（收合時卡片只剩這一列，不留標題下方空白） */
+.pc-tc-layout .woocommerce-shipping-fields > h3 {
+	margin-bottom: 0;
+}
+
+.pc-tc-layout .woocommerce-shipping-fields > h3 label {
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	margin: 0;
+	font-size: 15px;
+	font-weight: 600;
+	color: var(--pc-tc-fg);
+	cursor: pointer;
+}
+
+.pc-tc-layout .woocommerce-shipping-fields > h3 + .shipping_address {
+	margin-top: 16px;
+}
+
+/* ───────── 欄位 ───────── */
+.pc-tc-layout:not(#pc-tc-scope) .form-row {
+	margin: 0 0 14px;
+	padding: 0;
+}
+
+.pc-tc-layout:not(#pc-tc-scope) .woocommerce-billing-fields__field-wrapper > .form-row:last-child,
+.pc-tc-layout:not(#pc-tc-scope) .woocommerce-shipping-fields__field-wrapper > .form-row:last-child,
+.pc-tc-layout:not(#pc-tc-scope) .woocommerce-additional-fields__field-wrapper > .form-row:last-child {
+	margin-bottom: 0;
+}
+
+.pc-tc-layout:not(#pc-tc-scope) .form-row > label:not(.checkbox):not(.woocommerce-form__label-for-checkbox) {
+	display: block;
+	margin: 0 0 6px;
+	font-size: 13px;
+	font-weight: 400;
+	line-height: 1.4;
+	color: var(--pc-tc-muted);
+}
+
+.pc-tc-layout:not(#pc-tc-scope) .form-row .required {
+	margin-left: 2px;
+	font-weight: 400;
+	color: var(--pc-tc-danger);
+	text-decoration: none;
+	border: 0;
+}
+
+.pc-tc-layout:not(#pc-tc-scope) .form-row .optional {
+	color: var(--pc-tc-subtle);
+}
+
+.pc-tc-layout:not(#pc-tc-scope) .form-row input.input-text,
+.pc-tc-layout:not(#pc-tc-scope) .form-row textarea,
+.pc-tc-layout:not(#pc-tc-scope) .form-row select,
+.pc-tc-layout:not(#pc-tc-scope) .select2-container .select2-selection--single {
+	width: 100%;
+	min-height: 42px;
+	margin: 0;
+	padding: 10px 12px;
+	font-size: 14px;
+	line-height: 1.4;
+	color: var(--pc-tc-fg);
+	background-color: var(--pc-tc-card-bg);
+	border: 1px solid var(--pc-tc-input-border);
+	border-radius: var(--pc-tc-radius-input);
+	box-shadow: none;
+	outline: none;
+	transition: border-color 120ms, box-shadow 120ms;
+}
+
+.pc-tc-layout:not(#pc-tc-scope) .form-row input.input-text::placeholder,
+.pc-tc-layout:not(#pc-tc-scope) .form-row textarea::placeholder {
+	color: var(--pc-tc-subtle);
+	opacity: 1;
+}
+
+.pc-tc-layout:not(#pc-tc-scope) .form-row textarea {
+	min-height: 96px;
+	resize: vertical;
+}
+
+/* 原生 select（含 woomp 縣市 / 鄉鎮下拉）：統一箭頭 */
+.pc-tc-layout:not(#pc-tc-scope) .form-row select:not(.select2-hidden-accessible) {
+	padding-right: 36px;
+	appearance: none;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 12px center;
+	background-size: 12px;
+	cursor: pointer;
+}
+
+.pc-tc-layout:not(#pc-tc-scope) .select2-container .select2-selection--single {
+	display: flex;
+	align-items: center;
+	height: auto;
+	padding-top: 0;
+	padding-bottom: 0;
+}
+
+.pc-tc-layout:not(#pc-tc-scope) .select2-container .select2-selection--single .select2-selection__rendered {
+	padding-left: 0;
+	line-height: 40px;
+	color: var(--pc-tc-fg);
+}
+
+.pc-tc-layout:not(#pc-tc-scope) .select2-container .select2-selection--single .select2-selection__arrow {
+	height: 40px;
+	top: 0;
+	right: 8px;
+}
+
+.pc-tc-layout:not(#pc-tc-scope) .form-row input.input-text:focus,
+.pc-tc-layout:not(#pc-tc-scope) .form-row textarea:focus,
+.pc-tc-layout:not(#pc-tc-scope) .form-row select:focus,
+.pc-tc-layout:not(#pc-tc-scope) .select2-container--focus .select2-selection--single,
+.pc-tc-layout:not(#pc-tc-scope) .select2-container--open .select2-selection--single {
+	border-color: var(--pc-tc-fg);
+	box-shadow: var(--pc-tc-focus-ring);
+}
+
+/* 驗證錯誤 */
+.pc-tc-layout:not(#pc-tc-scope) .form-row.woocommerce-invalid > label {
+	color: var(--pc-tc-danger);
+}
+
+.pc-tc-layout:not(#pc-tc-scope) .form-row.woocommerce-invalid input.input-text,
+.pc-tc-layout:not(#pc-tc-scope) .form-row.woocommerce-invalid textarea,
+.pc-tc-layout:not(#pc-tc-scope) .form-row.woocommerce-invalid select,
+.pc-tc-layout:not(#pc-tc-scope) .form-row.woocommerce-invalid .select2-selection--single {
+	border-color: var(--pc-tc-danger);
+}
+
+.pc-tc-layout:not(#pc-tc-scope) .form-row.woocommerce-invalid input.input-text:focus,
+.pc-tc-layout:not(#pc-tc-scope) .form-row.woocommerce-invalid select:focus {
+	box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+}
+
+.pc-tc-layout .checkout-inline-error-message {
+	margin: 6px 0 0;
+	font-size: 12px;
+	line-height: 1.4;
+	color: var(--pc-tc-danger);
+}
+
+/* 勾選框（建立帳號、運送到不同地址、條款等） */
+.pc-tc-layout:not(#pc-tc-scope) input[type="checkbox"] {
+	flex-shrink: 0;
+	width: 18px;
+	height: 18px;
+	margin: 0;
+	vertical-align: middle;
+	appearance: none;
+	background: var(--pc-tc-card-bg) center / 12px no-repeat;
+	border: 1.5px solid var(--pc-tc-input-border);
+	border-radius: 4px;
+	cursor: pointer;
+	transition: background-color 120ms, border-color 120ms;
+}
+
+.pc-tc-layout:not(#pc-tc-scope) input[type="checkbox"]:checked {
+	background-color: var(--pc-tc-fg);
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+	border-color: var(--pc-tc-fg);
+}
+
+.pc-tc-layout:not(#pc-tc-scope) input[type="checkbox"]:focus-visible,
+.pc-tc-layout:not(#pc-tc-scope) input[type="radio"]:focus-visible {
+	outline: none;
+	box-shadow: var(--pc-tc-focus-ring);
+}
+
+.pc-tc-layout label.checkbox,
+.pc-tc-layout .woocommerce-form__label-for-checkbox {
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	margin: 0;
+	font-size: 14px;
+	font-weight: 500;
+	color: var(--pc-tc-fg);
+	cursor: pointer;
+}
+
+/* 自訂 radio（付款 / 運送選項）：18px、2px 邊框，選中為黑底白點（比照 zenbu ShippingMethodCard） */
+.pc-tc-layout input[type="radio"] {
+	flex-shrink: 0;
+	width: 18px;
+	height: 18px;
+	margin: 0;
+	vertical-align: middle;
+	appearance: none;
+	background: var(--pc-tc-card-bg);
+	border: 2px solid var(--pc-tc-input-border);
+	border-radius: 50%;
+	cursor: pointer;
+	transition: border-color 120ms, box-shadow 120ms;
+}
+
+.pc-tc-layout input[type="radio"]:checked {
+	border-color: var(--pc-tc-fg);
+	box-shadow: inset 0 0 0 4px var(--pc-tc-fg);
+}
+
+.pc-tc-layout input[type="radio"]:checked:focus-visible {
+	box-shadow: inset 0 0 0 4px var(--pc-tc-fg), var(--pc-tc-focus-ring);
+}
+
+/* ───────── 付款方式：每個選項一張卡片 ─────────
+   WC 核心以 `.woocommerce-checkout #payment` / `#payment ul.payment_methods li` 設定灰底與清單樣式，需帶 #payment 才蓋得過 */
+.pc-tc-layout #payment {
+	padding: 0;
+	margin: 0;
+	background: none;
+	border: 0;
+	border-radius: 0;
+}
+
+.pc-tc-layout #payment ul.payment_methods {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	border: 0;
+	background: none;
+}
+
+.pc-tc-layout #payment ul.payment_methods::before,
+.pc-tc-layout #payment ul.payment_methods::after {
+	display: none;
+}
+
+.pc-tc-layout #payment ul.payment_methods > li {
+	display: block;
+	margin: 0;
+	padding: 14px 16px;
+	line-height: 1.4;
+	list-style: none;
+	background: var(--pc-tc-card-bg);
+	border: 1px solid var(--pc-tc-line);
+	border-radius: var(--pc-tc-radius-input);
+	transition: border-color 120ms, background-color 120ms;
+}
+
+.pc-tc-layout #payment ul.payment_methods > li:hover {
+	border-color: var(--pc-tc-input-border);
+}
+
+.pc-tc-layout #payment ul.payment_methods > li:has(> input[type="radio"]:checked) {
+	background: var(--pc-tc-selected-bg);
+	border-color: var(--pc-tc-fg);
+}
+
+.pc-tc-layout #payment ul.payment_methods > li > label {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-width: 0;
+	margin: 0;
+	padding: 0;
+	font-size: 14px;
+	font-weight: 500;
+	line-height: 1.4;
+	color: var(--pc-tc-fg);
+	cursor: pointer;
+}
+
+.pc-tc-layout #payment ul.payment_methods > li:has(> input[type="radio"]:checked) > label {
+	font-weight: 600;
+}
+
+.pc-tc-layout #payment ul.payment_methods > li > label img {
+	float: none;
+	max-height: 24px;
+	width: auto;
+	margin: 0 0 0 auto;
+	padding: 0;
+	border: 0;
+	box-shadow: none;
+}
+
+.pc-tc-layout #payment ul.payment_methods > li > label img + img {
+	margin-left: 4px;
+}
+
+/* 選項卡片的 radio：真正的 input 視覺隱藏（仍可聚焦、可被 label 點選），由 label::before 畫 18px radio。
+   佈景作法各異（WC 預設顯示原生 radio；Blocksy 以 display:none 藏 input、改畫 label::before），
+   統一由這裡接管，各佈景外觀才會一致 */
+.pc-tc-layout #payment ul.payment_methods > li > input[type="radio"],
+.pc-tc-layout ul#shipping_method > li > input[type="radio"] {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: 0;
+	padding: 0;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	clip-path: inset(50%);
+	white-space: nowrap;
+	border: 0;
+	opacity: 0;
+}
+
+.pc-tc-form .pc-tc-layout #payment ul.payment_methods > li.wc_payment_method:has(> input[type="radio"]) > label::before,
+.pc-tc-layout #payment ul.payment_methods > li:has(> input[type="radio"]) > label::before,
+.pc-tc-layout ul#shipping_method > li:has(> input[type="radio"]) > label::before {
+	content: "";
+	position: static;
+	display: block;
+	flex-shrink: 0;
+	width: 18px;
+	height: 18px;
+	margin: 0;
+	padding: 0;
+	background: var(--pc-tc-card-bg);
+	border: 2px solid var(--pc-tc-input-border);
+	border-radius: 50%;
+	box-shadow: none;
+	opacity: 1;
+	transform: none;
+	transition: border-color 120ms, box-shadow 120ms;
+}
+
+/* 選中狀態：Blocksy 以 `#payment ul.payment_methods > li.wc_payment_method > input:first-child:checked + label:before`
+   （1-5-4）把中心染成主題色，這裡多帶 .pc-tc-form / li.wc_payment_method 才蓋得過（仍不用 !important） */
+.pc-tc-form .pc-tc-layout #payment ul.payment_methods > li.wc_payment_method:has(> input[type="radio"]:checked) > label::before,
+.pc-tc-form .pc-tc-layout #payment ul.payment_methods > li:has(> input[type="radio"]:checked) > label::before,
+.pc-tc-form .pc-tc-layout ul#shipping_method > li:has(> input[type="radio"]:checked) > label::before {
+	background: var(--pc-tc-card-bg);
+	border-color: var(--pc-tc-fg);
+	box-shadow: inset 0 0 0 4px var(--pc-tc-fg);
+}
+
+.pc-tc-layout #payment ul.payment_methods > li:has(> input[type="radio"]:focus-visible) > label::before,
+.pc-tc-layout ul#shipping_method > li:has(> input[type="radio"]:focus-visible) > label::before {
+	box-shadow: var(--pc-tc-focus-ring);
+}
+
+.pc-tc-layout #payment ul.payment_methods > li:has(> input[type="radio"]:checked:focus-visible) > label::before,
+.pc-tc-layout ul#shipping_method > li:has(> input[type="radio"]:checked:focus-visible) > label::before {
+	box-shadow: inset 0 0 0 4px var(--pc-tc-fg), var(--pc-tc-focus-ring);
+}
+
+.pc-tc-layout #payment ul.payment_methods > li > label::after,
+.pc-tc-layout ul#shipping_method > li > label::after {
+	display: none;
+}
+
+/* 金流說明 / 卡號欄位整合在選項卡片內（與標題文字對齊） */
+.pc-tc-layout #payment ul.payment_methods > li > .payment_box {
+	margin: 8px 0 0 30px;
+	padding: 0;
+	font-size: 12px;
+	line-height: 1.6;
+	color: var(--pc-tc-muted);
+	background: none;
+	border: 0;
+	border-radius: 0;
+	box-shadow: none;
+}
+
+.pc-tc-layout #payment ul.payment_methods > li > .payment_box::before {
+	display: none;
+}
+
+.pc-tc-layout #payment ul.payment_methods > li > .payment_box p {
+	margin: 0;
+}
+
+.pc-tc-layout #payment ul.payment_methods > li > .payment_box p + p,
+.pc-tc-layout #payment ul.payment_methods > li > .payment_box fieldset {
+	margin-top: 8px;
+}
+
+.pc-tc-layout #payment ul.payment_methods > li > .payment_box .form-row {
+	margin-bottom: 10px;
+}
+
+/* 沒有可用付款方式的提示（li.woocommerce-notice） */
+.pc-tc-layout #payment ul.payment_methods > li.woocommerce-notice {
+	display: block;
+}
+
+/* WC blockUI 遮罩跟著 #payment；保持在卡片內 */
+.pc-tc-layout .pc-tc-payment-section {
+	position: relative;
+}
+
+/* ───────── 右欄：訂單摘要 ───────── */
+.pc-tc-aside {
+	min-width: 0;
+}
+
+.pc-tc-aside-inner {
+	padding: 24px 20px;
+	background: var(--pc-tc-aside-bg);
+	border-radius: var(--pc-tc-radius-card);
+}
+
+.pc-tc-layout #order_review_heading {
+	margin: 0 0 16px;
+	padding: 0;
+	font-size: 13px;
+	font-weight: 600;
+	line-height: 1.4;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--pc-tc-muted);
+	border: 0;
+	background: none;
+}
+
+.pc-tc-layout table.woocommerce-checkout-review-order-table {
+	width: 100%;
+	margin: 0;
+	border: 0;
+	border-collapse: collapse;
+	border-spacing: 0;
+	border-radius: 0;
+	background: transparent;
+	font-size: 14px;
+	table-layout: auto;
+}
+
+.pc-tc-layout table.woocommerce-checkout-review-order-table th,
+.pc-tc-layout table.woocommerce-checkout-review-order-table td {
+	padding: 6px 0;
+	border: 0;
+	background: transparent;
+	vertical-align: top;
+	font-weight: 400;
+	color: var(--pc-tc-fg);
+}
+
+.pc-tc-layout table.woocommerce-checkout-review-order-table td:last-child,
+.pc-tc-layout table.woocommerce-checkout-review-order-table th:last-child {
+	padding-left: 12px;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+/* 跨欄儲存格（例：Blocksy 的運送方式列為單一 td colspan=2）維持靠左 */
+.pc-tc-layout table.woocommerce-checkout-review-order-table td[colspan] {
+	padding-left: 0;
+	text-align: left;
+	white-space: normal;
+}
+
+.pc-tc-layout table.woocommerce-checkout-review-order-table .ct-shipping-heading {
+	margin-bottom: 8px;
+	color: var(--pc-tc-muted);
+}
+
+.pc-tc-layout table.woocommerce-checkout-review-order-table thead {
+	display: none;
+}
+
+/* 商品列 */
+.pc-tc-layout table.woocommerce-checkout-review-order-table tbody tr.cart_item td {
+	padding: 14px 0 0;
+	vertical-align: middle;
+}
+
+.pc-tc-layout table.woocommerce-checkout-review-order-table tbody tr.cart_item:first-child td {
+	/* 數量徽章凸出縮圖上緣 8px，留空間不壓到標題 */
+	padding-top: 8px;
+}
+
+.pc-tc-layout table.woocommerce-checkout-review-order-table tbody tr.cart_item:last-child td {
+	padding-bottom: 20px;
+}
+
+.pc-tc-layout table.woocommerce-checkout-review-order-table td.product-name {
+	font-weight: 600;
+	line-height: 1.4;
+}
+
+.pc-tc-layout table.woocommerce-checkout-review-order-table td.product-name:has(.pc-tc-thumb) {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+}
+
+.pc-tc-layout table.woocommerce-checkout-review-order-table td.product-total {
+	font-weight: 500;
+}
+
+.pc-tc-layout table.woocommerce-checkout-review-order-table td.product-name dl.variation {
+	margin: 4px 0 0;
+	font-size: 12px;
+	font-weight: 400;
+	color: var(--pc-tc-muted);
+}
+
+/* 金額列：標籤灰、數字黑 */
+.pc-tc-layout table.woocommerce-checkout-review-order-table tfoot tr:first-child th,
+.pc-tc-layout table.woocommerce-checkout-review-order-table tfoot tr:first-child td {
+	padding-top: 20px;
+	border-top: 1px solid var(--pc-tc-line);
+}
+
+.pc-tc-layout table.woocommerce-checkout-review-order-table tfoot th {
+	text-align: left;
+	color: var(--pc-tc-muted);
+}
+
+.pc-tc-layout table.woocommerce-checkout-review-order-table tfoot td {
+	font-weight: 500;
+}
+
+.pc-tc-layout table.woocommerce-checkout-review-order-table tr.cart-discount td,
+.pc-tc-layout table.woocommerce-checkout-review-order-table tr.cart-discount td .amount {
+	color: var(--pc-tc-danger);
+}
+
+.pc-tc-layout table.woocommerce-checkout-review-order-table tr.cart-discount td a {
+	margin-left: 4px;
+	font-size: 12px;
+	font-weight: 400;
+	color: var(--pc-tc-muted);
+}
+
+.pc-tc-layout table.woocommerce-checkout-review-order-table tr.order-total th,
+.pc-tc-layout table.woocommerce-checkout-review-order-table tr.order-total td {
+	padding-top: 16px;
+	border-top: 1px solid var(--pc-tc-line);
+	font-size: 15px;
+	font-weight: 600;
+	color: var(--pc-tc-fg);
+	vertical-align: baseline;
+}
+
+.pc-tc-layout table.woocommerce-checkout-review-order-table tr.order-total td strong,
+.pc-tc-layout table.woocommerce-checkout-review-order-table tr.order-total td .amount {
+	font-size: 24px;
+	font-weight: 700;
+	color: var(--pc-tc-fg);
+}
+
+.pc-tc-layout table.woocommerce-checkout-review-order-table tr.order-total td .includes_tax {
+	display: block;
+	font-size: 12px;
+	font-weight: 400;
+	color: var(--pc-tc-muted);
+}
+
+/* 運送方式（摘要表格內）：選項卡片 */
+.pc-tc-layout table.woocommerce-checkout-review-order-table ul#shipping_method {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	text-align: left;
+}
+
+.pc-tc-layout table.woocommerce-checkout-review-order-table ul#shipping_method > li {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 10px;
+	margin: 0;
+	padding: 10px 12px;
+	line-height: 1.4;
+	background: var(--pc-tc-card-bg);
+	border: 1px solid var(--pc-tc-line);
+	border-radius: var(--pc-tc-radius-input);
+}
+
+.pc-tc-layout table.woocommerce-checkout-review-order-table ul#shipping_method > li:has(> input[type="radio"]:checked) {
+	background: var(--pc-tc-selected-bg);
+	border-color: var(--pc-tc-fg);
+}
+
+/* 只有一種運送方式（hidden input）時不畫卡片 */
+.pc-tc-layout table.woocommerce-checkout-review-order-table ul#shipping_method > li:has(> input[type="hidden"]) {
+	padding: 0;
+	background: none;
+	border: 0;
+}
+
+.pc-tc-layout table.woocommerce-checkout-review-order-table ul#shipping_method > li > label {
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	margin: 0;
+	font-weight: 500;
+	color: var(--pc-tc-fg);
+	cursor: pointer;
+}
+
+/* 商品縮圖 + 數量徽章 */
+.pc-tc-layout .pc-tc-thumb {
+	position: relative;
+	display: inline-block;
+	flex-shrink: 0;
+	width: 56px;
+	height: 56px;
+	margin: 0;
+	vertical-align: middle;
+	background: var(--pc-tc-line-soft);
+	border: 1px solid var(--pc-tc-line);
+	border-radius: var(--pc-tc-radius-card);
+}
+
+.pc-tc-layout .pc-tc-thumb img,
+.pc-tc-layout .pc-tc-thumb .pc-tc-thumb-img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	max-width: none;
+	margin: 0;
+	object-fit: cover;
+	border-radius: calc(var(--pc-tc-radius-card) - 1px);
+}
+
+.pc-tc-layout .pc-tc-thumb-qty {
+	position: absolute;
+	top: -8px;
+	right: -8px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 22px;
+	height: 22px;
+	padding: 0 7px;
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 1;
+	color: #f9fafb;
+	background: var(--pc-tc-badge-bg);
+	border-radius: 11px;
+}
+
+.pc-tc-layout td.product-name:has(.pc-tc-thumb) .product-quantity {
+	display: none;
+}
+
+/* ───────── 下單按鈕 ───────── */
+.pc-tc-place-order-slot .place-order {
+	float: none;
+	width: 100%;
+	margin: 24px 0 0;
+	padding: 0;
+}
+
+.pc-tc-place-order-slot .woocommerce-terms-and-conditions-wrapper,
+.pc-tc-place-order-slot .woocommerce-privacy-policy-text {
+	margin: 0 0 14px;
+	font-size: 12px;
+	line-height: 1.6;
+	color: var(--pc-tc-muted);
+}
+
+.pc-tc-form .pc-tc-place-order-slot .woocommerce-privacy-policy-text p,
+.pc-tc-form .pc-tc-place-order-slot .woocommerce-terms-and-conditions-wrapper .woocommerce-privacy-policy-text p {
+	margin: 0;
+	font-family: inherit;
+	font-size: inherit;
+	line-height: inherit;
+	color: inherit;
+}
+
+.pc-tc-place-order-slot .woocommerce-privacy-policy-text a,
+.pc-tc-place-order-slot .woocommerce-terms-and-conditions-wrapper a {
+	color: var(--pc-tc-fg);
+	text-decoration: underline;
+	text-underline-offset: 2px;
+}
+
+/* 佈景常以 `#place_order` / `.woocommerce #payment #place_order` / `button.button.alt` 設定按鈕，需帶 ID 才蓋得過 */
+.pc-tc-form .pc-tc-place-order-slot #place_order {
+	display: block;
+	float: none;
+	width: 100%;
+	min-height: 52px;
+	margin: 0;
+	padding: 16px 24px;
+	font-size: 15px;
+	font-weight: 600;
+	line-height: 1.3;
+	letter-spacing: 0.02em;
+	text-align: center;
+	text-transform: none;
+	color: var(--pc-tc-cta-fg);
+	background: var(--pc-tc-cta-bg);
+	border: 0;
+	border-radius: var(--pc-tc-radius-input);
+	box-shadow: none;
+	cursor: pointer;
+	transition: background 120ms;
+}
+
+.pc-tc-form .pc-tc-place-order-slot #place_order:hover,
+.pc-tc-form .pc-tc-place-order-slot #place_order:focus-visible {
+	color: var(--pc-tc-cta-fg);
+	background: var(--pc-tc-cta-bg-hover);
+}
+
+.pc-tc-form .pc-tc-place-order-slot #place_order:focus-visible {
+	outline: 2px solid var(--pc-tc-cta-bg);
+	outline-offset: 2px;
+}
+
+.pc-tc-form .pc-tc-place-order-slot #place_order:disabled,
+.pc-tc-form.processing .pc-tc-place-order-slot #place_order {
+	background: var(--pc-tc-disabled-bg);
+	cursor: wait;
+}
+
+/* ───────── 錯誤訊息（WC 會 prepend 到 form.checkout 頂端） ───────── */
+.pc-tc-form > .woocommerce-NoticeGroup {
+	margin: 0 0 24px;
+}
+
+.pc-tc-form > .woocommerce-NoticeGroup .woocommerce-error,
+.pc-tc-form > .woocommerce-NoticeGroup .wc-block-components-notice-banner.is-error {
+	margin: 0;
+	padding: 14px 16px;
+	font-size: 14px;
+	line-height: 1.6;
+	color: var(--pc-tc-danger);
+	background: var(--pc-tc-danger-bg);
+	border: 1px solid var(--pc-tc-danger-line);
+	border-radius: var(--pc-tc-radius-card);
+	box-shadow: none;
+}
+
+.pc-tc-form > .woocommerce-NoticeGroup .woocommerce-error li {
+	margin: 0;
+	padding: 0;
+	color: inherit;
+}
+
+/* WC 8+ 錯誤項目是 <a href="#欄位">，佈景常以連結色變數把它染成白色或主題色 */
+.pc-tc-form > .woocommerce-NoticeGroup .woocommerce-error a {
+	color: inherit;
+	text-decoration: none;
+}
+
+.pc-tc-form > .woocommerce-NoticeGroup .woocommerce-error a:hover {
+	text-decoration: underline;
+}
+
+.pc-tc-form > .woocommerce-NoticeGroup .woocommerce-error li + li {
+	margin-top: 2px;
+}
+
+/* 佈景 / WC 的提示圖示（::before 絕對定位、依賴佈景自己的左側內距）：新版重設了內距，圖示會壓到文字 → 不顯示 */
+.pc-tc-form > .woocommerce-NoticeGroup .woocommerce-error::before,
+.pc-tc-form > .woocommerce-NoticeGroup .wc-block-components-notice-banner > svg,
+.pc-tc-active:not(#pc-tc-scope) .woocommerce-form-coupon-toggle .woocommerce-info::before {
+	display: none;
+}
+
+.pc-tc-form > .woocommerce-NoticeGroup .wc-block-components-notice-banner__content {
+	color: inherit;
+}
+
+/* ───────── 優惠券（form.checkout 外的獨立表單；僅在版面套用成功後 body.pc-tc-active 下） ───────── */
+.pc-tc-active:not(#pc-tc-scope) .woocommerce-form-coupon-toggle .woocommerce-info {
+	margin: 0 0 16px;
+	padding: 12px 16px;
+	font-size: 14px;
+	color: var(--pc-tc-muted);
+	background: var(--pc-tc-card-bg);
+	border: 1px solid var(--pc-tc-line);
+	border-radius: var(--pc-tc-radius-card);
+	box-shadow: none;
+}
+
+.pc-tc-active:not(#pc-tc-scope) .woocommerce-form-coupon-toggle .woocommerce-info a {
+	font-weight: 600;
+	color: var(--pc-tc-fg);
+}
+
+.pc-tc-active:not(#pc-tc-scope) form.checkout_coupon {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	align-items: stretch;
+	margin: 0 0 16px;
+	padding: 16px;
+	background: var(--pc-tc-card-bg);
+	border: 1px solid var(--pc-tc-line);
+	border-radius: var(--pc-tc-radius-card);
+}
+
+.pc-tc-active:not(#pc-tc-scope) form.checkout_coupon[style*="display: none"] {
+	display: none;
+}
+
+.pc-tc-active:not(#pc-tc-scope) form.checkout_coupon > p:not(.form-row) {
+	flex: 1 1 100%;
+	margin: 0;
+	font-size: 13px;
+	color: var(--pc-tc-muted);
+}
+
+.pc-tc-active:not(#pc-tc-scope) form.checkout_coupon .form-row {
+	float: none;
+	width: auto;
+	margin: 0;
+	padding: 0;
+}
+
+.pc-tc-active:not(#pc-tc-scope) form.checkout_coupon .form-row-first {
+	flex: 1 1 200px;
+}
+
+.pc-tc-active:not(#pc-tc-scope) form.checkout_coupon .input-text {
+	width: 100%;
+	min-height: 42px;
+	padding: 10px 12px;
+	font-size: 14px;
+	color: var(--pc-tc-fg);
+	background: var(--pc-tc-card-bg);
+	border: 1px solid var(--pc-tc-input-border);
+	border-radius: var(--pc-tc-radius-input);
+	box-shadow: none;
+	outline: none;
+}
+
+.pc-tc-active:not(#pc-tc-scope) form.checkout_coupon .input-text:focus {
+	border-color: var(--pc-tc-fg);
+	box-shadow: var(--pc-tc-focus-ring);
+}
+
+.pc-tc-active:not(#pc-tc-scope) form.checkout_coupon button.button {
+	min-height: 42px;
+	margin: 0;
+	padding: 0 18px;
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--pc-tc-cta-fg);
+	background: var(--pc-tc-cta-bg);
+	border: 0;
+	border-radius: var(--pc-tc-radius-input);
+	box-shadow: none;
+	cursor: pointer;
+}
+
+.pc-tc-active:not(#pc-tc-scope) form.checkout_coupon button.button:hover {
+	background: var(--pc-tc-cta-bg-hover);
+}
+
+/* ───────── 窄（手機 / 有側邊欄的窄內容區）：單欄，摘要在欄位之後、下單按鈕在最後 ───────── */
+@container pc-tc (max-width: 859.98px) {
+	.pc-tc-layout {
+		display: flex;
+		flex-direction: column;
+		align-items: stretch;
+		gap: var(--pc-tc-gap-section);
+	}
+
+	.pc-tc-main,
+	.pc-tc-aside {
+		display: contents;
+	}
+
+	.pc-tc-main > * {
+		order: 1;
+	}
+
+	.pc-tc-aside-inner {
+		order: 2;
+	}
+
+	.pc-tc-main > .pc-tc-payment-section {
+		order: 3;
+	}
+
+	/* 手機版：JS 把 .pc-tc-place-order-slot 搬到付款方式之後（見 classic-two-column.js placeSlot） */
+	.pc-tc-layout > .pc-tc-place-order-slot {
+		order: 4;
+	}
+
+	.pc-tc-layout > .pc-tc-place-order-slot .place-order {
+		margin-top: 0;
+	}
+
+	.pc-tc-layout .pc-tc-billing-card,
+	.pc-tc-layout .woocommerce-billing-fields,
+	.pc-tc-layout .woocommerce-shipping-fields,
+	.pc-tc-layout .woocommerce-additional-fields,
+	.pc-tc-layout .pc-tc-payment-section,
+	.pc-tc-aside-inner {
+		padding: 20px 16px;
+	}
+
+	.pc-tc-layout .pc-tc-billing-card > .woocommerce-billing-fields {
+		padding: 0;
+	}
+}
+
+/* ───────── 寬（結帳區塊 ≥ 860px）：兩欄 ───────── */
+@container pc-tc (min-width: 860px) {
+	.pc-tc-layout {
+		grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr);
+		gap: 32px;
+	}
+
+	.pc-tc-aside-inner {
+		padding: 32px;
+	}
+
+	.pc-tc-aside.pc-tc-sticky {
+		position: sticky;
+		top: var(--pc-tc-sticky-top);
+	}
+}

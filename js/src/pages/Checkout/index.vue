@@ -33,6 +33,7 @@ const formRef = ref<FormInstance>()
 
 // 表單資料（預設值對齊 CheckoutEnhancementSettingsDTO::DEFAULTS）
 const form = reactive<TCheckoutEnhancementSettings>({
+	checkout_two_column: 'yes',
 	last_name_first: 'no',
 	tw_address: 'no',
 	tw_phone_validation: 'no',
@@ -72,6 +73,17 @@ type TToggleItem = {
 }
 
 const toggleGroups: { title: string; items: TToggleItem[] }[] = [
+	{
+		title: '版面',
+		items: [
+			{
+				key: 'checkout_two_column',
+				label: '使用新版結帳頁（兩欄式）',
+				tooltip:
+					'左欄填寫帳單 / 收件 / 付款方式，右欄顯示訂單摘要與下單按鈕（桌機）；手機為單欄。僅支援傳統結帳（短代碼），區塊結帳不受影響。新安裝預設開啟；既有站升級後預設關閉（維持原本版面），可在此手動開啟',
+			},
+		],
+	},
 	{
 		title: '地址與姓名',
 		items: [

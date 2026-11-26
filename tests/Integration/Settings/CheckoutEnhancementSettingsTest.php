@@ -59,6 +59,7 @@ final class CheckoutEnhancementSettingsTest extends TestCase {
 		'free_shipping_text_achieved' => '已享免運',
 		'free_shipping_bg_color'      => '#d36f6f',
 		'free_shipping_text_color'    => '#ffffff',
+		'checkout_two_column'         => 'yes',
 	];
 
 	public function set_up(): void {
@@ -188,7 +189,7 @@ final class CheckoutEnhancementSettingsTest extends TestCase {
 		$response = $this->send( 'GET' );
 
 		$this->assertSame( 200, $response->get_status() );
-		$this->assertEquals( self::DEFAULTS, $this->response_data( $response ), 'data 應為 10 鍵預設值' );
+		$this->assertEquals( self::DEFAULTS, $this->response_data( $response ), 'data 應為 11 鍵預設值' );
 	}
 
 	/**
@@ -226,16 +227,19 @@ final class CheckoutEnhancementSettingsTest extends TestCase {
 		$this->assertSame( 'yes', $stored['tw_phone_validation'] ?? null );
 		$this->assertSame( 'yes', $stored['free_shipping_hint'] ?? null );
 
-		// api.yml：回應 data 為更新後的完整設定（10 鍵，未儲存的鍵以預設值補齊）
+		// api.yml：回應 data 為更新後的完整設定（11 鍵，未儲存的鍵以預設值補齊）
 		$expected = \array_merge(
 			self::DEFAULTS,
 			[
 				'last_name_first'     => 'yes',
 				'tw_phone_validation' => 'yes',
 				'free_shipping_hint'  => 'yes',
+				// 升級前就存過設定（缺 checkout_two_column）＝既有站 → 維持舊版 no
+				'checkout_two_column' => 'no',
 			]
 		);
-		$this->assertEquals( $expected, $this->response_data( $response ), '回應 data 應為完整 10 鍵' );
+		$this->assertEquals( $expected, $this->response_data( $response ), '回應 data 應為完整 11 鍵' );
+		$this->assertSame( 'no', $stored['checkout_two_column'] ?? null, '第一次存檔時把當下有效預設值寫入' );
 	}
 
 	// ========== 錯誤處理（Error） ==========
@@ -303,7 +307,7 @@ final class CheckoutEnhancementSettingsTest extends TestCase {
 
 	/**
 	 * Rule 前置（參數）：文案中的 HTML 標籤於儲存時移除
-	 * 另斷言回應 data 為完整 10 鍵（api.yml），確保不是僅靠既有 sanitize 就綠。
+	 * 另斷言回應 data 為完整 11 鍵（api.yml），確保不是僅靠既有 sanitize 就綠。
 	 *
 	 * @test
 	 * @group security
@@ -324,7 +328,7 @@ final class CheckoutEnhancementSettingsTest extends TestCase {
 		$this->assertEquals(
 			\array_merge( self::DEFAULTS, [ 'free_shipping_text_achieved' => '免運啦' ] ),
 			$data,
-			'回應 data 應為完整 10 鍵'
+			'回應 data 應為完整 11 鍵'
 		);
 	}
 

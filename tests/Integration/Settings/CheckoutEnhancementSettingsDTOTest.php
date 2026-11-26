@@ -3,7 +3,7 @@
  * CheckoutEnhancementSettingsDTO 純邏輯測試（第 1 階段 Red）
  *
  * 對應規格：specs/open-issue/checkout-enhancement-implementation-plan.md 第 1 階段 + 「新增（正式碼）」DTO 列
- *   PROVIDER_ID='checkout_enhancement'、DEFAULTS（10 鍵）、get_all()、is_on(string $key)、get_string(string $key)、
+ *   PROVIDER_ID='checkout_enhancement'、DEFAULTS（11 鍵）、get_all()、is_on(string $key)、get_string(string $key)、
  *   merge_valid(array $input, array $stored): array（鍵級驗證，不合法鍵保留原值，未知鍵丟棄）
  *
  * 注意：計畫的 merge_valid 簽名為 (array $input, array $stored)，任務描述寫 merge_valid(array $input)；
@@ -75,9 +75,10 @@ final class CheckoutEnhancementSettingsDTOTest extends TestCase {
 				'free_shipping_text_achieved' => '已享免運',
 				'free_shipping_bg_color'      => '#d36f6f',
 				'free_shipping_text_color'    => '#ffffff',
+				'checkout_two_column'         => 'yes',
 			],
 			CheckoutEnhancementSettingsDTO::DEFAULTS,
-			'DEFAULTS 應為 erm.dbml 1.5.0 的 10 鍵預設值（鍵順序亦一致）'
+			'DEFAULTS 應為 erm.dbml 1.6.0 的 11 鍵預設值（鍵順序亦一致；checkout_two_column 預設 yes）'
 		);
 	}
 
@@ -131,7 +132,7 @@ final class CheckoutEnhancementSettingsDTOTest extends TestCase {
 
 		$all = CheckoutEnhancementSettingsDTO::get_all();
 
-		$this->assertCount( 10, $all );
+		$this->assertCount( 11, $all );
 		$this->assertSame( 'yes', $all['last_name_first'] );
 		$this->assertSame( 'no', $all['tw_address'] );
 		$this->assertSame( '#d36f6f', $all['free_shipping_bg_color'] );
