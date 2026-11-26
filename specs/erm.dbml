@@ -394,7 +394,7 @@ Table wp_options_checkout_enhancement_settings {
   free_shipping_text_achieved varchar [not null, default: '已享免運', note: '已達門檻文案']
   free_shipping_bg_color varchar [not null, default: '#d36f6f', note: '#RRGGBB']
   free_shipping_text_color varchar [not null, default: '#ffffff', note: '#RRGGBB']
-  checkout_two_column yes_no [not null, default: 'yes', note: '新版兩欄式結帳頁（左欄欄位+付款方式、右欄訂單摘要+下單按鈕；僅傳統結帳，區塊結帳不變；關閉即舊版）']
+  checkout_two_column yes_no [not null, default: 'yes', note: '新版兩欄式結帳頁（左欄欄位+付款方式、右欄訂單摘要+下單按鈕；僅傳統結帳，區塊結帳不變；關閉即舊版）。預設僅限新安裝（option 不存在）；既有站（option 存在缺此鍵 / 已有任何 provider 設定）視為 no']
 
   Note: '''
     結帳體驗強化設定（Domains/Checkout，DTO：CheckoutEnhancementSettingsDTO）

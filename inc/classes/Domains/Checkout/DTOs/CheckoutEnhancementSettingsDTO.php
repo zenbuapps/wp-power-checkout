@@ -43,6 +43,9 @@ final class CheckoutEnhancementSettingsDTO {
 		'free_shipping_text_achieved',
 	];
 
+	/** @var string 新版兩欄式結帳頁開關鍵（新安裝預設 yes、既有站預設 no，見 get_defaults()） */
+	public const TWO_COLUMN_KEY = 'checkout_two_column';
+
 	/** @var string 未達門檻文案必須包含的金額佔位符 */
 	public const PRICE_PLACEHOLDER = '{price}';
 
@@ -86,7 +89,27 @@ final class CheckoutEnhancementSettingsDTO {
 	 * @return array<string, string> 完整設定
 	 */
 	public static function get_all(): array {
-		return \array_merge( self::DEFAULTS, self::get_stored() );
+		return \array_merge( self::get_defaults(), self::get_stored() );
+	}
+
+	/**
+	 * 依站台狀態決定的預設值
+	 *
+	 * 新版兩欄式結帳頁（checkout_two_column）只對「新安裝」預設 yes：
+	 * - option 不存在（從未存過結帳強化設定）→ DEFAULTS（yes）
+	 * - option 已存在但沒有此鍵（升級前就存過設定的既有站）→ no，維持舊版版面，站長可在設定頁手動開啟
+	 * 另見 TwoColumnLayoutService::resolve_default_for_existing_site()：既有站但從未存過結帳強化設定時，
+	 * 升級後第一次載入會明確寫入 no。
+	 *
+	 * @return array<string, string> 預設值
+	 */
+	public static function get_defaults(): array {
+		$defaults = self::DEFAULTS;
+		$raw      = \get_option( self::get_option_name(), null );
+		if ( \is_array( $raw ) && !\array_key_exists( self::TWO_COLUMN_KEY, $raw ) ) {
+			$defaults[ self::TWO_COLUMN_KEY ] = 'no';
+		}
+		return $defaults;
 	}
 
 	/**
@@ -128,6 +151,12 @@ final class CheckoutEnhancementSettingsDTO {
 			if ( null !== $value ) {
 				$merged[ $key ] = $value;
 			}
+		}
+
+		// checkout_two_column 的預設值取決於「option 是否已存在」：第一次存檔（尤其只送部分鍵）時把當下的有效預設值
+		// 一起寫入，避免全新站存了別的設定後，被誤判為「既有站缺此鍵」而變成 no
+		if ( !\array_key_exists( self::TWO_COLUMN_KEY, $merged ) ) {
+			$merged[ self::TWO_COLUMN_KEY ] = self::get_defaults()[ self::TWO_COLUMN_KEY ];
 		}
 
 		return $merged;

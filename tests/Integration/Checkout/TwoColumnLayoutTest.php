@@ -3,7 +3,7 @@
  * 新版兩欄式結帳頁（checkout_two_column）整合測試
  *
  * 規格：
- * - 預設 yes：未儲存過設定（含既有用戶升級、option 缺此鍵）時套用
+ * - 預設：全新安裝（option 不存在）yes；既有站（option 已存在但缺此鍵，或已有任何 provider 設定）no；明確存過的值照存的值
  * - 僅傳統結帳頁（非 order-pay / order-received 端點）載入 CSS / JS 與 body class；區塊結帳不受影響
  * - 關閉時不載入任何資源、不加 body class、review-order 不出現縮圖（= 舊版）
  * - 縮圖 filter 只掛在 review-order 的 before/after_cart_contents 之間
@@ -91,13 +91,140 @@ final class TwoColumnLayoutTest extends CheckoutTestCase {
 	/**
 	 * @group smoke
 	 */
-	public function test_冒煙_預設開啟且option缺鍵時視為開啟(): void {
+	public function test_冒煙_全新安裝_option不存在時預設開啟(): void {
 		$this->assertSame( 'yes', CheckoutEnhancementSettingsDTO::DEFAULTS['checkout_two_column'] );
-		$this->assertTrue( CheckoutEnhancementSettingsDTO::is_on( 'checkout_two_column' ), 'option 不存在時應為開啟' );
+		$this->assertFalse( \get_option( self::SETTINGS_OPTION ), '前提：從未存過結帳強化設定' );
+		$this->assertTrue( CheckoutEnhancementSettingsDTO::is_on( 'checkout_two_column' ), '全新安裝應預設開啟' );
+	}
 
-		// 既有用戶：已儲存過其他鍵、沒有 checkout_two_column → 升級後仍為開啟
+	/**
+	 * @group smoke
+	 */
+	public function test_冒煙_既有設定缺此鍵時預設關閉_維持舊版(): void {
+		// 升級前就存過結帳強化設定（只有其他鍵）
 		\update_option( self::SETTINGS_OPTION, [ 'tw_address' => 'yes' ] );
+
+		$this->assertFalse( CheckoutEnhancementSettingsDTO::is_on( 'checkout_two_column' ), '既有站升級後應維持舊版' );
+		$this->assertSame( 'no', CheckoutEnhancementSettingsDTO::get_all()['checkout_two_column'] );
+		$this->assertTrue( CheckoutEnhancementSettingsDTO::is_on( 'tw_address' ), '其他已存的鍵不受影響' );
+	}
+
+	/**
+	 * @group happy
+	 * @dataProvider provide_explicit_values
+	 *
+	 * @param string $value    存的值
+	 * @param bool   $expected 是否開啟
+	 */
+	public function test_明確存過的值一律照存的值( string $value, bool $expected ): void {
+		\update_option( self::SETTINGS_OPTION, [ 'checkout_two_column' => $value ] );
+		$this->assertSame( $expected, CheckoutEnhancementSettingsDTO::is_on( 'checkout_two_column' ) );
+
+		\update_option(
+			self::SETTINGS_OPTION,
+			[
+				'tw_address'          => 'no',
+				'checkout_two_column' => $value,
+			]
+		);
+		$this->assertSame( $expected, CheckoutEnhancementSettingsDTO::is_on( 'checkout_two_column' ) );
+	}
+
+	/**
+	 * @group edge
+	 */
+	public function test_全新站第一次只存部分鍵_一併寫入有效預設yes(): void {
+		$merged = CheckoutEnhancementSettingsDTO::merge_valid( [ 'tw_address' => 'yes' ], [] );
+		$this->assertSame( 'yes', $merged['checkout_two_column'] ?? null );
+
+		\update_option( self::SETTINGS_OPTION, $merged );
+		$this->assertTrue( CheckoutEnhancementSettingsDTO::is_on( 'checkout_two_column' ), '存檔後不可被誤判為既有站' );
+	}
+
+	/** @return array<string, array{0: string, 1: bool}> */
+	public static function provide_explicit_values(): array {
+		return [
+			'明確 yes' => [ 'yes', true ],
+			'明確 no'  => [ 'no', false ],
+		];
+	}
+
+	// ========== 升級判定（既有站寫入 no，只做一次） ==========
+
+	/** 清掉「已判定」旗標，模擬升級後第一次載入 */
+	private function reset_migration_flag(): void {
+		\delete_option( TwoColumnLayoutService::DEFAULT_RESOLVED_OPTION );
+	}
+
+	/**
+	 * @group happy
+	 */
+	public function test_升級判定_全新安裝不寫入_維持預設開啟(): void {
+		$this->reset_migration_flag();
+		foreach ( [ 'shopline_payment_redirect', 'amego', 'ecpay_aio', 'payuni_upp', 'ecpay_logistics' ] as $id ) {
+			\delete_option( "woocommerce_{$id}_settings" );
+		}
+
+		TwoColumnLayoutService::resolve_default_for_existing_site();
+
+		$this->assertFalse( \get_option( self::SETTINGS_OPTION ), '新安裝不應寫入設定' );
 		$this->assertTrue( CheckoutEnhancementSettingsDTO::is_on( 'checkout_two_column' ) );
+		$this->assertSame( 'yes', \get_option( TwoColumnLayoutService::DEFAULT_RESOLVED_OPTION ) );
+	}
+
+	/**
+	 * @group happy
+	 */
+	public function test_升級判定_已有金流設定但未存過結帳強化設定_寫入no(): void {
+		$this->reset_migration_flag();
+		\update_option( 'woocommerce_ecpay_aio_settings', [ 'enabled' => 'yes' ] );
+
+		TwoColumnLayoutService::resolve_default_for_existing_site();
+
+		$this->assertSame( [ 'checkout_two_column' => 'no' ], \get_option( self::SETTINGS_OPTION ) );
+		$this->assertFalse( CheckoutEnhancementSettingsDTO::is_on( 'checkout_two_column' ) );
+	}
+
+	/**
+	 * @group happy
+	 */
+	public function test_升級判定_既有結帳強化設定缺此鍵_補no且保留其他鍵(): void {
+		$this->reset_migration_flag();
+		\update_option(
+			self::SETTINGS_OPTION,
+			[
+				'tw_address'                  => 'yes',
+				'free_shipping_text_achieved' => '免運啦',
+			]
+		);
+
+		TwoColumnLayoutService::resolve_default_for_existing_site();
+
+		$this->assertSame(
+			[
+				'tw_address'                  => 'yes',
+				'free_shipping_text_achieved' => '免運啦',
+				'checkout_two_column'         => 'no',
+			],
+			\get_option( self::SETTINGS_OPTION )
+		);
+	}
+
+	/**
+	 * @group edge
+	 */
+	public function test_升級判定_明確存過yes不被覆寫_且只執行一次(): void {
+		$this->reset_migration_flag();
+		\update_option( 'woocommerce_ecpay_aio_settings', [ 'enabled' => 'yes' ] );
+		\update_option( self::SETTINGS_OPTION, [ 'checkout_two_column' => 'yes' ] );
+
+		TwoColumnLayoutService::resolve_default_for_existing_site();
+		$this->assertTrue( CheckoutEnhancementSettingsDTO::is_on( 'checkout_two_column' ), '明確存過的 yes 不可被改成 no' );
+
+		// 旗標已寫入：之後站長刪掉設定，也不會再被補 no
+		\delete_option( self::SETTINGS_OPTION );
+		TwoColumnLayoutService::resolve_default_for_existing_site();
+		$this->assertFalse( \get_option( self::SETTINGS_OPTION ), '判定只做一次' );
 	}
 
 	/**
@@ -170,6 +297,21 @@ final class TwoColumnLayoutTest extends CheckoutTestCase {
 		$this->assertFalse( \wp_script_is( self::HANDLE, 'enqueued' ), '區塊結帳不載入兩欄腳本' );
 		$this->assertFalse( \wp_style_is( self::HANDLE, 'enqueued' ), '區塊結帳不載入兩欄樣式' );
 		$this->assertNotContains( TwoColumnLayoutService::BODY_CLASS, \get_body_class() );
+	}
+
+	/**
+	 * @group edge
+	 */
+	public function test_filter回傳false時不套用_供其他結帳外掛或佈景停用(): void {
+		$this->go_to_checkout_page( '[woocommerce_checkout]' );
+		\add_filter( 'power_checkout_two_column_should_apply', '__return_false' );
+
+		$this->assertFalse( TwoColumnLayoutService::should_apply() );
+		$this->run_wp_enqueue_scripts();
+		$this->assertFalse( \wp_script_is( self::HANDLE, 'enqueued' ) );
+		$this->assertNotContains( TwoColumnLayoutService::BODY_CLASS, \get_body_class() );
+
+		\remove_filter( 'power_checkout_two_column_should_apply', '__return_false' );
 	}
 
 	/**

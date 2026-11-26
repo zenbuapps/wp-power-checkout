@@ -234,9 +234,12 @@ final class CheckoutEnhancementSettingsTest extends TestCase {
 				'last_name_first'     => 'yes',
 				'tw_phone_validation' => 'yes',
 				'free_shipping_hint'  => 'yes',
+				// 升級前就存過設定（缺 checkout_two_column）＝既有站 → 維持舊版 no
+				'checkout_two_column' => 'no',
 			]
 		);
 		$this->assertEquals( $expected, $this->response_data( $response ), '回應 data 應為完整 11 鍵' );
+		$this->assertSame( 'no', $stored['checkout_two_column'] ?? null, '第一次存檔時把當下有效預設值寫入' );
 	}
 
 	// ========== 錯誤處理（Error） ==========

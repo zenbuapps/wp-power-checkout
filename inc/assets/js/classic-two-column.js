@@ -20,10 +20,16 @@
 	}
 
 	var PENDING_CLASS = 'pc-tc-pending'
+	var ACTIVE_CLASS = 'pc-tc-active'
+	var BAIL_CONTAINERS = '.elementor-widget-woocommerce-checkout-page, .fc-wrapper, .fc-checkout-steps, #cfw, .cfw-container'
+	var BAIL_BODY_CLASSES = '.has-fluid-checkout, .checkout-wc, .cfw-grid'
 	var STICKY_CLASS = 'pc-tc-sticky'
 	var STICKY_GAP = 48
 
+	var $shell = null
 	var $layout = null
+	// 兩欄門檻：依結帳區塊本身寬度（佈景有側邊欄時內容區可能只有 600px），與 CSS @container pc-tc 一致
+	var TWO_COLUMN_MIN_WIDTH = 860
 	var $aside = null
 	var $slot = null
 
@@ -47,7 +53,7 @@
 	}
 
 	function isDesktop() {
-		return window.matchMedia ? window.matchMedia('(min-width: 960px)').matches : true
+		return !!$shell && $shell.innerWidth() >= TWO_COLUMN_MIN_WIDTH
 	}
 
 	/**
@@ -86,6 +92,17 @@
 	function build() {
 		var $form = $('form.checkout.woocommerce-checkout').first()
 		if (!$form.length || $form.find('.pc-tc-layout').length) {
+			return false
+		}
+
+		// 其他結帳外掛 / 頁面建構器已自行排版的結帳頁：不介入，維持它們的版面
+		// - Elementor Pro「結帳」widget（.elementor-widget-woocommerce-checkout-page）
+		// - Fluid Checkout（.fc-wrapper / body.has-fluid-checkout）、CheckoutWC（#cfw / body.checkout-wc）
+		if (
+			$form.closest(BAIL_CONTAINERS).length ||
+			$form.find(BAIL_CONTAINERS).length ||
+			$(document.body).is(BAIL_BODY_CLASSES)
+		) {
 			return false
 		}
 
@@ -145,13 +162,15 @@
 			}
 		})
 
+		$shell = $('<div class="pc-tc-shell"></div>')
 		$layout = $('<div class="pc-tc-layout"></div>')
 		var $main = $('<div class="pc-tc-main"></div>')
 		$aside = $('<div class="pc-tc-aside"></div>')
 		var $inner = $('<div class="pc-tc-aside-inner"></div>')
 		$slot = $('<div class="pc-tc-place-order-slot"></div>')
 
-		$layout.insertBefore(mainNodes.length ? mainNodes[0] : $reviewBranch)
+		$shell.insertBefore(mainNodes.length ? mainNodes[0] : $reviewBranch)
+		$shell.append($layout)
 		$main.append(mainNodes)
 		var i18n = window.pcTwoColumn || {}
 		var $paymentSection = $('<div class="pc-tc-payment-section"></div>')
@@ -163,6 +182,22 @@
 		$aside.append($inner)
 		$layout.append($main).append($aside)
 		$form.addClass('pc-tc-form')
+		$(document.body).addClass(ACTIVE_CLASS)
+
+		// 佈景把 form 設成收縮包覆的 display（例：Twenty Twenty-One 的 display:table 清除浮動）時，
+		// 寬度會由內容決定；.pc-tc-shell 是 inline-size container（寬度不受內容影響）→ 整個版面寬度歸零。改為 block。
+		var formDisplay = window.getComputedStyle ? window.getComputedStyle($form.get(0)).display : 'block'
+		if (/^(table|inline|inline-block|inline-table|inline-flex|inline-grid|table-cell)$/.test(formDisplay)) {
+			$form.addClass('pc-tc-form--block')
+		}
+
+		// 「建立帳號？」（.woocommerce-account-fields）在 .col-1 內、帳單欄位之後：整個 .col-1 當帳單卡片
+		$details.children('.col-1').each(function () {
+			var $col = $(this)
+			if ($col.children('.woocommerce-billing-fields').length) {
+				$col.addClass('pc-tc-billing-card')
+			}
+		})
 
 		relocatePlaceOrder()
 		return true
