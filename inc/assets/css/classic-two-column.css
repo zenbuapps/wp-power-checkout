@@ -982,10 +982,11 @@ form.checkout.pc-tc-form.pc-tc-form--block {
 	margin-top: 2px;
 }
 
+/* 佈景 / WC 的提示圖示（::before 絕對定位、依賴佈景自己的左側內距）：新版重設了內距，圖示會壓到文字 → 不顯示 */
 .pc-tc-form > .woocommerce-NoticeGroup .woocommerce-error::before,
-.pc-tc-form > .woocommerce-NoticeGroup .wc-block-components-notice-banner > svg {
-	fill: currentColor;
-	color: inherit;
+.pc-tc-form > .woocommerce-NoticeGroup .wc-block-components-notice-banner > svg,
+.pc-tc-active:not(#pc-tc-scope) .woocommerce-form-coupon-toggle .woocommerce-info::before {
+	display: none;
 }
 
 .pc-tc-form > .woocommerce-NoticeGroup .wc-block-components-notice-banner__content {

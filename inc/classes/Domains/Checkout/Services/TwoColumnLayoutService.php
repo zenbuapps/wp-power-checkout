@@ -36,6 +36,12 @@ final class TwoColumnLayoutService {
 	/** @var string 等待版面套用期間的 body class（CSS 有 fallback 動畫，JS 失敗也會自動顯示） */
 	public const BODY_CLASS = 'pc-tc-pending';
 
+	/** @var string woomp 結帳頁模式 option（onepage / twopage 時 woomp 會自行重排結帳頁） */
+	public const WOOMP_LAYOUT_OPTION = 'wc_woomp_setting_mode';
+
+	/** @var array<int, string> woomp 會重排結帳頁的模式 */
+	private const WOOMP_LAYOUT_MODES = [ 'onepage', 'twopage' ];
+
 	/** @var string 「既有站預設 no」已判定過的旗標 option */
 	public const DEFAULT_RESOLVED_OPTION = 'power_checkout_two_column_default_resolved';
 
@@ -147,7 +153,7 @@ final class TwoColumnLayoutService {
 		 *
 		 * 佈景主題 / 其他外掛自行改寫結帳版面時可回傳 false 停用。
 		 *
-		 * @param bool $apply 預設：未偵測到已知的結帳版面外掛（CheckoutWC / Fluid Checkout）時為 true
+		 * @param bool $apply 預設：未偵測到已知的結帳版面外掛（CheckoutWC / Fluid Checkout / woomp 一頁式・兩頁式結帳）時為 true
 		 */
 		return (bool) \apply_filters( 'power_checkout_two_column_should_apply', $apply );
 	}
@@ -163,7 +169,12 @@ final class TwoColumnLayoutService {
 			return true;
 		}
 		// Fluid Checkout
-		return \class_exists( '\FluidCheckout' );
+		if ( \class_exists( '\FluidCheckout' ) ) {
+			return true;
+		}
+		// woomp「一頁式 / 兩頁式結帳」：woomp-checkout.js 會把 #payment 搬到摘要表格下、#place_order 搬進 #customer_details，
+		// 與新版兩欄互搶同一批節點（staging 實測：下單按鈕被搬到摘要之前）→ 交給 woomp
+		return \in_array( \get_option( self::WOOMP_LAYOUT_OPTION ), self::WOOMP_LAYOUT_MODES, true );
 	}
 
 	/**

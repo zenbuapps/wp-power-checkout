@@ -98,6 +98,11 @@
 		// 其他結帳外掛 / 頁面建構器已自行排版的結帳頁：不介入，維持它們的版面
 		// - Elementor Pro「結帳」widget（.elementor-widget-woocommerce-checkout-page）
 		// - Fluid Checkout（.fc-wrapper / body.has-fluid-checkout）、CheckoutWC（#cfw / body.checkout-wc）
+		// - woomp「一頁式 / 兩頁式結帳」（woomp-checkout.js 自行搬移 #payment / #place_order；PHP 端已不載入本腳本，這裡再防一次）
+		var woompParams = window.woomp_checkout_params
+		if (woompParams && woompParams.enableWoomp === 'yes') {
+			return false
+		}
 		if (
 			$form.closest(BAIL_CONTAINERS).length ||
 			$form.find(BAIL_CONTAINERS).length ||

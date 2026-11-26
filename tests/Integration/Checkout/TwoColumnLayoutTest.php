@@ -316,6 +316,31 @@ final class TwoColumnLayoutTest extends CheckoutTestCase {
 
 	/**
 	 * @group edge
+	 * @dataProvider provide_woomp_modes
+	 *
+	 * @param string $mode     woomp 結帳頁模式
+	 * @param bool   $expected 是否套用新版
+	 */
+	public function test_woomp一頁式或兩頁式結帳啟用時不套用( string $mode, bool $expected ): void {
+		$this->go_to_checkout_page( '[woocommerce_checkout]' );
+		\update_option( TwoColumnLayoutService::WOOMP_LAYOUT_OPTION, $mode );
+
+		$this->assertSame( $expected, TwoColumnLayoutService::should_apply() );
+
+		\delete_option( TwoColumnLayoutService::WOOMP_LAYOUT_OPTION );
+	}
+
+	/** @return array<string, array{0: string, 1: bool}> */
+	public static function provide_woomp_modes(): array {
+		return [
+			'woomp 一頁式'   => [ 'onepage', false ],
+			'woomp 兩頁式'   => [ 'twopage', false ],
+			'woomp 未改結帳頁' => [ 'default', true ],
+		];
+	}
+
+	/**
+	 * @group edge
 	 */
 	public function test_order_received端點不套用(): void {
 		$this->go_to_checkout_page( '[woocommerce_checkout]' );
