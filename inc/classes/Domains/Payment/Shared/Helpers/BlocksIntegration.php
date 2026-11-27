@@ -6,6 +6,7 @@ namespace J7\PowerCheckout\Domains\Payment\Shared\Helpers;
 
 use J7\PowerCheckout\Domains\Payment\Shared\Abstracts\AbstractPaymentGateway;
 use J7\PowerCheckout\Plugin;
+use J7\PowerCheckout\Shared\Utils\ViteAsset;
 
 if (!class_exists('\Automattic\WooCommerce\Blocks\Payments\Integrations\AbstractPaymentMethodType')) {
 	return;
@@ -53,7 +54,7 @@ class BlocksIntegration extends \Automattic\WooCommerce\Blocks\Payments\Integrat
 
 		\wp_register_script(
 					$handle,
-					Plugin::$url . "/inc/assets/dist/blocks/{$this->name}.js",
+					ViteAsset::block_script_url( $this->name ),
 					[
 						'react',
 						'wc-settings',
@@ -64,7 +65,7 @@ class BlocksIntegration extends \Automattic\WooCommerce\Blocks\Payments\Integrat
 						'wp-i18n',
 						'wp-primitives',
 					],
-					Plugin::$version,
+					ViteAsset::block_version( $this->name ),
 					true
 			);
 

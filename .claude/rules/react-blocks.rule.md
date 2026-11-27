@@ -32,7 +32,7 @@ inc/assets/blocks/
   types/types.d.ts                 # Shared type declarations
 ```
 
-Build output: `inc/assets/dist/blocks/{name}.js`
+Build output: `inc/assets/dist/blocks/{name}-{hash}.js` + shared chunks `assets/*-{hash}.js` + `manifest.json`. PHP gets the URL with `ViteAsset::block_script_url( '{name}' )` (existence check `block_script_exists()`, version arg `block_version()` = `null` for hashed files) — never hardcode `dist/blocks/{name}.js`.
 
 ## WP/WC External Globals
 

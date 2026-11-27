@@ -2,9 +2,12 @@
 import { ref } from 'vue'
 import { Setting } from '@element-plus/icons-vue'
 import { useMutation, useQueryClient } from '@tanstack/vue-query'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { TProvider } from '../types'
 import apiClient from '@/api'
 import { ROUTER_MAPPER } from '@/router'
+import { resolveSettingsRoute } from '@/utils/settings-route'
 
 const props = withDefaults(defineProps<TProvider>(), {
     method_description: '',
@@ -35,7 +38,21 @@ const handleChange: () => Promise<boolean> = async () => {
     }
 }
 
-const url = ROUTER_MAPPER?.[`${props.id as keyof typeof ROUTER_MAPPER}`] ?? ''
+const router = useRouter()
+
+// 找不到該廠商的設定路由（通常是瀏覽器還在跑舊版前端 bundle）→ 明確提示重新整理，不再「點了沒反應」
+const openSettings = () => {
+    const result = resolveSettingsRoute(
+        props.id,
+        ROUTER_MAPPER,
+        (path) => router.resolve(path).matched.length > 0,
+    )
+    if (!result.ok) {
+        ElMessage({ type: 'warning', message: result.message, duration: 8000, showClose: true, offset: 100 }) // offset：避開 WP admin bar + WC 設定頁置頂標題列
+        return
+    }
+    router.push(result.path)
+}
 </script>
 
 <template>
@@ -75,12 +92,15 @@ const url = ROUTER_MAPPER?.[`${props.id as keyof typeof ROUTER_MAPPER}`] ?? ''
                     <span>{{ isEnabled ? 'Enabled' : 'Disabled' }}</span>
                 </div>
                 <div>
-                    <RouterLink :to="url">
-                        <Setting
-                                v-if="isEnabled"
-                                class="text-gray-400 size-5 cursor-pointer"
-                        />
-                    </RouterLink>
+                    <button
+                            v-if="isEnabled"
+                            aria-label="設定"
+                            class="pc-card-settings p-0 border-0 bg-transparent cursor-pointer leading-none"
+                            type="button"
+                            @click="openSettings"
+                    >
+                        <Setting class="text-gray-400 size-5" />
+                    </button>
                 </div>
             </div>
         </template>

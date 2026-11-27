@@ -33,6 +33,7 @@ use J7\PowerCheckout\Domains\Invoice\Shared\Helpers\MetaKeys;
 use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\IInvoiceService;
 use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
+use J7\PowerCheckout\Shared\Utils\ViteAsset;
 
 /** 電子發票 block 結帳發票表單整合（後端串接） */
 final class BlocksInvoiceIntegration {
@@ -101,7 +102,7 @@ final class BlocksInvoiceIntegration {
 			return;
 		}
 
-		$asset_url = Plugin::$url . '/inc/assets/dist/blocks/pc_invoice.js';
+		$asset_url = ViteAsset::block_script_url( 'pc_invoice' );
 
 		\wp_enqueue_script(
 			self::SCRIPT_HANDLE,
@@ -114,7 +115,7 @@ final class BlocksInvoiceIntegration {
 				'wp-html-entities',
 				'wp-i18n',
 			],
-			Plugin::$version,
+			ViteAsset::block_version( 'pc_invoice' ),
 			true
 		);
 		// Vite 產出 ESM（含 import），須以 type="module" 載入，否則瀏覽器報 Cannot use import statement outside a module

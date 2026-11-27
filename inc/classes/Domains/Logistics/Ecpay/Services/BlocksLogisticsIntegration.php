@@ -31,6 +31,7 @@ use J7\PowerCheckout\Domains\Logistics\Shared\Enums\LogisticsPaymentScenario;
 use J7\PowerCheckout\Domains\Logistics\Shared\Helpers\CartLogisticsSession;
 use J7\PowerCheckout\Domains\Logistics\Shared\Helpers\LogisticsMetaKeys;
 use J7\PowerCheckout\Plugin;
+use J7\PowerCheckout\Shared\Utils\ViteAsset;
 
 /** 綠界全方位物流 block 結帳整合（後端串接） */
 final class BlocksLogisticsIntegration {
@@ -95,7 +96,7 @@ final class BlocksLogisticsIntegration {
 			return;
 		}
 
-		$asset_url = Plugin::$url . '/inc/assets/dist/blocks/ecpay_logistics.js';
+		$asset_url = ViteAsset::block_script_url( 'ecpay_logistics' );
 
 		\wp_enqueue_script(
 			self::SCRIPT_HANDLE,
@@ -108,7 +109,7 @@ final class BlocksLogisticsIntegration {
 				'wp-html-entities',
 				'wp-i18n',
 			],
-			Plugin::$version,
+			ViteAsset::block_version( 'ecpay_logistics' ),
 			true
 		);
 		// Vite 產出 ESM（含 import），須以 type="module" 載入，否則瀏覽器報 Cannot use import statement outside a module

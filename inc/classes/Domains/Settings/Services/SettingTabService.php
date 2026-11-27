@@ -7,6 +7,7 @@ namespace J7\PowerCheckout\Domains\Settings\Services;
 use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Shared\Utils\Base;
 use J7\PowerCheckout\Shared\Utils\OrderUtils;
+use J7\PowerCheckout\Shared\Utils\ViteAsset;
 
 /**
  * WooCommerce 設定分頁服務
@@ -111,9 +112,9 @@ class SettingTabService {
 
 		\wp_register_script(
 			self::$handle,
-			Plugin::$url . '/js/dist/index.js',
+			ViteAsset::app_script_url(),
 			[ 'jquery' ],
-			Plugin::$version,
+			ViteAsset::app_version(),
 			[
 				'strategy'  => 'async',
 				'in_footer' => true,
@@ -159,9 +160,9 @@ class SettingTabService {
 
 		\wp_register_style(
 			self::$handle,
-			Plugin::$url . '/js/dist/index.css',
+			ViteAsset::app_style_url(),
 			[],
-			Plugin::$version,
+			ViteAsset::app_version(),
 		);
 
         if(!self::is_current_tab()) { // phpcs:ignore
@@ -180,9 +181,9 @@ class SettingTabService {
 		if (!\wp_script_is( self::$handle, 'registered' )) {
 			\wp_register_script(
 				self::$handle,
-				Plugin::$url . '/js/dist/index.js',
+				ViteAsset::app_script_url(),
 				[ 'jquery' ],
-				Plugin::$version,
+				ViteAsset::app_version(),
 				[
 					'strategy'  => 'async',
 					'in_footer' => true,
@@ -193,11 +194,15 @@ class SettingTabService {
 		if (!\wp_style_is( self::$handle, 'registered' )) {
 			\wp_register_style(
 				self::$handle,
-				Plugin::$url . '/js/dist/index.css',
+				ViteAsset::app_style_url(),
 				[],
-				Plugin::$version,
+				ViteAsset::app_version(),
 			);
 		}
+
+		// 不論由哪條路徑註冊（後台任意頁的發票 hook、前台 before_order_received），bundle 都是 ESM，必須 type="module"；
+		// 否則被當 classic script 載入：import.meta 直接 SyntaxError、import('./assets/…') 也會相對頁面網址解析而 404
+		Plugin::instance()->add_module_handle( self::$handle );
 
 		\wp_enqueue_script(self::$handle);
 		\wp_enqueue_style(self::$handle);
