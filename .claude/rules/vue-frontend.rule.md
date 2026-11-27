@@ -155,6 +155,8 @@ Memory mode router (`createMemoryHistory`):
 ## Build
 
 - Vite dev server: port 5182
-- Output: `js/dist/index.js` + `js/dist/index.css`
+- Output: `js/dist/index-{hash}.js` + `js/dist/index-{hash}.css` + chunks `js/dist/assets/*-{hash}.js` + `js/dist/manifest.json`
 - Single entry point: `js/src/index.ts`
-- Asset names: `[name].[ext]` (no hash in filenames)
+- File names always carry a content hash (hosts may ignore `?ver=` and cache static files for a year); PHP resolves them through `Shared\Utils\ViteAsset` (reads `manifest.json`) — never hardcode `js/dist/index.js`
+- `base: './'` for build (chunk preloads relative to the entry, not the site root)
+- Settings card gear: route resolution in `utils/settings-route.ts` (pure logic, `pnpm test:js`); missing route →「外掛已更新，請重新整理頁面（Ctrl+Shift+R）」

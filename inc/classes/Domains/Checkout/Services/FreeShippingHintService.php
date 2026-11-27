@@ -19,6 +19,7 @@ namespace J7\PowerCheckout\Domains\Checkout\Services;
 use J7\PowerCheckout\Domains\Checkout\DTOs\CheckoutEnhancementSettingsDTO;
 use J7\PowerCheckout\Domains\Checkout\Shared\Helpers\FreeShippingCalculator;
 use J7\PowerCheckout\Plugin;
+use J7\PowerCheckout\Shared\Utils\ViteAsset;
 
 /** 差多少免運提示 */
 final class FreeShippingHintService {
@@ -35,8 +36,8 @@ final class FreeShippingHintService {
 	/** @var string 區塊腳本 handle */
 	public const SCRIPT_HANDLE = 'pc-free-shipping-hint-blocks';
 
-	/** @var string 區塊腳本建置產物（相對外掛根目錄） */
-	private const SCRIPT_PATH = 'inc/assets/dist/blocks/pc_free_shipping_hint.js';
+	/** @var string 區塊腳本 entry 名稱（inc/assets/blocks/{name}.tsx；實際檔名帶 hash，由 ViteAsset 讀 manifest） */
+	private const SCRIPT_ENTRY = 'pc_free_shipping_hint';
 
 	/** @var string 傳統提示列 CSS class */
 	private const ROW_CLASS = 'pc-free-shipping-hint';
@@ -186,14 +187,13 @@ final class FreeShippingHintService {
 				return;
 			}
 
-			$file = Plugin::$dir . '/' . self::SCRIPT_PATH;
-			if ( !\file_exists( $file ) ) {
+			if ( !ViteAsset::block_script_exists( self::SCRIPT_ENTRY ) ) {
 				return; // 建置產物不存在時安全略過
 			}
 
 			\wp_enqueue_script(
 				self::SCRIPT_HANDLE,
-				Plugin::$url . '/' . self::SCRIPT_PATH,
+				ViteAsset::block_script_url( self::SCRIPT_ENTRY ),
 				[
 					'wc-blocks-checkout',
 					'wp-plugins',
@@ -202,7 +202,7 @@ final class FreeShippingHintService {
 					'wp-html-entities',
 					'wp-i18n',
 				],
-				Plugin::$version,
+				ViteAsset::block_version( self::SCRIPT_ENTRY ),
 				true
 			);
 			// Vite 產出 ESM（含 import），須以 type="module" 載入

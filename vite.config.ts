@@ -5,7 +5,7 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 import postcssPrefixSelector from 'postcss-prefix-selector'
 import tailwindcss from 'tailwindcss'
 
-export default defineConfig({
+export default defineConfig(({command}) => ({
     server: {
         port: 5182,
         cors: {
@@ -44,15 +44,22 @@ export default defineConfig({
         vue(),
         vueDevTools(),
     ],
+    // build 產物以相對路徑互相引用（chunk preload 不再指向站台根目錄 /assets/...）
+    base: command === 'build' ? './' : '/',
     build: {
         outDir: 'js/dist',
+        emptyOutDir: true,
+        // PHP（ViteAsset）讀 js/dist/manifest.json 取得帶 hash 的 entry / CSS 檔名
+        manifest: 'manifest.json',
         rollupOptions: {
             input: 'js/src/index.ts',
             output: {
-                entryFileNames: 'index.js',
+                // 檔名一律帶 content hash：部分主機對靜態檔回 immutable 一年快取且忽略 ?ver=，
+                // 固定檔名會讓更新後的瀏覽器繼續跑舊 bundle（例：新 PHP 列出新廠商卡片，舊 bundle 沒有它的路由）
+                entryFileNames: '[name]-[hash].js',
+                chunkFileNames: 'assets/[name]-[hash].js',
                 name: 'settings',
-                // 修改資源檔案名稱
-                assetFileNames: '[name].[ext]',
+                assetFileNames: '[name]-[hash][extname]',
             }
         },
     },
@@ -61,4 +68,4 @@ export default defineConfig({
             '@': fileURLToPath(new URL('./js/src', import.meta.url))
         },
     },
-})
+}))

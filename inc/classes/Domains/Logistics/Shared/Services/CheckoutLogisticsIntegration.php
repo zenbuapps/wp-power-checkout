@@ -26,6 +26,7 @@ use J7\PowerCheckout\Domains\Logistics\Shared\Helpers\LogisticsMetaKeys;
 use J7\PowerCheckout\Domains\Logistics\Shared\Interfaces\ILogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Shared\Interfaces\ISupportsCheckoutStoreSelection;
 use J7\PowerCheckout\Plugin;
+use J7\PowerCheckout\Shared\Utils\ViteAsset;
 
 /** 物流共用結帳整合 */
 final class CheckoutLogisticsIntegration {
@@ -354,15 +355,14 @@ final class CheckoutLogisticsIntegration {
 		$is_block = $post instanceof \WP_Post && \function_exists( 'has_block' ) && \has_block( 'woocommerce/checkout', $post );
 
 		if ($is_block) {
-			$file = Plugin::$dir . '/inc/assets/dist/blocks/pc_logistics.js';
-			if (!\file_exists( $file )) {
+			if (!ViteAsset::block_script_exists( 'pc_logistics' )) {
 				return;
 			}
 			\wp_enqueue_script(
 				self::BLOCKS_HANDLE,
-				Plugin::$url . '/inc/assets/dist/blocks/pc_logistics.js',
+				ViteAsset::block_script_url( 'pc_logistics' ),
 				[ 'wc-blocks-checkout', 'wp-plugins', 'wp-data', 'wp-element', 'wp-html-entities', 'wc-settings' ],
-				Plugin::$version,
+				ViteAsset::block_version( 'pc_logistics' ),
 				true
 			);
 			Plugin::instance()->add_module_handle( self::BLOCKS_HANDLE );

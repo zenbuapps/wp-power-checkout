@@ -9,7 +9,9 @@ import {glob} from 'glob'
 // import liveReload from 'vite-plugin-live-reload'
 
 
-export default defineConfig({
+export default defineConfig(({command}) => ({
+    // build 產物以相對路徑互相引用（chunk preload 不指向站台根目錄 /assets/...）
+    base: command === 'build' ? './' : '/',
     server: {
         port: 5181,
         cors: {
@@ -21,6 +23,7 @@ export default defineConfig({
     },
     build: {
         emptyOutDir: true,
+        manifest: 'manifest.json',
         minify: true,
         outDir: path.resolve(__dirname, 'inc/assets/dist/blocks'),
         rollupOptions: {
@@ -34,8 +37,10 @@ export default defineConfig({
             ),
             output: {
                 // format: 'iife', // 使用 IIFE 格式，適合 WordPress 環境
-                assetFileNames: '[ext]/[name].[ext]',
-                entryFileNames: '[name].js', // 保持原檔名，但副檔名改為 .js
+                // 檔名一律帶 content hash（主機可能忽略 ?ver= 並快取一年）；PHP 由 ViteAsset 讀 manifest.json 取實際檔名
+                assetFileNames: '[ext]/[name]-[hash].[ext]',
+                entryFileNames: '[name]-[hash].js',
+                chunkFileNames: 'assets/[name]-[hash].js',
             },
             external: [], // 確保所有依賴都被打包進去
         },
@@ -86,4 +91,4 @@ export default defineConfig({
             'lodash-es': 'lodash'
         },
     },
-})
+}))
